@@ -183,8 +183,7 @@ The existing `SessionStart` herdr hook stays; the `ernie` hook goes alongside it
 
 - Binds to `127.0.0.1` only. One server handles every repo/branch log; the page URL picks one (`/?log=<slug>/<branch>`).
 - Endpoints:
-  - `GET /` serves the embedded page (`go:embed`)
-  - `GET /state` returns the folded state as JSON
+  - `GET /` lists logs; `GET /?log=…` serves the embedded page (`go:embed`)
   - `GET /stream` is SSE and pushes the full state on each change (it's small)
   - `POST /events` accepts user events
 - Change detection: see "How the page stays current" below.
@@ -207,7 +206,7 @@ The browser never reads the JSONL. The server tails it, keeps the folded state i
    - size == offset → nothing to do
    - size > offset → read from `offset` to EOF. Parse only complete lines (ending in `\n`), and advance `offset` past the last newline, so a half-written trailing line waits for the next check
    - size < offset, or the file was replaced (`!os.SameFile`) → reset `offset = 0`, rebuild `state` from scratch
-   - file removed → send `event: gone` (the page shows "log not found") and keep polling; if it reappears, refold and resume sending `state`
+   - file removed → send `event: gone` once, close the stream and stop the watcher. The page shows "log not found"; reload after `ernie init` to recover
    - logs with no open tab get no watcher, so they cost nothing
 3. **Apply.** Each new event goes through `state.Apply(event)`, so work grows with the number of new lines, not with the file size. It's the same `Apply` that `Fold` and `ernie dump` use.
 4. **Push.** Marshal the full state (a few KB) and send it to every subscriber of that log as an SSE frame:
@@ -230,7 +229,7 @@ The browser never reads the JSONL. The server tails it, keeps the folded state i
 - Renders the state from SSE and POSTs your actions. It doesn't fold or keep its own copy of the logic.
 - The state includes `pending` (your events since the last turn mark) and `inboxText` (the exact text the next prompt's hook will inject, from the same Go function). The page's outbox and preview show these instead of keeping a client-side outbox.
 - `activity` in the state holds only the last 350 entries, so SSE frames stay small. The full history stays in the log.
-- Paths are shown relative to the repo root from the log's `meta init` line; the index page (`/` without `?log`) lists logs by repo name.
+- Paths are shown relative to the repo root from the log's `meta init` line; the index page (`/` without `?log`) is a plain list of links, one per log key (`<repo-slug>/<branch>`), from the directory listing.
 - `spec_ernie_mock.html` is the visual target; its `render*` functions are the starting point.
 - Render rules:
   - every `state` frame redraws each panel from scratch, with no partial patching
