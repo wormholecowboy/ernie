@@ -1,6 +1,6 @@
 # Live Context UI — Plan
 
-**Status:** ready to build, nothing built yet · **Updated:** 2026-10-09 (build-plan amendments A1–A35 and A51–A87 folded in)
+**Status:** ready to build, nothing built yet · **Updated:** 2026-10-09 (build-plan amendments A1–A35, A51–A87 and A95–A109 folded in; A104/A105 wait on A89)
 
 Files (all in `.mem/artifacts/`):
 - `spec_ernie.md` — this doc (the build spec)
@@ -75,7 +75,7 @@ flowchart TD
 ## Storage
 
 - **Path:** `~/.local/state/ernie/<repo-slug>/<branch>.jsonl` (`$ERNIE_HOME`, then `$XDG_STATE_HOME/ernie`, override the default). Kept out of every repo so work repos don't need gitignore changes, and never put in git.
-  - **Which log:** always the one for the session root. Hooks resolve from `$CLAUDE_PROJECT_DIR` when it's set, else the payload `cwd`; CLI writes from `$CLAUDE_PROJECT_DIR` when it's set, else the process cwd (A68, pending the spike). A file touch goes to that log even when the edited file is in another repo, and paths outside the meta `root` are shown absolute (A29).
+  - **Which log:** always the one for the session root. Hooks resolve from `$CLAUDE_PROJECT_DIR` when it's set, else the payload `cwd`; CLI writes from `$ERNIE_PROJECT_DIR` when it's set, else the process cwd (A95). `CLAUDE_PROJECT_DIR` isn't in Claude's Bash env, so the `session-start` hook exports `ERNIE_PROJECT_DIR` through `$CLAUDE_ENV_FILE`; it's a dir, not a log path, so a mid-session `git checkout` is still followed. A file touch goes to that log even when the edited file is in another repo, and paths outside the meta `root` are shown absolute (A29).
   - Repo comes from `git rev-parse --git-common-dir` on that cwd, so all worktrees of a repo share one folder. Their logs stay apart by branch, since git won't check out one branch in two worktrees.
   - The slug is the repo's basename (`dotfiles`): if the common dir's basename is `.git` or `.bare`, use its parent directory's basename; otherwise the basename with any `.git` suffix stripped (A26). It becomes `dotfiles-3f2a1c` only if a different repo already owns that name; a `.root` file in each slug folder records the owner (absolute common dir). Only `ernie init` writes `.root` (`O_EXCL`, before the log); a slug folder with no `.root` and no logs is free (A74).
   - Branch comes from reading `<git-dir>/HEAD`. A detached HEAD during a rebase reads `rebase-merge/head-name` or `rebase-apply/head-name`, then `BISECT_START` during a bisect (A32); otherwise it uses the short SHA.
@@ -135,7 +135,7 @@ ernie decide set d3 ["new text"] [--why "..."]  # revise a decision
 ernie ask "CLI language?" --choice go --choice "bash + jq"   # → q2
 ernie answer q2 go                          # close a question you answered in the terminal
 ernie answer q2 --drop                      # retire a question that no longer matters
-ernie diagram arch < arch.mmd               # or heredoc; errors on empty input (TTY/2s guard only if the spike finds an open pipe, A65)
+printf '%s' '…' | ernie diagram arch       # source on stdin (no heredoc: Bash(ernie:*) doesn't cover it, A100); errors on empty input (A98)
 ernie fact "Hooks must exit 0 on any error" # → f1
 ernie fact dismiss f1
 ernie dump                                  # compact state, for Claude
@@ -147,9 +147,9 @@ ernie completion zsh                        # zsh completion script (cobra)
 ernie hook post-tool-use|user-prompt-submit|session-start   # reads hook JSON on stdin
 ```
 
-Flags can go anywhere on the line (cobra/pflag). Write commands need an existing log: with no log they exit 1 and print a hint to run `ernie init`; with an `.off` marker they write nothing, print the notice on stderr, leave stdout empty and exit 0 (A33). On success they print only the new id on stdout. Commands that take an id (`plan set`, `answer`, `fact dismiss`, `decide set`) exit 1 on an id that was never added with `unknown id p14; open: p3,p4` and write nothing (A25, A61). Ids are looked up per type (the prefix must match the command), and `plan set` accepts only todo/active/done/dropped (A75). Your terminal user ops that would push the inbox past its cap exit 1 "outbox full; wait for the next prompt" (A69). Missing log → `Update` returns `ErrNoLog`; the CLI maps it to exit 1 + the init hint, hooks to a no-op, POST to 404 (A54).
+Flags can go anywhere on the line (cobra/pflag). Write commands need an existing log: with no log they exit 1 and print a hint to run `ernie init`; with an `.off` marker they write nothing, print the notice on stderr, leave stdout empty and exit 0 (A33). On success they print the new or changed id, two spaces and the first 40 chars of the text (`p2  Wire middleware`); errors name the command (`plan add "B": unknown flag --tga`), so an id shifted by a failed command in a batch is visible (A102). Commands that take an id (`plan set`, `answer`, `fact dismiss`, `decide set`) exit 1 on an id that was never added with `unknown id p14; open: p3,p4` and write nothing (A25, A61). Ids are looked up per type (the prefix must match the command), and `plan set` accepts only todo/active/done/dropped (A75). Your terminal user ops that would push the inbox past its cap exit 1 "outbox full; wait for the next prompt" (A69). Missing log → `Update` returns `ErrNoLog`; the CLI maps it to exit 1 + the init hint, hooks to a no-op, POST to 404 (A54).
 
-`ernie init` exits 1 with "run `ernie init` yourself" when the env var that marks Claude's Bash tool is set (likely `CLAUDECODE`; the hook spike confirms). The settings.json `ask` rule is a second layer, since it may not match `cd x && ernie init` or `ERNIE_HOME=… ernie init` (A27). Only you run `init`, from your own shell; `!` mode counts as Claude's (pending the A58 check, A70).
+`ernie init` exits 1 with "run `ernie init` yourself" when the env var that marks Claude's Bash tool is set (`CLAUDECODE=1`, confirmed by the flow test; also set in subagent Bash, A83). The settings.json `ask` rule is a second layer, since it may not match `cd x && ernie init` or `ERNIE_HOME=… ernie init` (A27). Only you run `init`, from your own shell; `!` mode counts as Claude's (pending the A58 check, A70).
 
 `ernie dump` prints compact text rather than JSON, to keep it cheap in tokens:
 
@@ -159,9 +159,10 @@ DECIDED   d1 JSONL over JSON (append-only) · d2 Scope repo+branch (survives /cl
 OPEN      q1 CLI language? [go | bash + jq | bun]
 ANSWERED  q2 Where does it live? → dotfiles
 FACTS     Hooks must exit 0 on any error
+NOTES     n1 3 workers on 2 hosts
 ```
 
-Target ≤ 1.5 KB, hard cap 4 KB. Past the cap, sections are cut from the end in this order of priority: open questions, active steps, todo steps, decisions, facts, done/answered, diagram names. Each cut section ends with `+N more` (A59).
+Target ≤ 1.5 KB, hard cap 4 KB. `NOTES` holds the last 3 notes, so a note survives `/clear` and compaction (A106). Past the cap, sections are cut from the end in this order of priority: open questions, active steps, todo steps, decisions, facts, notes, done/answered, diagram names. Each cut section ends with `+N more` (A59).
 
 ## Hooks
 
@@ -171,15 +172,15 @@ The hooks live in the global `claude/.claude/settings.json`, so there's nothing 
 
 | Hook | Matcher | Does |
 |---|---|---|
-| `PostToolUse` | `Edit\|Write\|MultiEdit\|NotebookEdit` | Appends `file touch` events. No Bash events in v1 (A62) |
-| `UserPromptSubmit` | — | Under one lock: fold, build the output, write it to stdout (goes into context), check the write error, and only then append a `turn mark`. If the write failed, no mark, so the inbox is delivered again next prompt (A22). Output = `ernie inbox` (your page and terminal edits since the last turn, header `ernie inbox · turn <n>`, capped at 8 KB or the spike's hook-output limit, A57; every `by:user` writer checks the cap before writing, so nothing is truncated, A69), plus one reminder line if the turn that just ended edited files (`file touch`) with no `by:claude` events: *"ernie: last turn edited files without logging; update plan status, decisions or questions if they changed."* (A21). Prints nothing when both are empty. Prompts that don't start a model turn (slash commands, `!` mode, queued messages) get no output and no mark if the spike shows the hook fires for them (A67) |
-| `SessionStart` | `startup\|compact\|clear\|resume\|fork` | Prints `ernie dump` so state comes back in new sessions and after compaction. The dump's header line also tells Claude that ernie is on for this branch |
+| `PostToolUse` | `Edit\|Write\|MultiEdit\|NotebookEdit` | Appends `file touch` events. No Bash events in v1 (A62). Reads the key from the session cache `.sessions/<session_id>` instead of calling git; a miss falls back to `Resolve` (A96) |
+| `UserPromptSubmit` | — | Under one lock: fold, build the output, write it to stdout (goes into context), check the write error, and only then append a `turn mark`. If the write failed, no mark, so the inbox is delivered again next prompt (A22). Output = `ernie inbox` (your page and terminal edits since the last turn, header `ernie inbox · turn <n>`, capped at 8 KB, A57, A97; every `by:user` writer checks the cap before writing, so nothing is truncated, A69), plus one reminder line if the turn that just ended edited files (`file touch`) with no `by:claude` events: *"ernie: last turn edited files without logging; update plan status, decisions or questions if they changed."* (A21). Prints nothing when both are empty. Rewrites the session cache (A96). No skip list: `-p` built-ins don't fire UPS and skill prompts start real turns; only a kind the interactive check finds firing without a model turn would be skipped (A99) |
+| `SessionStart` | `startup\|compact\|clear\|resume\|fork` | Prints `ernie dump` so state comes back in new sessions and after compaction. The dump's header line also tells Claude that ernie is on for this branch. Appends `export ERNIE_PROJECT_DIR='…'` to `$CLAUDE_ENV_FILE` (A95) and writes the session cache (A96) |
 
 **No Stop hook in v1 (A21).** Most turns that edit files change no plan state, so a hard block would add a filler model turn to nearly every edit turn. The soft reminder on the next prompt replaces it.
 
 The existing `SessionStart` herdr hook stays; the `ernie` hook goes alongside it. Whether `fork` exists as a source is checked by the hook spike.
 
-**Hook spike (phase 1, after task 1.1 and before the fold, A28):** capture real payloads with a throwaway logging hook before writing parsers or turn-scoped state. It settles: the hook-output size cap (A57), the notebook path field, whether `fork` is a SessionStart source, whether the payload `cwd` follows a Bash `cd` and whether `CLAUDE_PROJECT_DIR` is set in the hook and Bash envs (if it isn't in the Bash env, the skill tells Claude to run `ernie` from the session root, A29, A68), what the Bash tool's stdin is (A35; the `diagram` stdin deadline is built only if it's an open pipe, A65), which env var marks Claude's Bash tool (A27, A53), whether it's set in subagent Bash calls (A83) and whether it leaks into your own panes or `!` mode (A58), and whether UserPromptSubmit fires for prompts that don't start a model turn (A67).
+**Hook spike (phase 1, after task 1.1 and before the fold, A28):** capture real payloads with a throwaway logging hook before writing parsers or turn-scoped state. Settled by the 2026-10-09 scratch flow test (`ref_ernie_flow_test.md`): UPS stdout reaches context, inline up to ~10,000 chars, so the 8 KB cap stays (A97); a failed Edit fires no PostToolUse; `CLAUDE_PROJECT_DIR` is in hook envs but not Bash, so the CLI uses `ERNIE_PROJECT_DIR` (A95); `Bash(ernie:*)` doesn't cover heredocs (A100); Bash stdin is `/dev/null`, so no `diagram` deadline (A98); `CLAUDECODE=1` marks Claude's Bash, hooks and subagent Bash (A27, A53, A83); `-p` built-ins don't fire UPS (A99). Still open: the notebook path field, whether `fork` is a SessionStart source and what `clear` prints, whether the payload `cwd` follows a Bash `cd`, whether `CLAUDECODE` leaks into your own panes or `!` mode (A58), and UPS for interactive `!`, queued and slash prompts (A99).
 
 ## Server (`ernie serve`)
 
@@ -242,7 +243,7 @@ The browser never reads the JSONL. The server tails it, keeps the folded state i
 
 ## Fold logic
 
-`(*State).Apply(event)` updates the state in place with no I/O. `Fold(events) → State` runs `Apply` over all events in file order. Deterministic, no I/O. The server calls `Apply` incrementally as new lines arrive; `ernie dump` and the CLI's next-id lookup call `Fold`.
+`(*State).Apply(event)` updates the state in place with no I/O. `Fold(events) → State` runs `Apply` over all events in file order. Deterministic, no I/O. The server calls `Apply` incrementally as new lines arrive; `ernie dump` and the CLI's next-id lookup call `Fold`. Only the server builds `activity`; CLI and hook folds skip it (A109).
 
 | Case | Behavior |
 |---|---|
@@ -253,7 +254,7 @@ The browser never reads the JSONL. The server tails it, keeps the folded state i
 | `question set {status: dropped}` | question leaves OPEN in dumps; its `queue.md` mirror is deleted on the next `*um` (A34) |
 | `turn mark` | resets the turn-scoped fields (file touched, claude logged, `pending`) and sets `Turn = max(Turn+1, n)` (A81), so a fold before the next mark describes the turn that just ended (what the A21 reminder reads) |
 
-`Inbox(state)` returns `state.Pending` (`pending` in the state JSON, A81): the `by:user` events after the last `turn mark` (from the page or your own terminal, A53), limited to `InboxOps`: the four page ops plus your terminal `question set` and `decision set` (A71); `meta` events don't count. `InboxText(state)` renders it, plus the A21 reminder; it takes no clock (A63).
+`Inbox(state)` returns `state.Pending` (`pending` in the state JSON, A81): the `by:user` events after the last `turn mark` (from the page or your own terminal, A53), limited to `InboxOps`: the four page ops plus your terminal `question set` and `decision set` (A71); `meta` events don't count. Repeats collapse: only the latest `plan set` / `question answer` per id since the last mark is kept, and notes stay one per line (A107). `InboxText(state)` renders it, plus the A21 reminder; it takes no clock (A63).
 
 ## Tests (`go test`)
 
@@ -265,11 +266,11 @@ Each function gets one expected case, one edge case and one failure case. Use `t
 | `Update` / `AppendExisting` | line + newline written | quotes/newlines in text round-trip; 20 parallel writers → 20 unique ids; torn last line → both events fold (A51) | missing log → `ErrNoLog` / no-op, no file created (A54) |
 | `Create` | `meta init` first, `0600` | parallel `AppendExisting` during `Create` → `meta init` still first (A55) | already exists → "already on" |
 | `Resolve` | repo + branch | `/` in branch; worktree shares the main repo's slug; rebase in progress → real branch; bare root → A26 slug (A56) | not a git repo → cwd-hash fallback |
-| `Inbox` | user events after the last turn, page and terminal | no turn mark yet | empty log |
+| `Inbox` | user events after the last turn, page and terminal | no turn mark yet; done → todo → done on one step → one line (A107) | empty log |
 | `InboxText` | golden: header + answers with context | reminder on/off; `FitsInbox` false for an event past the cap (A69) | nothing pending → empty string |
 | `Tail` (watcher read) | new complete lines returned, offset advanced | half-written trailing line held until the next read | file shrank → offset reset, state rebuilt |
 | `GET /stream` | new subscriber gets a `hello` frame with the token, then current state at once | append → every subscriber gets the new state | unknown log → 404 |
-| `Dump` | golden output | empty state | — |
+| `Dump` | golden output, `NOTES` included (A106) | empty state | — |
 | hook `post-tool-use` | Edit → `file touch` | unknown tool → no-op | bad stdin JSON → exit 0, nothing written |
 | hook `user-prompt-submit` | inbox printed, then turn mark appended | edits without claude events → reminder line added | stdout write fails → no turn mark, inbox redelivered |
 | `POST /events` | valid answer appended | disallowed op → 400 | bad/missing token → 403 |
@@ -341,7 +342,7 @@ judge       d1 JSONL over JSON — append-only… · f1 Hooks exit 0 on any erro
 | `handoff` | Build the HANDOFF file from `ernie dump` + a pointer to the plan doc. Tell the next agent to run `ernie dump` for fresh state |
 | `mem` `/mem` resume | After reading `.mem`, add `ernie dump` for the current branch to the resume summary if a log exists |
 | `mem` `*mr` | No change. Mirrors carry tags and markers, so grep still finds them |
-| new `ernie` skill | When to log (plan changes, decisions, questions via `ernie ask` with Qx/total; `ernie answer --drop` for questions that no longer matter), what the reminder line means (act only if plan state actually changed), and when to tag |
+| new `ernie` skill | When to log (plan changes, decisions, questions via `ernie ask` with Qx/total; `ernie answer --drop` for questions that no longer matter), what the reminder line means (act only if plan state actually changed), and when to tag. `ernie` calls go in their own Bash call; after a denial, re-run the whole batch and check with `ernie dump` (A101). Source goes in through `printf '%s' '…' \| ernie …`, never a heredoc (A100). Don't restate the page: name the ids and send every question through `ernie ask` (A108). Promote durable notes to a fact or decision (A106) |
 | everything else | No change (response-style skills, task skills, `visual-explainer`) |
 
 **Edge cases:**
@@ -362,6 +363,7 @@ judge       d1 JSONL over JSON — append-only… · f1 Hooks exit 0 on any erro
    - `gtg` and `handoff` edits
    - an entry in `decisions.md`
    - an `install.txt` entry: clone `~/things/myc/ernie`, run its install script
+   - only if questions still land only in prose after A108: the transcript-based prose-question nudge (A103)
 
 ## v2: "Send now" via channels
 

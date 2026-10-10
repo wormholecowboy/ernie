@@ -1,6 +1,6 @@
 # ernie — chat → CLI → state → page → next turn: scratch flow test
 
-**Run:** 2026-10-09 · **Claude Code:** 2.1.286 · **Built with:** a scratch Go implementation of phases 1–3 (no page HTML), 11 Go flow tests, and live nested `claude -p` sessions (Sonnet for a 4-turn flow, Haiku for probes) · **Proposed amendments:** A95–A109 below, all pending your review
+**Run:** 2026-10-09 · **Claude Code:** 2.1.286 · **Built with:** a scratch Go implementation of phases 1–3 (no page HTML), 11 Go flow tests, and live nested `claude -p` sessions (Sonnet for a 4-turn flow, Haiku for probes) · **Amendments:** A95–A109 below, all accepted 2026-10-09 (A100 changed: no new flags; A103 deferred to phase 4) and folded into `spec_ernie.md` + `plan_ernie_build.md`
 
 Tags: ✓ verified (a command or test was run) · ~ inferred · ✗ not checked.
 
@@ -181,7 +181,7 @@ Nothing reaches Claude until you type. This is v1 by design; v2 channels would c
 
 ---
 
-## Proposed amendments (A95–A109, pending)
+## Amendments (A95–A109, accepted 2026-10-09)
 
 | # | Change | Why | Fixes |
 |---|---|---|---|
