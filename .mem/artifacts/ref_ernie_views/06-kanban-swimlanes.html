@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<!--
+  VARIATION 06 · Kanban Swimlanes
+  For: the user triaging "what's left for us vs the platform team" across several tickets / worktrees at once.
+  Key idea: Home is a kanban board. One swimlane per worktree (row); columns follow the issue gate plus questions:
+    Ask you · Explained · Approved · Fixed · Dropped (collapsed). Cards are compact (id, title, ours/theirs, ✓ ~ ✗, impact).
+    Explained → Approved is an explicit button on the card, never a drag. An owner toggle (all / ours / theirs) answers
+    "what's left for us" in one click. Clicking a card opens it as a tab with the full detail (example first, then cause, fix, method).
+  MUST items:
+    1. Selector: topbar "worktrees" popover grouped by repo. Each row shows on/off + session state; the checkbox filters lanes,
+       clicking the branch jumps to (scrolls + flashes) its lane. dotfiles/main shows as off.
+    2. Tool log: a thin live ticker per lane (latest tool run) + a "Tool log" tab with the merged stream, worktree / tool filters,
+       hide subagents, files only, and an opt-in for ernie events. Every ~4 s a tool run is appended to the working session.
+    3. Tabs: meaning (b). Issue / question cards open as tabs (several at once, across worktrees); a "Worktree" tab per lane
+       (opened from the lane header) holds plan, decisions, questions, facts, terms, notes, examples and diagrams — meaning (a).
+    4. Home: the board itself ("Board" tab), with a triage strip counting what's left for us vs theirs vs asking you.
+  Actions only from the spec allowlist: question answer (incl. more), plan set, note add, fact dismiss, issue set.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ernie · Kanban Swimlanes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  img, svg, pre { max-width: 100%; }
+  :root {
+    --sans: 'Bricolage Grotesque', system-ui, sans-serif;
+    --mono: 'Fragment Mono', ui-monospace, SFMono-Regular, monospace;
+    --bg: #0a1520; --bg-card: #0f1e2c; --bg-recessed: #0c1925; --bg-raised: #132638;
+    --text: #d8e6f2; --text-dim: #8299ae; --text-accent: #7dd3fc;
+    --accent: #38bdf8; --accent-soft: #0c2f48; --border: #1c3246; --border-accent: #1f5a82;
+    --grid: rgba(56,189,248,.04); --success: #34d399; --warning: #fbbf24; --error: #f87171;
+    --pass-bg: #064e3b; --pass-fg: #a7f3d0; --warn-bg: #78350f; --warn-fg: #fde68a;
+    --us: #7dd3fc; --us-soft: #0c2f48; --them: #c4b5fd; --them-soft: #2e2160;
+    --shadow: rgba(0,0,0,.5); color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f3f7fb; --bg-card: #ffffff; --bg-recessed: #eef3f8; --bg-raised: #ffffff;
+      --text: #0d1f2e; --text-dim: #557087; --text-accent: #0369a1;
+      --accent: #0284c7; --accent-soft: #e0f2fe; --border: #d3dfea; --border-accent: #7cc4ee;
+      --grid: rgba(2,132,199,.05); --success: #059669; --warning: #b45309; --error: #dc2626;
+      --pass-bg: #d1fae5; --pass-fg: #065f46; --warn-bg: #fef3c7; --warn-fg: #92400e;
+      --us: #0369a1; --us-soft: #e0f2fe; --them: #6d28d9; --them-soft: #ede9fe;
+      --shadow: rgba(13,31,46,.16); color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f3f7fb; --bg-card: #ffffff; --bg-recessed: #eef3f8; --bg-raised: #ffffff;
+    --text: #0d1f2e; --text-dim: #557087; --text-accent: #0369a1;
+    --accent: #0284c7; --accent-soft: #e0f2fe; --border: #d3dfea; --border-accent: #7cc4ee;
+    --grid: rgba(2,132,199,.05); --success: #059669; --warning: #b45309; --error: #dc2626;
+    --pass-bg: #d1fae5; --pass-fg: #065f46; --warn-bg: #fef3c7; --warn-fg: #92400e;
+    --us: #0369a1; --us-soft: #e0f2fe; --them: #6d28d9; --them-soft: #ede9fe;
+    --shadow: rgba(13,31,46,.16); color-scheme: light;
+  }
+  body { margin: 0; font-family: var(--sans); font-size: 14px; line-height: 1.5; color: var(--text); background-color: var(--bg);
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 24px 24px; background-attachment: fixed; }
+  code, .mono { font-family: var(--mono); font-size: .92em; }
+  button { font: inherit; color: inherit; }
+  .mock-banner { font: 11px var(--mono); text-align: center; padding: 6px 16px; background: var(--warn-bg); color: var(--warn-fg); letter-spacing: .05em; }
+  .hint { font: 11px var(--mono); color: var(--text-dim); }
+  .link-btn { background: none; border: none; padding: 0; cursor: pointer; font: 11px var(--mono); color: var(--text-dim); text-decoration: underline; }
+  .link-btn:hover { color: var(--accent); }
+  .btn { font: 12px var(--mono); padding: 7px 12px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border); background: var(--bg-card); }
+  .btn:hover { border-color: var(--accent); }
+  .btn.sm { padding: 3px 9px; font-size: 11.5px; }
+  .btn--ok { background: var(--success); border-color: var(--success); color: var(--bg); font-weight: 600; }
+  .btn--warn:hover { border-color: var(--error); color: var(--error); }
+  .sel { font: 12px var(--mono); background: var(--bg-card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; max-width: 100%; }
+
+  /* Header: topbar + tab strip */
+  header.top { position: sticky; top: 0; z-index: 50; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+  .topbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 20px 8px; }
+  .brand { font-weight: 800; font-size: 19px; letter-spacing: -.02em; } .brand span { color: var(--accent); }
+  .wt-wrap { position: relative; min-width: 0; max-width: 100%; }
+  .wt-btn { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; font: 12.5px var(--mono); background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+  .wt-btn:hover { border-color: var(--accent); }
+  .wt-cur { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .wt-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 70; width: min(460px, calc(100vw - 32px)); background: var(--bg-raised); border: 1px solid var(--border-accent); border-radius: 10px; box-shadow: 0 20px 50px -20px var(--shadow); padding: 6px; }
+  .repo-h { font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); padding: 8px 8px 2px; }
+  .wt-row { display: grid; grid-template-columns: auto auto minmax(0,1fr) auto; gap: 8px; align-items: center; padding: 5px 8px; border-radius: 6px; }
+  .wt-row:hover { background: var(--bg-recessed); }
+  .wt-jump { background: none; border: 0; text-align: left; cursor: pointer; font: 12.5px var(--mono); min-width: 0; overflow-wrap: anywhere; padding: 0; }
+  .wt-jump small { display: block; color: var(--text-dim); font-size: 10.5px; }
+  .wt-row.off .wt-jump { color: var(--text-dim); }
+  .pop-f { display: flex; gap: 12px; flex-wrap: wrap; padding: 8px; border-top: 1px solid var(--border); margin-top: 4px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--text-dim); }
+  .dot.working { background: var(--success); animation: pulse 1.8s ease-in-out infinite; } .dot.waiting { background: var(--warning); }
+  .dot.off { background: transparent; border: 1px solid var(--text-dim); }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+  .status { margin-left: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font: 11.5px var(--mono); color: var(--text-dim); }
+  .live { color: var(--success); display: inline-flex; align-items: center; gap: 6px; }
+  .live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--success); animation: pulse 1.8s ease-in-out infinite; }
+  .icon-btn { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; font: 11.5px var(--mono); }
+  .tabbar { display: flex; gap: 2px; padding: 0 20px; overflow-x: auto; scrollbar-width: thin; }
+  .tab { display: inline-flex; align-items: center; gap: 6px; flex: none; max-width: 270px; padding: 6px 10px; font: 12px var(--mono); color: var(--text-dim); border: 1px solid transparent; border-bottom: 0; border-radius: 7px 7px 0 0; background: none; cursor: pointer; margin-bottom: -1px; }
+  .tab.on { background: var(--bg); border-color: var(--border); color: var(--text); }
+  .tab .tag { color: var(--text-accent); white-space: nowrap; } .tab .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tab .x { padding: 0 3px; border-radius: 3px; opacity: .65; } .tab .x:hover { color: var(--error); opacity: 1; }
+
+  main { max-width: 1500px; margin: 0 auto; padding: 14px 20px 170px; }
+
+  /* Board */
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 10px; }
+  .seg { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+  .seg button { font: 12px var(--mono); padding: 4px 11px; border-radius: 14px; border: 1px solid var(--border); background: var(--bg-card); cursor: pointer; }
+  .seg button.on { border-color: var(--accent); background: var(--accent-soft); color: var(--text-accent); }
+  .seg b { font-weight: 400; color: var(--warning); }
+  .tb-right { margin-left: auto; display: flex; gap: 10px; }
+  .colhead { display: grid; grid-template-columns: var(--cols); gap: 8px; position: sticky; top: var(--stick, 92px); z-index: 20; padding: 7px 11px; background: var(--bg); border-bottom: 1px solid var(--border); }
+  .colhead div { font: 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); display: flex; gap: 6px; align-items: center; min-width: 0; }
+  .colhead .n { color: var(--text-accent); }
+  .lane { border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card); margin-top: 12px; min-width: 0; scroll-margin-top: calc(var(--stick, 92px) + 44px); }
+  .lane.focus { border-color: var(--border-accent); }
+  .lane.off { opacity: .6; }
+  .lane.flash { animation: flash 1.6s ease-out; }
+  .lane-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 12px; }
+  .caret { background: none; border: 0; cursor: pointer; font: 12px var(--mono); color: var(--text-dim); width: 16px; padding: 0; }
+  .lane-name { font: 600 13px var(--mono); overflow-wrap: anywhere; }
+  .lane-name small { font-weight: 400; color: var(--text-dim); }
+  .pill { font: 11px var(--mono); padding: 1px 8px; border-radius: 10px; border: 1px solid var(--border); color: var(--text-dim); white-space: nowrap; }
+  .pill.working { background: var(--pass-bg); color: var(--pass-fg); border-color: transparent; }
+  .pill.waiting { background: var(--warn-bg); color: var(--warn-fg); border-color: transparent; }
+  .lane-meta { font: 11.5px var(--mono); color: var(--text-dim); display: flex; gap: 4px 10px; flex-wrap: wrap; }
+  .lane-meta .us { color: var(--us); } .lane-meta .them { color: var(--them); } .lane-meta .q-badge { color: var(--warning); }
+  .wt-open { margin-left: auto; }
+  .ticker { display: flex; gap: 8px; align-items: center; padding: 3px 12px 5px 34px; font: 11.5px var(--mono); color: var(--text-dim); white-space: nowrap; overflow: hidden; }
+  .ticker .txt { overflow: hidden; text-overflow: ellipsis; } .ticker.fresh { animation: flash 1.4s ease-out; }
+  @keyframes flash { from { background: var(--accent-soft); } to { background: transparent; } }
+  .cells { display: grid; grid-template-columns: var(--cols); gap: 8px; padding: 9px 11px 11px; border-top: 1px solid var(--border); }
+  .cell { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .cell .clabel { display: none; font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); }
+  .cell.closed { align-items: center; }
+  .dash { color: var(--border-accent); font: 12px var(--mono); padding: 4px 2px; }
+  .card { border: 1px solid var(--border); border-left: 3px solid var(--us); border-radius: 7px; padding: 7px 9px; background: var(--bg-recessed); cursor: pointer; min-width: 0; }
+  .card.other { border-left-color: var(--them); } .card.q { border-left-color: var(--warning); }
+  .card:hover { box-shadow: 0 0 0 1px var(--accent); } .card.opened { box-shadow: 0 0 0 1px var(--border-accent); }
+  .c-top { display: flex; align-items: center; gap: 6px; font: 11px var(--mono); color: var(--text-dim); flex-wrap: wrap; }
+  .cid { color: var(--text-accent); font-family: var(--mono); }
+  .own { font: 10.5px var(--mono); padding: 0 7px; border-radius: 8px; background: var(--us-soft); color: var(--us); }
+  .own.other { background: var(--them-soft); color: var(--them); } .own.assume { background: var(--warn-bg); color: var(--warn-fg); }
+  .conf { margin-left: auto; font: 700 13px var(--mono); }
+  .conf.verified { color: var(--success); } .conf.inferred { color: var(--warning); } .conf.unchecked { color: var(--error); }
+  .c-title { font-weight: 600; font-size: 13px; line-height: 1.35; margin: 3px 0 2px; overflow-wrap: anywhere; }
+  .c-imp { font-size: 12px; color: var(--text-dim); line-height: 1.35; overflow-wrap: anywhere; }
+  .c-act { display: flex; gap: 8px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+  .quote { font: 11px var(--mono); color: var(--success); overflow-wrap: anywhere; }
+  .queued { font: 10.5px var(--mono); color: var(--warning); margin-top: 3px; }
+  .more-c { font-size: 12px; color: var(--warning); }
+
+  /* Detail tabs */
+  .detail { max-width: 860px; }
+  .d-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding-bottom: 10px; border-bottom: 1px dashed var(--border); }
+  .d-sub { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font: 12px var(--mono); color: var(--text-dim); margin-top: 14px; }
+  .d-title { font-size: 21px; font-weight: 700; line-height: 1.3; margin: 4px 0 10px; overflow-wrap: anywhere; }
+  .gate { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; font: 11.5px var(--mono); }
+  .gate span { padding: 2px 10px; border: 1px solid var(--border); border-radius: 12px; color: var(--text-dim); }
+  .gate span.done { color: var(--success); border-color: var(--success); }
+  .gate span.cur { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+  .gate span.arr { border: 0; padding: 0; }
+  .sec { margin: 16px 0; } .sec > h4 { margin: 0 0 5px; font: 11px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); font-weight: 400; }
+  .sec p { margin: 0; overflow-wrap: anywhere; }
+  .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 12px; border-radius: 8px; background: var(--bg-card); border: 1px solid var(--border-accent); }
+  .ex { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg-card); margin-bottom: 8px; }
+  .ex-t { padding: 7px 12px; font-weight: 600; font-size: 13px; border-bottom: 1px solid var(--border); }
+  .ex-wrap { overflow-x: auto; }
+  .ex table { border-collapse: collapse; width: 100%; font: 12px var(--mono); }
+  .ex th, .ex td { padding: 5px 10px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+  .ex th { color: var(--text-dim); font-weight: 400; background: var(--bg-recessed); } .ex td:first-child { color: var(--text-dim); }
+  .ex-cap { padding: 7px 12px 2px; font-size: 13px; } .ex-run { padding: 2px 12px 8px; font: 11px var(--mono); color: var(--text-dim); }
+  .claim { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .badge { font: 11px var(--mono); padding: 1px 8px; border-radius: 10px; white-space: nowrap; }
+  .badge.verified { background: var(--pass-bg); color: var(--pass-fg); } .badge.inferred { background: var(--warn-bg); color: var(--warn-fg); }
+  .badge.unchecked { background: color-mix(in srgb, var(--error) 18%, transparent); color: var(--error); }
+  .method { font: 11.5px var(--mono); color: var(--text-dim); overflow-wrap: anywhere; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .chip { font: 12px var(--mono); padding: 5px 11px; border-radius: 14px; border: 1px solid var(--border); background: var(--bg-card); cursor: pointer; }
+  .chip:hover { border-color: var(--accent); } .chip.rec { border-color: var(--success); }
+  .chip.rec small { color: var(--success); }
+  .inp, .note-input { width: 100%; font: 12.5px var(--mono); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); }
+  .inp:focus, .note-input:focus { outline: none; border-color: var(--accent); }
+  .answer { font: 12.5px var(--mono); color: var(--success); overflow-wrap: anywhere; }
+
+  /* Worktree tab */
+  .wt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+  .wide { grid-column: 1 / -1; }
+  .panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; min-width: 0; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 14px; border-bottom: 1px solid var(--border); font: 11px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); }
+  .panel-head .count { color: var(--text-accent); text-transform: none; letter-spacing: 0; }
+  .panel-body { padding: 8px 14px 12px; min-width: 0; }
+  .empty { color: var(--text-dim); font-size: 13px; }
+  .progress { height: 4px; background: var(--bg-recessed); } .progress > i { display: block; height: 100%; background: var(--success); }
+  .list { list-style: none; margin: 0; padding: 0; }
+  .list > li { position: relative; padding: 7px 0; border-bottom: 1px dashed var(--border); overflow-wrap: anywhere; }
+  .list > li:last-child { border-bottom: 0; }
+  .plan li { padding-left: 30px; } .plan li.done { color: var(--text-dim); } .plan li.done .text { text-decoration: line-through; }
+  .plan li.active .text { color: var(--text-accent); } .plan li.dropped { opacity: .5; }
+  .status-box { position: absolute; left: 0; top: 7px; width: 20px; height: 20px; border-radius: 5px; border: 1.5px solid var(--text-dim); background: transparent; cursor: pointer; padding: 0; font: 800 12px var(--sans); line-height: 17px; }
+  .plan li.done .status-box { background: var(--success); border-color: var(--success); color: var(--bg); }
+  .plan li.active .status-box { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); color: var(--accent); }
+  .facts li { padding-right: 28px; }
+  .dismiss { position: absolute; right: 0; top: 6px; width: 22px; height: 22px; border-radius: 5px; border: 1px solid transparent; background: none; cursor: pointer; color: var(--text-dim); }
+  .dismiss:hover { border-color: var(--border); color: var(--error); }
+  .dec { padding: 4px 0 4px 12px; border-left: 2px solid var(--accent); margin: 6px 0 10px; }
+  .dec b { font-weight: 600; display: block; } .dec span { font-size: 13px; color: var(--text-dim); }
+  .terms { margin: 0; } .terms dt { font: 600 12.5px var(--mono); color: var(--text-accent); margin-top: 6px; } .terms dd { margin: 0 0 4px; }
+  .dtabs { display: flex; gap: 4px; }
+  .dtab { font: 11px var(--mono); padding: 2px 9px; border-radius: 5px; border: 1px solid var(--border); background: var(--bg-recessed); cursor: pointer; text-transform: none; letter-spacing: 0; }
+  .dtab.on { border-color: var(--accent); color: var(--text-accent); }
+  .diagram { overflow: auto; padding: 14px; min-height: 200px; display: flex; justify-content: center; }
+  .diagram .loading { font: 12px var(--mono); color: var(--text-dim); align-self: center; }
+  .diagram .nodeLabel { color: var(--text) !important; }
+  .diagram .edgeLabel, .diagram .edgeLabel p { color: var(--text-dim) !important; background-color: var(--bg-card) !important; }
+  .diagram .edgeLabel rect { fill: var(--bg-card) !important; }
+
+  /* Tool log tab */
+  .log-tools { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 10px; font: 12px var(--mono); color: var(--text-dim); }
+  .log-tools label { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
+  .log { list-style: none; margin: 0; padding: 0; font: 12px var(--mono); border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card); overflow: hidden; }
+  .log li { display: grid; grid-template-columns: 72px 96px 128px minmax(0, 1fr); gap: 10px; padding: 5px 12px; border-bottom: 1px solid var(--border); color: var(--text-dim); }
+  .log li > span { min-width: 0; overflow-wrap: anywhere; }
+  .log li:last-child { border-bottom: 0; } .log li.fresh { animation: flash 1.4s ease-out; }
+  .log .k { color: var(--text-accent); } .log .tool { color: var(--warning); } .log .txt { color: var(--text); }
+  .log li.ev .tool { color: var(--accent); } .log li.ev .txt { color: var(--text-dim); }
+  .sub { font-size: 10.5px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--border-accent); color: var(--text-accent); margin-left: 4px; white-space: nowrap; }
+
+  /* Outbox */
+  .outbox { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; background: var(--bg-raised); border-top: 1px solid var(--border-accent); box-shadow: 0 -20px 50px -30px var(--shadow); }
+  .outbox-inner { max-width: 1500px; margin: 0 auto; padding: 10px 20px; display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+  .outbox-state { font: 12px var(--mono); white-space: nowrap; } .outbox-state b { color: var(--warning); font-weight: 400; }
+  .outbox-state.clear b { color: var(--success); }
+  .preview { max-width: 1500px; margin: 0 auto; padding: 10px 20px 0; }
+  .preview pre { margin: 0; padding: 10px 14px; border-radius: 8px; background: var(--bg-recessed); border: 1px solid var(--border); font: 12px/1.7 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+  @media (max-width: 900px) { .wt-grid { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 760px) {
+    .topbar, .tabbar { padding-left: 16px; padding-right: 16px; } .status { margin-left: 0; }
+    main { padding: 12px 16px 230px; }
+    .colhead { display: none; }
+    .cells { grid-template-columns: minmax(0, 1fr); }
+    .cell .clabel { display: block; } .cell.empty { display: none; } .cell.closed { flex-direction: row; }
+    .ticker { padding-left: 12px; } .tb-right { margin-left: 0; }
+    .log li { display: flex; flex-wrap: wrap; gap: 2px 8px; } .log .txt { flex-basis: 100%; }
+    .outbox-inner { grid-template-columns: minmax(0, 1fr) auto; padding: 10px 16px; }
+    .outbox-inner .note-input { grid-column: 1 / -1; grid-row: 2; }
+    .preview { padding: 10px 16px 0; }
+  }
+</style>
+</head>
+<body>
+<div class="mock-banner">MOCK · Kanban Swimlanes · sample data, no server</div>
+
+<header class="top" id="top">
+  <div class="topbar">
+    <div class="brand">ernie<span>.</span></div>
+    <div class="wt-wrap"><button class="wt-btn" id="wt-btn" type="button" aria-haspopup="true"></button><div class="wt-pop" id="wt-pop" hidden></div></div>
+    <div class="status">
+      <span class="live">live</span><span id="server"></span>
+      <button class="icon-btn" id="theme-toggle" type="button">◐ theme</button>
+    </div>
+  </div>
+  <nav class="tabbar" id="tabbar" aria-label="Open tabs"></nav>
+</header>
+
+<main id="main"></main>
+
+<div class="outbox">
+  <div class="preview" id="preview" hidden><pre id="preview-text"></pre></div>
+  <div class="outbox-inner">
+    <div class="outbox-state" id="outbox-state"></div>
+    <select class="sel" id="outbox-key" aria-label="Which session's next prompt"></select>
+    <input class="note-input" id="note-input" type="text" placeholder="Note to Claude in this worktree… (enter to queue)">
+    <button class="btn" id="preview-btn" type="button">preview</button>
+  </div>
+</div>
+
+<script>
+// Shared sample data for the ernie view variations (ref_ernie_views/*.html).
+// Every mock inlines a copy of ERNIE_SAMPLE so all ten show the same data and differ only in layout.
+// Shapes follow spec_ernie.md (event types, fold output) plus A114 `tool run` activity rows.
+// Fields marked "view-only" are not in the spec yet; mocks that use them should say so.
+
+const ERNIE_SAMPLE = {
+  server: { port: 7477, version: 'v0.1.0-12-g3c9e1a7', connected: true },
+
+  // One entry per log file (~/.local/state/ernie/<repo>/<branch>.jsonl). Worktrees of one repo share the repo slug.
+  logs: [
+    {
+      key: 'glue/CDIT-2631-ga4-dedupe', repo: 'glue', branch: 'CDIT-2631-ga4-dedupe', on: true,
+      worktree: '~/things/myc/glue/CDIT-2631-ga4-dedupe', // view-only: spec stores the repo root, not the worktree path
+      session: { id: '4995d496', state: 'working', lastEventAgo: '3s' }, // view-only: derived from hook timestamps
+    },
+    {
+      key: 'glue/CDIT-2627-gsc-backfill', repo: 'glue', branch: 'CDIT-2627-gsc-backfill', on: true,
+      worktree: '~/things/myc/glue/CDIT-2627-gsc-backfill',
+      session: { id: '3fb7e802', state: 'waiting on you', lastEventAgo: '6m' },
+    },
+    {
+      key: 'glue/main', repo: 'glue', branch: 'main', on: true,
+      worktree: '~/things/myc/glue/main',
+      session: { id: null, state: 'idle', lastEventAgo: '1d' },
+    },
+    {
+      key: 'ernie/main', repo: 'ernie', branch: 'main', on: true,
+      worktree: '~/things/myc/ernie/main',
+      session: { id: '715abde2', state: 'idle', lastEventAgo: '2h' },
+    },
+    {
+      key: 'dotfiles/main', repo: 'dotfiles', branch: 'main', on: false, // has a main.off marker
+      worktree: '~/.dotfiles',
+      session: { id: null, state: 'off', lastEventAgo: '5d' },
+    },
+  ],
+
+  // Folded state per log key, as `GET /stream` would push it.
+  states: {
+    'glue/CDIT-2631-ga4-dedupe': {
+      turn: 14,
+      plan: [
+        { id: 'p1', text: 'Reproduce double count on one Dealer Spike host', status: 'done' },
+        { id: 'p2', text: 'Find the dedupe gap', status: 'done' },
+        { id: 'p3', text: 'Normalize page_location before hashing', status: 'active' },
+        { id: 'p4', text: 'Backfill 90 days', status: 'todo' },
+        { id: 'p5', text: 'Verify session counts on stage', status: 'todo' },
+        { id: 'p6', text: 'Open PR', status: 'todo' },
+      ],
+      decisions: [
+        { id: 'd1', text: 'dedupe_key = sha1(session_id, normalized page_location, event_ts)', why: 'event_ts alone collides across tabs; session_id alone merges real repeat views' },
+        { id: 'd2', text: 'Platform-side bugs go to the platform team, not fixed in glue', why: 'we only own the loader and views' },
+      ],
+      questions: [
+        {
+          id: 'q1', kind: 'assume', text: 'publicDigmsDB.clients = Glue\'s client list', choices: ['yes', 'no'],
+          context: 'The 212-site count below comes from joining ga4_hits to publicDigmsDB.clients.',
+          impact: 'If clients is missing sites, the double-count rate is understated.',
+        },
+        {
+          id: 'q2', text: 'Normalize page_location in the SQL view or in the loader?', choices: ['view', 'loader'], recommended: 'view',
+          context: 'Both fix new rows. Only the view also fixes old rows without a backfill.',
+          impact: 'Loader means a 90-day backfill (~40 min on stage) before counts are right.',
+          example: 'e2',
+        },
+        { id: 'q3', text: 'Backfill window?', choices: ['30 days', '90 days'], answer: '90 days' },
+        {
+          id: 'q4', text: 'Should the dedupe also cover Dealer Inspire hosts?', choices: ['yes', 'no'],
+          more: true, followUp: 'need more context', // answered "need more context" → stays open (A88)
+        },
+      ],
+      issues: [
+        {
+          id: 'i1', title: 'Dedupe key ignores the trailing "i" on listing ids', status: 'explained', owner: 'us',
+          cause: 'page_location for the same listing arrives as …-14615315i and …-14615315, so one session hashes to two keys.',
+          fix: 'Strip a trailing "i" from the listing id segment before hashing.',
+          impact: '~3.1% of sessions double-counted on 212 Dealer Spike sites.',
+          confidence: 'verified', method: 'SELECT page_location, dedupe_key FROM ga4_hits WHERE host = \'ds-4471.dealerspike.com\' LIMIT 5',
+          example: 'e1',
+        },
+        {
+          id: 'i2', title: 'Backfill job skips days with late-arriving hits', status: 'approved', owner: 'us',
+          cause: 'The job filters on load_date, but late hits land under the next day\'s partition.',
+          fix: 'Filter on event_date with a 2-day lookback.',
+          impact: 'Up to 0.8% of hits missing from any backfilled day.',
+          confidence: 'inferred', method: 'read backfill.py:88; not run',
+          quote: 'approved, fix it',
+        },
+        {
+          id: 'i3', title: 'SPA route changes send page_view twice', status: 'explained', owner: 'other',
+          cause: 'The platform GTM container fires page_view on history change and on load.',
+          fix: 'Platform team removes the history-change trigger.',
+          impact: 'Inflates page_views ~1.4%; sessions are unaffected after i1.',
+          confidence: 'unchecked', method: 'needs GTM access (SSO wall)',
+        },
+        {
+          id: 'i4', title: 'Stage run reports success with 0 rows', status: 'fixed', owner: 'us',
+          cause: 'Empty result set was treated as success.', fix: 'Fail the run when rows_written = 0.',
+          impact: 'Silent empty loads on stage.', confidence: 'verified', method: 'go test ./loader/... and a stage run',
+        },
+        {
+          id: 'i5', title: 'GTM container v41 missing consent tag', status: 'dropped', owner: 'other',
+          cause: 'Consent tag removed in v41.', fix: 'Platform re-adds it.', impact: 'Not related to this ticket.',
+          confidence: 'inferred', method: 'GTM changelog',
+        },
+      ],
+      examples: [
+        {
+          name: 'e1', title: 'Same listing, two page_location values',
+          columns: ['ga4_hits field', 'Row A', 'Row B'],
+          rows: [
+            ['site_platform', 'Dealer Spike', 'Dealer Spike'],
+            ['session_id', '1728…441', '1728…441'],
+            ['page_location', '…/2019-ford-f150-14615315i', '…/2019-ford-f150-14615315'],
+            ['dedupe_key', 'a91f…', 'c03e…'],
+          ],
+          caption: 'Same session, same listing, two keys → counted twice.',
+          run: 'sql/probe_dedupe.sql',
+        },
+        {
+          name: 'e2', title: 'Where to normalize: options run on e1',
+          columns: ['option', 'Row A key', 'Row B key', 'result'],
+          rows: [
+            ['view', 'a91f…', 'a91f…', '✓ one row, old data fixed too'],
+            ['loader', 'a91f…', 'a91f…', '✓ one row, needs backfill'],
+            ['none (today)', 'a91f…', 'c03e…', '✗ counted twice'],
+          ],
+          caption: 'Both options fix e1; only the view fixes rows already loaded.',
+        },
+      ],
+      facts: [
+        { id: 'f1', text: 'ga4_hits holds 41.2M rows for September', confidence: 'verified', method: 'SELECT count(*) FROM ga4_hits WHERE event_date BETWEEN …' },
+        { id: 'f2', text: 'Duplicates appear only on Dealer Spike hosts', confidence: 'inferred', method: 'grouped by site_platform on a 1-day sample' },
+        { id: 'f3', text: 'Consent mode drops ~2% of hits', confidence: 'unchecked' },
+        { id: 'f4', kind: 'term', term: 'DS', text: 'Dealer Spike, the site platform behind 212 client sites' },
+        { id: 'f5', kind: 'term', term: 'H1', text: 'hypothesis that trailing-"i" listing ids split one session into two keys (now i1)' },
+      ],
+      notes: [
+        { id: 'n1', text: 'platform contact is #glue-platform, ask for GTM read access', ref: 'i3' },
+      ],
+      diagrams: [
+        {
+          name: 'flow', mermaid: `flowchart LR
+  GTM["GTM / gtag"] -->|hits| L["loader"]
+  L -->|"dedupe_key"| H[("ga4_hits")]
+  H --> V["sessions view"]
+  V --> D["dashboard"]
+  L -. "i1: key split here" .-> H`,
+        },
+        {
+          name: 'late-hits', mermaid: `sequenceDiagram
+  participant GTM
+  participant Loader
+  participant Backfill
+  GTM->>Loader: hit (event_date 10-07, arrives 10-08 02:10)
+  Loader->>Loader: partition load_date = 10-08
+  Backfill->>Loader: reload load_date = 10-07
+  Note over Backfill: late hit missed (i2)`,
+        },
+      ],
+      // Newest first. by: claude (CLI writes), hook (file touch, tool run, turn mark), user (page or your terminal).
+      // `tool run` text is the tool's one-line summary; Bash shows its description, never the command (A114).
+      activity: [
+        { ts: '14:21:08', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Run dedupe probe on stage' },
+        { ts: '14:21:02', by: 'hook', t: 'file', op: 'touch', tool: 'Edit', text: 'sql/views/sessions.sql' },
+        { ts: '14:20:51', by: 'hook', t: 'tool', op: 'run', tool: 'Read', text: 'sql/views/sessions.sql' },
+        { ts: '14:20:44', by: 'hook', t: 'tool', op: 'run', tool: 'Grep', text: 'dedupe_key' },
+        { ts: '14:20:30', by: 'claude', t: 'plan', op: 'set', text: 'p3 → active' },
+        { ts: '14:20:12', by: 'hook', t: 'turn', op: 'mark', text: 'turn 14 · delivered 1 event' },
+        { ts: '14:19:58', by: 'user', t: 'question', op: 'answer', text: 'q3 → 90 days' },
+        { ts: '14:12:40', by: 'claude', t: 'question', op: 'add', text: 'q2 Normalize in the view or the loader?' },
+        { ts: '14:12:31', by: 'claude', t: 'example', op: 'put', text: 'e2 Where to normalize: options run on e1' },
+        { ts: '14:12:05', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Compare keys for both options on e1 rows' },
+        { ts: '14:11:20', by: 'hook', t: 'tool', op: 'run', tool: 'Agent', text: 'Find every reader of dedupe_key', agent: null },
+        { ts: '14:11:18', by: 'hook', t: 'tool', op: 'run', tool: 'Grep', text: 'dedupe_key', agent: 'Explore' },
+        { ts: '14:11:16', by: 'hook', t: 'tool', op: 'run', tool: 'Glob', text: '**/*.sql', agent: 'Explore' },
+        { ts: '14:11:14', by: 'hook', t: 'tool', op: 'run', tool: 'Read', text: 'loader/hash.py', agent: 'Explore' },
+        { ts: '14:10:02', by: 'claude', t: 'issue', op: 'add', text: 'i3 [other] SPA route changes send page_view twice' },
+        { ts: '14:09:47', by: 'claude', t: 'issue', op: 'add', text: 'i1 [us] Dedupe key ignores the trailing "i"' },
+        { ts: '14:09:30', by: 'claude', t: 'example', op: 'put', text: 'e1 Same listing, two page_location values' },
+        { ts: '14:09:02', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Pull 5 hits for one Dealer Spike host' },
+        { ts: '14:08:40', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Count rows per dedupe_key for Sept' },
+        { ts: '14:07:15', by: 'hook', t: 'tool', op: 'run', tool: 'WebFetch', text: 'https://support.google.com/analytics/answer/9234069' },
+        { ts: '14:06:58', by: 'user', t: 'issue', op: 'set', text: 'i2 → approved' },
+        { ts: '14:06:02', by: 'hook', t: 'tool', op: 'run', tool: 'mcp__claude_ai_Google_Drive__search_files', text: '' },
+        { ts: '14:05:30', by: 'claude', t: 'fact', op: 'add', text: 'f1 ✓ ga4_hits holds 41.2M rows for September' },
+        { ts: '14:05:12', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: '' }, // a Bash call without a description
+        { ts: '14:04:50', by: 'hook', t: 'tool', op: 'run', tool: 'Skill', text: 'mem' },
+      ],
+      // Your page/terminal events since the last turn mark (what the next prompt delivers).
+      pending: [
+        { t: 'note', op: 'add', text: 'check Dealer Inspire after this', label: 'note: check Dealer Inspire after this' },
+      ],
+      inboxText: 'ernie inbox · turn 15\n- note: check Dealer Inspire after this',
+      warnings: 0,
+    },
+
+    'glue/CDIT-2627-gsc-backfill': {
+      turn: 9,
+      plan: [
+        { id: 'p1', text: 'Probe GSC lambda on stage (G0)', status: 'done' },
+        { id: 'p2', text: 'Pick backfill strategy', status: 'active' },
+        { id: 'p3', text: 'Backfill 16 months', status: 'todo' },
+        { id: 'p4', text: 'Add row-count alarm', status: 'todo' },
+      ],
+      decisions: [
+        { id: 'd1', text: 'Backfill one property at a time', why: 'GSC quota is per property; parallel runs hit 429s' },
+      ],
+      questions: [
+        {
+          id: 'q1', text: 'Backfill by day or by month?', choices: ['by day', 'by month'], recommended: 'by day',
+          context: 'GSC caps 50k rows per request; busy properties exceed it in a month.',
+          impact: 'By month silently truncates the 6 busiest properties.',
+          example: 'e1',
+        },
+        { id: 'q2', text: 'OK to run the backfill on prod tonight?', choices: ['yes', 'no, stage first'] },
+      ],
+      issues: [
+        {
+          id: 'i1', title: 'Retry drops 429s after 3 attempts', status: 'explained', owner: 'us',
+          cause: 'Retry gives up after 3 attempts with no backoff jitter.', fix: 'Exponential backoff with jitter, 8 attempts.',
+          impact: '~4% of days missing for busy properties.', confidence: 'verified', method: 'CloudWatch: 312 "429 giving up" lines on 10-06',
+        },
+      ],
+      examples: [
+        {
+          name: 'e1', title: 'One busy property, by day vs by month',
+          columns: ['request', 'rows returned', 'rows that exist'],
+          rows: [['2026-09 (by month)', '50,000', '61,204'], ['2026-09-14 (by day)', '2,031', '2,031']],
+          caption: 'By month hits the 50k cap and drops 11,204 rows.',
+        },
+      ],
+      facts: [
+        { id: 'f1', kind: 'term', term: 'G0', text: 'throwaway probe script against the stage GSC lambda' },
+        { id: 'f2', text: 'GSC keeps 16 months of data', confidence: 'verified', method: 'GSC API docs' },
+      ],
+      notes: [],
+      diagrams: [],
+      activity: [
+        { ts: '14:15:40', by: 'claude', t: 'question', op: 'add', text: 'q2 OK to run the backfill on prod tonight?' },
+        { ts: '14:15:22', by: 'claude', t: 'question', op: 'add', text: 'q1 Backfill by day or by month?' },
+        { ts: '14:15:01', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Invoke G0 for one property, by month' },
+        { ts: '14:14:30', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Tail GSC lambda logs for 429s' },
+        { ts: '14:13:55', by: 'hook', t: 'file', op: 'touch', tool: 'Write', text: 'scripts/g0_probe.py' },
+        { ts: '14:13:10', by: 'hook', t: 'turn', op: 'mark', text: 'turn 9' },
+      ],
+      pending: [],
+      inboxText: '',
+      warnings: 0,
+    },
+
+    'glue/main': {
+      turn: 3,
+      plan: [], decisions: [], questions: [], issues: [], examples: [], facts: [], notes: [], diagrams: [],
+      activity: [
+        { ts: 'yesterday 17:02', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Pull latest main' },
+      ],
+      pending: [], inboxText: '', warnings: 0,
+    },
+
+    'ernie/main': {
+      turn: 31,
+      plan: [
+        { id: 'p1', text: 'Spec + build plan', status: 'done' },
+        { id: 'p2', text: 'Scratch flow test', status: 'done' },
+        { id: 'p3', text: 'UI view variations', status: 'active' },
+        { id: 'p4', text: 'Phase 1: core (append, fold, dump)', status: 'todo' },
+      ],
+      decisions: [
+        { id: 'd1', text: 'Tool activity shows Bash descriptions only', why: 'no command text → no redactor in v1 (A114)' },
+      ],
+      questions: [],
+      issues: [],
+      examples: [],
+      facts: [
+        { id: 'f1', text: 'Hooks must exit 0 on any error', confidence: 'verified', method: 'flow test F4' },
+      ],
+      notes: [],
+      diagrams: [],
+      activity: [
+        { ts: '12:40:10', by: 'hook', t: 'file', op: 'touch', tool: 'Edit', text: '.mem/artifacts/spec_ernie.md' },
+        { ts: '12:39:55', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Fold A114 into the spec and memory pointer' },
+      ],
+      pending: [], inboxText: '', warnings: 0,
+    },
+  },
+};
+</script>
+<script>
+// ---- view-only state (the real page gets the folded state per log over SSE and POSTs allowlisted user events) ----
+const LOGS = ERNIE_SAMPLE.logs;
+const ST = key => ERNIE_SAMPLE.states[key];
+const LOG = key => LOGS.find(l => l.key === key);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const short = key => (key.match(/CDIT-\d+/) || [key])[0];
+const slug = key => key.replace(/[^a-z0-9]/gi, '-');
+const CONF = { verified: '✓', inferred: '~', unchecked: '✗' };
+const CONF_LABEL = { verified: '✓ verified', inferred: '~ inferred', unchecked: '✗ unchecked' };
+const SESSION = { working: 'working', 'waiting on you': 'waiting', idle: 'idle', off: 'off' };
+const COLS = [['ask', 'Ask you'], ['explained', 'Explained'], ['approved', 'Approved'], ['fixed', 'Fixed'], ['dropped', 'Dropped']];
+const nextStatus = { todo: 'active', active: 'done', done: 'todo', dropped: 'todo' };
+const statusGlyph = { todo: '', active: '▶', done: '✓', dropped: '–' };
+const ownerWord = owner => owner === 'us' ? 'ours' : 'theirs';
+
+const openQuestions = s => s.questions.filter(q => !q.answer && q.status !== 'dropped');
+const openIssues = (s, owner) => s.issues.filter(i => i.owner === owner && (i.status === 'explained' || i.status === 'approved'));
+const isToolRow = a => a.t === 'tool' || a.t === 'file';
+
+const view = {
+  tab: 'home', focus: 'glue/CDIT-2631-ga4-dedupe', outboxKey: 'glue/CDIT-2631-ga4-dedupe',
+  tabs: [
+    { kind: 'card', key: 'glue/CDIT-2631-ga4-dedupe', item: 'i1' },
+    { kind: 'card', key: 'glue/CDIT-2627-gsc-backfill', item: 'q1' },
+  ],
+  shown: {}, collapsed: {}, owner: 'all', droppedOpen: false, previewOpen: false, popOpen: false,
+  logF: { key: 'all', tool: 'all', hideSub: false, filesOnly: false, events: false },
+  diagram: {}, flashLane: null,
+};
+LOGS.forEach(l => {
+  const s = ST(l.key);
+  view.shown[l.key] = true;
+  // Reason: lanes with nothing to triage start collapsed so the open work is above the fold
+  view.collapsed[l.key] = !l.on || !s || (!openQuestions(s).length && !s.issues.length);
+});
+const tabId = t => `${t.kind}|${t.key}|${t.item || ''}`;
+
+function laneColumns(key) {
+  const cols = { ask: [], explained: [], approved: [], fixed: [], dropped: [] };
+  const s = ST(key);
+  if (!s) return cols;
+  const ownerOk = owner => view.owner === 'all' || view.owner === owner;
+  if (ownerOk('us')) {
+    // Reason: questions have no owner field; they always wait on you, so they count as ours
+    s.questions.forEach(q => {
+      if (q.status === 'dropped') cols.dropped.push({ q });
+      else if (!q.answer) cols.ask.push({ q });
+    });
+  }
+  const ours = s.issues.filter(i => i.owner === 'us');
+  const theirs = s.issues.filter(i => i.owner !== 'us');
+  [...ours, ...theirs].forEach(i => { if (ownerOk(i.owner === 'us' ? 'us' : 'other')) cols[i.status]?.push({ i }); });
+  return cols;
+}
+const qPos = (s, q) => `Q${s.questions.indexOf(q) + 1}/${s.questions.length}`;
+function iPos(s, i) {
+  const group = s.issues.filter(x => x.owner === i.owner);
+  return `${group.indexOf(i) + 1}/${group.length} ${ownerWord(i.owner)}`;
+}
+const isQueued = (s, id) => s.pending.some(p => p.id === id || p.ref === id);
+const isOpenTab = (key, id) => view.tabs.some(t => t.key === key && t.item === id);
+const qTitle = q => q.kind === 'assume' ? `I assumed: ${q.text}. True?` : q.text;
+
+// ---- board ----
+function cardHtml(key, entry) {
+  const s = ST(key);
+  if (entry.q) {
+    const q = entry.q;
+    return `<article class="card q ${isOpenTab(key, q.id) ? 'opened' : ''}" data-open="${esc(key)}" data-item="${q.id}">
+      <div class="c-top"><span class="cid">${q.id}</span><span>${qPos(s, q)}</span>${q.kind === 'assume' ? '<span class="own assume">assumption</span>' : ''}${q.recommended ? `<span>rec: ${esc(q.recommended)}</span>` : ''}</div>
+      <div class="c-title">${esc(qTitle(q))}</div>
+      ${q.impact ? `<div class="c-imp">${esc(q.impact)}</div>` : ''}
+      ${q.more ? '<div class="more-c">↺ you asked for more context</div>' : ''}
+      ${isQueued(s, q.id) ? '<div class="queued">✉ queued for next prompt</div>' : ''}
+    </article>`;
+  }
+  const i = entry.i;
+  let act = '';
+  if (i.status === 'explained') act = `<button class="btn sm btn--ok" type="button" data-issue="approved" data-key="${esc(key)}" data-id="${i.id}">Approve</button>`;
+  if (i.status === 'approved') act = `<span class="quote">${i.quote ? `approved in chat: '${esc(i.quote)}'` : 'approved on page'}</span><button class="link-btn" type="button" data-issue="explained" data-key="${esc(key)}" data-id="${i.id}">undo</button>`;
+  return `<article class="card ${i.owner} ${isOpenTab(key, i.id) ? 'opened' : ''}" data-open="${esc(key)}" data-item="${i.id}">
+    <div class="c-top"><span class="cid">${i.id}</span><span class="own ${i.owner}">${ownerWord(i.owner)}</span><span class="conf ${i.confidence}" title="${esc(`${CONF_LABEL[i.confidence]} · ${i.method || 'no method given'}`)}">${CONF[i.confidence]}</span></div>
+    <div class="c-title">${esc(i.title)}</div><div class="c-imp">${esc(i.impact)}</div>
+    ${act ? `<div class="c-act">${act}</div>` : ''}${isQueued(s, i.id) ? '<div class="queued">✉ queued for next prompt</div>' : ''}
+  </article>`;
+}
+
+function cellHtml(key, col, label, items) {
+  if (col === 'dropped' && !view.droppedOpen) {
+    return `<div class="cell closed ${items.length ? '' : 'empty'}"><span class="clabel">Dropped</span><button class="link-btn" type="button" data-dropped title="Show dropped">${items.length ? `${items.length} ▸` : '–'}</button></div>`;
+  }
+  const s = ST(key);
+  const answered = col === 'ask' ? s.questions.filter(q => q.answer).length : 0;
+  const more = answered ? `<button class="link-btn" type="button" data-wt="${esc(key)}">+${answered} answered</button>` : '';
+  const body = items.length ? items.map(e => cardHtml(key, e)).join('') : '<span class="dash">—</span>';
+  return `<div class="cell ${items.length || answered ? '' : 'empty'}"><span class="clabel">${label} · ${items.length}</span>${body}${more}</div>`;
+}
+
+function tickerInner(key) {
+  const a = ST(key).activity.find(isToolRow);
+  if (!a) return '<span>no tool activity yet</span>';
+  return `<span>⟳</span><span>${esc(a.ts)}</span><span class="txt">${esc(a.tool)}${a.text ? ` · ${esc(a.text)}` : ''}${a.agent ? `<span class="sub">${esc(a.agent)}</span>` : ''}</span>`;
+}
+
+function laneHtml(log) {
+  const key = log.key;
+  const s = ST(key);
+  const collapsed = view.collapsed[key];
+  const cls = SESSION[log.session.state];
+  let meta = '<span class="lane-meta">off · main.off marker · run <code>ernie init</code> in your own shell to turn it on</span>';
+  if (s) {
+    const done = s.plan.filter(p => p.status === 'done').length;
+    const active = s.plan.find(p => p.status === 'active');
+    meta = `<span class="lane-meta"><span class="us">ours ${openIssues(s, 'us').length}</span><span class="them">theirs ${openIssues(s, 'other').length}</span><span>ask ${openQuestions(s).length}</span><span>plan ${done}/${s.plan.length}${active ? ` ▶ ${active.id}` : ''}</span><span>turn ${s.turn}</span>${s.pending.length ? `<button class="link-btn q-badge" type="button" data-outbox="${esc(key)}">✉ ${s.pending.length} queued</button>` : ''}</span>`;
+  }
+  const head = `<div class="lane-h">
+    <button class="caret" type="button" data-collapse="${esc(key)}" aria-label="Collapse lane">${collapsed ? '▸' : '▾'}</button>
+    <span class="dot ${cls}"></span><span class="lane-name"><small>${esc(log.repo)} /</small> ${esc(log.branch)}</span>
+    <span class="pill ${cls}" data-pill="${esc(key)}">${esc(log.session.state)} · ${esc(log.session.lastEventAgo)}</span>${meta}
+    ${s ? `<button class="btn sm wt-open" type="button" data-wt="${esc(key)}">Worktree ▸</button>` : ''}
+  </div>`;
+  const ticker = s ? `<div class="ticker" data-ticker="${esc(key)}">${tickerInner(key)}</div>` : '';
+  const cols = laneColumns(key);
+  const cells = !s || collapsed ? '' : `<div class="cells">${COLS.map(([c, label]) => cellHtml(key, c, label, cols[c])).join('')}</div>`;
+  const classes = ['lane', log.on ? '' : 'off', view.focus === key ? 'focus' : '', view.flashLane === key ? 'flash' : ''].join(' ');
+  return `<section class="${classes}" id="lane-${slug(key)}">${head}${ticker}${cells}</section>`;
+}
+
+function renderBoard() {
+  const logs = LOGS.filter(l => view.shown[l.key]);
+  const totals = { ask: 0, explained: 0, approved: 0, fixed: 0, dropped: 0 };
+  let ours = 0, theirs = 0, ask = 0;
+  logs.forEach(l => {
+    const s = ST(l.key);
+    if (!s) return;
+    const cols = laneColumns(l.key);
+    Object.keys(totals).forEach(c => { totals[c] += cols[c].length; });
+    ours += openIssues(s, 'us').length;
+    theirs += openIssues(s, 'other').length;
+    ask += openQuestions(s).length;
+  });
+  const seg = (owner, label) => `<button type="button" class="${view.owner === owner ? 'on' : ''}" data-owner="${owner}">${label}</button>`;
+  const head = COLS.map(([c, label]) => {
+    if (c === 'dropped' && !view.droppedOpen) return `<div><button class="link-btn" type="button" data-dropped title="Show dropped">Drop ▸</button><span class="n">${totals.dropped}</span></div>`;
+    if (c === 'dropped') return `<div><button class="link-btn" type="button" data-dropped>Dropped ◂</button><span class="n">${totals.dropped}</span></div>`;
+    return `<div>${label}<span class="n">${totals[c]}</span></div>`;
+  }).join('');
+  const cols = view.droppedOpen ? 'repeat(5, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr)) 72px';
+  return `<div style="--cols: ${cols}">
+    <div class="toolbar">
+      <span class="hint">Left in ${logs.length} lane${logs.length === 1 ? '' : 's'}:</span>
+      <div class="seg">${seg('all', 'all')}${seg('us', `ours <b>${ours}</b>`)}${seg('other', `theirs · platform <b>${theirs}</b>`)}</div>
+      <span class="hint">asking you <b class="cid">${ask}</b> · approve is a button, never a drag</span>
+      <span class="tb-right"><button class="link-btn" type="button" data-all="open">expand all</button><button class="link-btn" type="button" data-all="close">collapse all</button></span>
+    </div>
+    <div class="colhead">${head}</div>
+    ${logs.length ? logs.map(laneHtml).join('') : '<p class="empty">No lanes shown. Pick worktrees in the selector.</p>'}
+  </div>`;
+}
+
+// ---- detail tabs ----
+const sec = (title, body) => `<div class="sec"><h4>${title}</h4>${body}</div>`;
+function exampleHtml(s, name) {
+  const e = s.examples.find(x => x.name === name);
+  if (!e) return `<span class="hint">example ${esc(name)} not found</span>`;
+  const head = e.columns.map(c => `<th>${esc(c)}</th>`).join('');
+  const rows = e.rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('');
+  return `<div class="ex"><div class="ex-t"><span class="cid">${esc(e.name)}</span> ${esc(e.title)}</div>
+    <div class="ex-wrap"><table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>
+    ${e.caption ? `<div class="ex-cap">${esc(e.caption)}</div>` : ''}${e.run ? `<div class="ex-run">see for yourself: <code>${esc(e.run)}</code> (shown, ernie never runs it)</div>` : '<div class="ex-run"></div>'}</div>`;
+}
+const claimHtml = x => `<div class="claim"><span class="badge ${x.confidence || 'unchecked'}" title="${esc(x.method || 'no method given')}">${CONF_LABEL[x.confidence || 'unchecked']}</span><span class="method">${x.method ? `method: ${esc(x.method)}` : 'no method given'}</span></div>`;
+const noteBox = (key, ref) => `<input class="inp" data-note="${esc(key)}" data-ref="${ref}" placeholder="Note on ${ref} for Claude… (enter to queue)">`;
+
+function openItems(s) { return [...openQuestions(s), ...s.issues.filter(i => i.status === 'explained')]; }
+function nextOpen(key, id) {
+  const items = openItems(ST(key)).filter(x => x.id !== id);
+  return items.length ? { item: items[0], left: items.length } : null;
+}
+
+function issueDetail(key, s, i) {
+  const steps = ['explained', 'approved', 'fixed'];
+  const cur = steps.indexOf(i.status);
+  const gate = i.status === 'dropped'
+    ? '<span class="cur">dropped</span>'
+    : steps.map((st, n) => `<span class="${n < cur ? 'done' : n === cur ? 'cur' : ''}">${st}</span>`).join('<span class="arr">→</span>');
+  const btn = (status, label, cls = '') => `<button class="btn ${cls}" type="button" data-issue="${status}" data-key="${esc(key)}" data-id="${i.id}">${label}</button>`;
+  const actions = {
+    explained: `${btn('approved', 'Approve', 'btn--ok')}${btn('dropped', 'Drop', 'btn--warn')}<span class="hint">Claude can't fix ${i.id} until you approve it.</span>`,
+    approved: `<span class="quote">${i.quote ? `approved in chat: '${esc(i.quote)}'` : 'approved on page'}</span>${btn('explained', 'Undo approval')}${btn('dropped', 'Drop', 'btn--warn')}`,
+    fixed: '<span class="answer">✓ fixed · nothing left for you here</span>',
+    dropped: `<span class="hint">dropped</span>${btn('explained', 'Undo (back to explained)')}`,
+  }[i.status];
+  const notes = s.notes.filter(n => n.ref === i.id).map(n => `<li><span class="cid">${n.id}</span> ${esc(n.text)}</li>`).join('');
+  return `<article class="detail">
+    <div class="d-sub"><span class="cid">${i.id}</span><span>issue ${iPos(s, i)}</span><span class="own ${i.owner}">${i.owner === 'us' ? 'ours' : 'theirs · platform'}</span><div class="gate">${gate}</div></div>
+    <h2 class="d-title">${esc(i.title)}</h2>
+    ${i.example ? sec('Example', exampleHtml(s, i.example)) : ''}
+    ${sec('Cause', `<p>${esc(i.cause)}</p>`)}${sec('Fix', `<p>${esc(i.fix)}</p>`)}${sec('Impact if skipped', `<p>${esc(i.impact)}</p>`)}
+    ${sec('How sure', claimHtml(i))}
+    <div class="actions">${actions}</div>
+    ${sec('Notes', `${notes ? `<ul class="list">${notes}</ul>` : ''}${noteBox(key, i.id)}`)}
+  </article>`;
+}
+
+function questionDetail(key, s, q) {
+  const chips = (q.choices || []).map(c => `<button class="chip ${c === q.recommended ? 'rec' : ''}" type="button" data-answer="${esc(key)}" data-id="${q.id}" data-value="${esc(c)}">${esc(c)}${c === q.recommended ? ' <small>★ recommended</small>' : ''}</button>`).join('');
+  const answerBox = q.answer
+    ? sec('Answered', `<div class="answer">→ ${esc(q.answer)}</div>`)
+    : sec(q.kind === 'assume' ? 'True?' : 'Your answer', `<div class="chips">${chips}</div>
+        ${q.kind === 'assume' ? '' : `<input class="inp" data-answer-input="${esc(key)}" data-id="${q.id}" placeholder="or type an answer + enter">`}
+        <div class="c-act"><button class="btn sm" type="button" data-more="${esc(key)}" data-id="${q.id}">need more context</button></div>`);
+  return `<article class="detail">
+    <div class="d-sub"><span class="cid">${q.id}</span><span>${qPos(s, q)}</span>${q.kind === 'assume' ? '<span class="own assume">assumption</span>' : ''}</div>
+    <h2 class="d-title">${esc(qTitle(q))}</h2>
+    ${q.more ? '<p class="more-c">↺ You asked for more context. It stays open until Claude adds it.</p>' : ''}
+    ${q.context ? sec('Context', `<p>${esc(q.context)}</p>`) : ''}
+    ${q.example ? sec('Example', exampleHtml(s, q.example)) : ''}
+    ${q.impact ? sec('Impact', `<p>${esc(q.impact)}</p>`) : ''}
+    ${answerBox}
+  </article>`;
+}
+
+function laneTitle(key) {
+  const log = LOG(key);
+  return `<span class="dot ${SESSION[log.session.state]}"></span><span class="lane-name"><small>${esc(log.repo)} /</small> ${esc(log.branch)}</span>`;
+}
+
+function renderItemTab(t) {
+  const s = ST(t.key);
+  const q = s.questions.find(x => x.id === t.item);
+  const i = s.issues.find(x => x.id === t.item);
+  const next = nextOpen(t.key, t.item);
+  const nextBtn = next ? `<button class="btn sm" type="button" data-next="${esc(t.key)}" data-id="${next.item.id}">next open: ${next.item.id} (${next.left} left in lane) ›</button>` : '<span class="hint">nothing else open in this lane</span>';
+  return `<div class="d-head">${laneTitle(t.key)}<button class="link-btn" type="button" data-jump="${esc(t.key)}">show lane</button><span class="tb-right">${nextBtn}</span></div>
+    ${q ? questionDetail(t.key, s, q) : issueDetail(t.key, s, i)}`;
+}
+
+function renderWorktree(key) {
+  const s = ST(key);
+  const log = LOG(key);
+  const panel = (title, count, body, cls = '') => `<section class="panel ${cls}"><div class="panel-head"><span>${title}</span><span class="count">${count}</span></div>${body}</section>`;
+  const done = s.plan.filter(p => p.status === 'done').length;
+  const plan = `<div class="progress"><i style="width:${s.plan.length ? (done / s.plan.length) * 100 : 0}%"></i></div><div class="panel-body">${s.plan.length ? `<ul class="list plan">${s.plan.map(p => `
+    <li class="${p.status}"><button class="status-box" type="button" data-plan="${esc(key)}" data-id="${p.id}" title="${p.status} · click to change">${statusGlyph[p.status]}</button><span class="cid">${p.id}</span> <span class="text">${esc(p.text)}</span></li>`).join('')}</ul>` : '<p class="empty">No plan yet.</p>'}</div>`;
+  const questions = s.questions.map(q => `<li><span class="cid">${qPos(s, q)}</span> ${esc(qTitle(q))} ${q.answer ? `<span class="answer">→ ${esc(q.answer)}</span>` : `<button class="link-btn" type="button" data-open="${esc(key)}" data-item="${q.id}">open</button>`}</li>`).join('');
+  const issueGroup = owner => s.issues.filter(i => i.owner === owner).map(i => `<button class="link-btn" type="button" data-open="${esc(key)}" data-item="${i.id}">${i.id} ${i.status}</button>`).join(' · ') || '<span class="hint">none</span>';
+  const facts = s.facts.filter(f => f.kind !== 'term').map(f => `<li><span class="conf ${f.confidence || 'unchecked'}" title="${esc(f.method || 'no method given')}">${CONF[f.confidence || 'unchecked']}</span> ${esc(f.text)}<div class="method">${f.method ? `method: ${esc(f.method)}` : 'no method given'}</div><button class="dismiss" type="button" data-dismiss="${esc(key)}" data-id="${f.id}" title="Dismiss">×</button></li>`).join('');
+  const terms = s.facts.filter(f => f.kind === 'term').map(f => `<dt>${esc(f.term)}</dt><dd>${esc(f.text)}</dd>`).join('');
+  const notes = s.notes.map(n => `<li><span class="cid">${n.id}</span> ${esc(n.text)}${n.ref ? ` <span class="hint">→ ${esc(n.ref)}</span>` : ''}</li>`).join('');
+  const selected = view.diagram[key] || s.diagrams[0]?.name;
+  const dtabs = s.diagrams.map(d => `<button class="dtab ${d.name === selected ? 'on' : ''}" type="button" data-dgm="${esc(key)}" data-name="${esc(d.name)}">${esc(d.name)}</button>`).join('');
+  return `<div class="d-head">${laneTitle(key)}<span class="pill ${SESSION[log.session.state]}">${esc(log.session.state)}</span><span class="hint">${esc(log.worktree)} · turn ${s.turn}</span><button class="link-btn" type="button" data-jump="${esc(key)}">show lane</button></div>
+  <div class="wt-grid">
+    ${panel('Plan', `${done}/${s.plan.length}`, plan)}
+    ${panel('Questions', `${openQuestions(s).length} open`, `<div class="panel-body">${questions ? `<ul class="list">${questions}</ul>` : '<p class="empty">No questions.</p>'}</div>`)}
+    ${panel('Issues by owner', `${s.issues.length}`, `<div class="panel-body"><p><span class="own">ours</span> ${issueGroup('us')}</p><p><span class="own other">theirs</span> ${issueGroup('other')}</p></div>`)}
+    ${panel('Decisions', s.decisions.length, `<div class="panel-body">${s.decisions.map(d => `<div class="dec"><b><span class="cid">${d.id}</span> ${esc(d.text)}</b><span>${esc(d.why)}</span></div>`).join('') || '<p class="empty">None yet.</p>'}</div>`)}
+    ${panel('Facts', '× to dismiss', `<div class="panel-body">${facts ? `<ul class="list facts">${facts}</ul>` : '<p class="empty">No facts.</p>'}</div>`)}
+    ${panel('Glossary', s.facts.filter(f => f.kind === 'term').length, `<div class="panel-body">${terms ? `<dl class="terms">${terms}</dl>` : '<p class="empty">No terms.</p>'}</div>`)}
+    ${panel('Notes', s.notes.length, `<div class="panel-body">${notes ? `<ul class="list">${notes}</ul>` : '<p class="empty">No notes. Use the bar below.</p>'}</div>`)}
+    ${panel('Examples', s.examples.length, `<div class="panel-body">${s.examples.map(e => exampleHtml(s, e.name)).join('') || '<p class="empty">No examples.</p>'}</div>`)}
+    ${panel('Diagrams', '', s.diagrams.length ? `<div class="panel-body"><div class="dtabs">${dtabs}</div></div><div class="diagram" data-mermaid="${esc(selected)}" data-key="${esc(key)}"><span class="loading">rendering…</span></div>` : '<div class="panel-body"><p class="empty">No diagrams.</p></div>', 'wide')}
+  </div>`;
+}
+
+// ---- tool log tab ----
+function logRows() {
+  const f = view.logF;
+  const sortKey = ts => /^\d/.test(ts) ? `1${ts}` : `0${ts}`;
+  return LOGS.filter(l => ST(l.key) && (f.key === 'all' || f.key === l.key))
+    .flatMap(l => ST(l.key).activity.map(a => ({ a, key: l.key })))
+    .filter(({ a }) => (isToolRow(a) || f.events) && (f.tool === 'all' || a.tool === f.tool) && !(f.hideSub && a.agent) && (!f.filesOnly || a.t === 'file'))
+    .sort((x, y) => sortKey(y.a.ts).localeCompare(sortKey(x.a.ts)));
+}
+function logListHtml() {
+  const rows = logRows();
+  const html = rows.map(({ a, key }) => isToolRow(a)
+    ? `<li class="${a.fresh ? 'fresh' : ''}"><span>${esc(a.ts)}</span><span class="k">${esc(short(key))}</span><span class="tool">${esc(a.tool)}</span><span class="txt">${esc(a.text)}${a.agent ? `<span class="sub">${esc(a.agent)}</span>` : ''}</span></li>`
+    : `<li class="ev ${a.fresh ? 'fresh' : ''}"><span>${esc(a.ts)}</span><span class="k">${esc(short(key))}</span><span class="tool">${esc(a.by)} · ${esc(a.t)}</span><span class="txt">${esc(a.text)}</span></li>`).join('');
+  rows.forEach(({ a }) => { a.fresh = false; });
+  return { count: rows.length, html: html || '<li><span class="txt">No rows match.</span></li>' };
+}
+function renderToolLog() {
+  const f = view.logF;
+  const tools = [...new Set(LOGS.flatMap(l => ST(l.key)?.activity.filter(isToolRow).map(a => a.tool) || []))].sort();
+  const opt = (v, label, cur) => `<option value="${esc(v)}" ${v === cur ? 'selected' : ''}>${esc(label)}</option>`;
+  const box = (k, label) => `<label><input type="checkbox" data-lf="${k}" ${f[k] ? 'checked' : ''}>${label}</label>`;
+  const list = logListHtml();
+  return `<div class="log-tools">
+      <select class="sel" data-lf="key" aria-label="Worktree">${opt('all', 'all worktrees', f.key)}${LOGS.filter(l => l.on).map(l => opt(l.key, l.key, f.key)).join('')}</select>
+      <select class="sel" data-lf="tool" aria-label="Tool">${opt('all', 'all tools', f.tool)}${tools.map(t => opt(t, t, f.tool)).join('')}</select>
+      ${box('hideSub', 'hide subagents')}${box('filesOnly', 'files only')}${box('events', 'include ernie events')}
+      <span class="tb-right"><span class="live">live</span><span id="log-count">${list.count} rows</span></span>
+    </div>
+    <ul class="log" id="log-list">${list.html}</ul>
+    <p class="hint">Newest first. Bash rows show the call's description, never the command.</p>`;
+}
+
+// ---- outbox (state.pending / state.inboxText per log) ----
+const inboxText = s => s.pending.length ? [`ernie inbox · turn ${s.turn + 1}`, ...s.pending.map(p => `- ${p.label}`)].join('\n') : '';
+function queue(key, event, label) {
+  const s = ST(key);
+  // Reason: the server keeps only the latest plan set / question answer per id since the last turn mark
+  if ((event.t === 'plan' && event.op === 'set') || (event.t === 'question' && event.op === 'answer')) {
+    s.pending = s.pending.filter(p => !(p.t === event.t && p.op === event.op && p.id === event.id));
+  }
+  s.pending.push({ ...event, label });
+  s.inboxText = inboxText(s);
+  s.activity.unshift({ ts: clock(), by: 'user', t: event.t, op: event.op, text: label, fresh: true });
+  view.outboxKey = key;
+  render();
+}
+function renderOutbox() {
+  const s = ST(view.outboxKey);
+  const total = LOGS.reduce((n, l) => n + (ST(l.key)?.pending.length || 0), 0);
+  const el = document.getElementById('outbox-state');
+  el.classList.toggle('clear', !s.pending.length);
+  el.innerHTML = s.pending.length ? `→ next prompt: <b>${s.pending.length} queued</b>${total > s.pending.length ? ` <span class="hint">(${total} all)</span>` : ''}` : `→ Claude: <b>up to date</b>${total ? ` <span class="hint">(${total} elsewhere)</span>` : ''}`;
+  const sel = document.getElementById('outbox-key');
+  if (document.activeElement !== sel) {
+    sel.innerHTML = LOGS.filter(l => l.on).map(l => `<option value="${esc(l.key)}" ${l.key === view.outboxKey ? 'selected' : ''}>${esc(short(l.key))} · ${ST(l.key).pending.length}</option>`).join('');
+  }
+  document.getElementById('preview').hidden = !view.previewOpen;
+  document.getElementById('preview-text').textContent = `${s.inboxText || 'Nothing queued. Claude is up to date.'}\n\n(delivered when you send your next prompt in ${view.outboxKey})`;
+  document.getElementById('preview-btn').textContent = view.previewOpen ? 'hide' : 'preview';
+}
+
+// ---- chrome: selector + tabs ----
+function renderSelector() {
+  const focus = LOG(view.focus);
+  const shownCount = LOGS.filter(l => view.shown[l.key]).length;
+  document.getElementById('wt-btn').innerHTML = `<span class="dot ${SESSION[focus.session.state]}"></span><span class="wt-cur">${esc(focus.key)}</span><span class="hint">${shownCount}/${LOGS.length} lanes ▾</span>`;
+  const pop = document.getElementById('wt-pop');
+  pop.hidden = !view.popOpen;
+  if (!view.popOpen) return;
+  const repos = [...new Set(LOGS.map(l => l.repo))];
+  pop.innerHTML = `<div class="hint" style="padding:4px 8px">click a branch to jump to its lane · checkbox shows / hides the lane</div>${repos.map(repo => `<div class="repo-h">${esc(repo)}</div>${LOGS.filter(l => l.repo === repo).map(l => `
+    <div class="wt-row ${l.on ? '' : 'off'}"><input type="checkbox" data-show="${esc(l.key)}" ${view.shown[l.key] ? 'checked' : ''} aria-label="Show lane"><span class="dot ${SESSION[l.session.state]}"></span>
+      <button class="wt-jump" type="button" data-jump="${esc(l.key)}">${esc(l.branch)}<small>${esc(l.worktree)}</small></button>
+      <span class="hint">${l.on ? esc(l.session.state) : 'off'} · ${esc(l.session.lastEventAgo)}</span></div>`).join('')}`).join('')}
+    <div class="pop-f"><button class="link-btn" type="button" data-showonly="open">only lanes with open items</button><button class="link-btn" type="button" data-showonly="all">show all</button></div>`;
+}
+
+function tabLabel(t) {
+  if (t.kind === 'wt') return 'Worktree';
+  const s = ST(t.key);
+  const q = s.questions.find(x => x.id === t.item);
+  return `${t.item} ${q ? qTitle(q) : s.issues.find(x => x.id === t.item).title}`;
+}
+function renderTabs() {
+  const fixed = [['home', '▦ Board'], ['log', '≡ Tool log']].map(([id, label]) => `<button class="tab ${view.tab === id ? 'on' : ''}" type="button" data-tab="${id}"><span class="lbl">${label}</span></button>`);
+  const opened = view.tabs.map(t => `<button class="tab ${view.tab === tabId(t) ? 'on' : ''}" type="button" data-tab="${esc(tabId(t))}" title="${esc(`${t.key} · ${tabLabel(t)}`)}"><span class="tag">${esc(short(t.key))}</span><span class="lbl">${esc(tabLabel(t))}</span><span class="x" data-close="${esc(tabId(t))}" aria-label="Close tab">×</span></button>`);
+  document.getElementById('tabbar').innerHTML = [...fixed, ...opened].join('');
+}
+
+function render() {
+  const main = document.getElementById('main');
+  const t = view.tabs.find(x => tabId(x) === view.tab);
+  if (view.tab === 'log') main.innerHTML = renderToolLog();
+  else if (t && t.kind === 'wt') main.innerHTML = renderWorktree(t.key);
+  else if (t) main.innerHTML = renderItemTab(t);
+  else { view.tab = 'home'; main.innerHTML = renderBoard(); }
+  renderTabs();
+  renderSelector();
+  renderOutbox();
+  const s = ERNIE_SAMPLE.server;
+  document.getElementById('server').textContent = `127.0.0.1:${s.port} · ${s.version}`;
+  document.documentElement.style.setProperty('--stick', `${document.getElementById('top').offsetHeight}px`);
+  window.paintDiagrams?.();
+}
+
+// ---- actions ----
+function openTab(kind, key, item) {
+  let t = view.tabs.find(x => x.kind === kind && x.key === key && x.item === item);
+  if (!t) { t = { kind, key, item }; view.tabs.push(t); }
+  view.tab = tabId(t);
+  view.focus = key;
+  render();
+  window.scrollTo(0, 0);
+}
+function closeTab(id) {
+  const index = view.tabs.findIndex(t => tabId(t) === id);
+  view.tabs.splice(index, 1);
+  if (view.tab === id) view.tab = view.tabs[index - 1] ? tabId(view.tabs[index - 1]) : 'home';
+  render();
+}
+function jump(key) {
+  Object.assign(view, { tab: 'home', focus: key, popOpen: false, flashLane: key });
+  view.shown[key] = true;
+  if (ST(key)) { view.collapsed[key] = false; view.outboxKey = key; }
+  render();
+  document.getElementById(`lane-${slug(key)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  setTimeout(() => { view.flashLane = null; }, 1600);
+}
+function setIssue(key, id, status) {
+  const issue = ST(key).issues.find(x => x.id === id);
+  if (status === 'explained') delete issue.quote;
+  issue.status = status;
+  queue(key, { t: 'issue', op: 'set', id, status }, `${id} → ${status}${status === 'explained' ? ' (undo)' : ''}`);
+}
+function answerQuestion(key, id, value) {
+  const q = ST(key).questions.find(x => x.id === id);
+  const answer = value.trim();
+  if (!q || !answer) return;
+  Object.assign(q, { answer, more: false });
+  queue(key, { t: 'question', op: 'answer', id, text: answer }, `${id} → ${answer}`);
+}
+function addNote(key, text, ref) {
+  const s = ST(key);
+  const id = `n${s.notes.length + 1}`;
+  s.notes.push({ id, text, ref });
+  queue(key, { t: 'note', op: 'add', text, ref }, `note${ref ? ` on ${ref}` : ''}: ${text}`);
+}
+
+document.addEventListener('click', e => {
+  const hit = selector => e.target.closest(selector);
+  let el;
+  if ((el = hit('[data-close]'))) return closeTab(el.dataset.close);
+  if ((el = hit('[data-tab]'))) { view.tab = el.dataset.tab; return render(); }
+  if (hit('#wt-btn')) { view.popOpen = !view.popOpen; return renderSelector(); }
+  if (view.popOpen && !hit('.wt-pop')) { view.popOpen = false; renderSelector(); }
+  if ((el = hit('[data-jump]'))) return jump(el.dataset.jump);
+  if ((el = hit('[data-issue]'))) return setIssue(el.dataset.key, el.dataset.id, el.dataset.issue);
+  if ((el = hit('[data-answer]'))) return answerQuestion(el.dataset.answer, el.dataset.id, el.dataset.value);
+  if ((el = hit('[data-more]'))) {
+    ST(el.dataset.more).questions.find(q => q.id === el.dataset.id).more = true;
+    return queue(el.dataset.more, { t: 'question', op: 'answer', id: el.dataset.id, more: true }, `${el.dataset.id}: need more context`);
+  }
+  if ((el = hit('[data-plan]'))) {
+    const step = ST(el.dataset.plan).plan.find(p => p.id === el.dataset.id);
+    step.status = nextStatus[step.status];
+    return queue(el.dataset.plan, { t: 'plan', op: 'set', id: step.id, status: step.status }, `${step.id} → ${step.status}`);
+  }
+  if ((el = hit('[data-dismiss]'))) {
+    const s = ST(el.dataset.dismiss);
+    s.facts = s.facts.filter(f => f.id !== el.dataset.id);
+    return queue(el.dataset.dismiss, { t: 'fact', op: 'dismiss', id: el.dataset.id }, `dismissed ${el.dataset.id}`);
+  }
+  if ((el = hit('[data-next]'))) {
+    const t = view.tabs.find(x => tabId(x) === view.tab);
+    const existing = view.tabs.find(x => x.key === el.dataset.next && x.item === el.dataset.id);
+    if (existing) view.tabs.splice(view.tabs.indexOf(t), 1);
+    else t.item = el.dataset.id;
+    return openTab('card', el.dataset.next, el.dataset.id);
+  }
+  if ((el = hit('[data-collapse]'))) { view.collapsed[el.dataset.collapse] = !view.collapsed[el.dataset.collapse]; return render(); }
+  if ((el = hit('[data-all]'))) { LOGS.forEach(l => { if (ST(l.key)) view.collapsed[l.key] = el.dataset.all === 'close'; }); return render(); }
+  if ((el = hit('[data-wt]'))) return openTab('wt', el.dataset.wt);
+  if ((el = hit('[data-owner]'))) { view.owner = el.dataset.owner; return render(); }
+  if (hit('[data-dropped]')) { view.droppedOpen = !view.droppedOpen; return render(); }
+  if ((el = hit('[data-outbox]'))) { Object.assign(view, { outboxKey: el.dataset.outbox, previewOpen: true }); return render(); }
+  if ((el = hit('[data-dgm]'))) { view.diagram[el.dataset.dgm] = el.dataset.name; return render(); }
+  if ((el = hit('[data-showonly]'))) {
+    LOGS.forEach(l => { const s = ST(l.key); view.shown[l.key] = el.dataset.showonly === 'all' || Boolean(s && openItems(s).length + openIssues(s, 'us').length + openIssues(s, 'other').length); });
+    return render();
+  }
+  if ((el = hit('[data-open]'))) return openTab('card', el.dataset.open, el.dataset.item);
+  if (hit('#preview-btn')) { view.previewOpen = !view.previewOpen; return renderOutbox(); }
+  if (hit('#theme-toggle')) {
+    const root = document.documentElement;
+    root.dataset.theme = window.currentTheme() === 'dark' ? 'light' : 'dark';
+    window.dispatchEvent(new Event('themechange'));
+  }
+});
+
+document.addEventListener('change', e => {
+  const el = e.target;
+  if (el.dataset.show) { view.shown[el.dataset.show] = el.checked; render(); }
+  else if (el.dataset.lf) { view.logF[el.dataset.lf] = el.type === 'checkbox' ? el.checked : el.value; render(); }
+  else if (el.id === 'outbox-key') { view.outboxKey = el.value; renderOutbox(); }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const el = e.target;
+  if (el.dataset.answerInput) return answerQuestion(el.dataset.answerInput, el.dataset.id, el.value);
+  if (!el.value?.trim()) return;
+  if (el.dataset.note) return addNote(el.dataset.note, el.value.trim(), el.dataset.ref);
+  if (el.id === 'note-input') { const text = el.value.trim(); el.value = ''; addNote(view.outboxKey, text); }
+});
+
+window.currentTheme = () => document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+window.addEventListener('resize', () => document.documentElement.style.setProperty('--stick', `${document.getElementById('top').offsetHeight}px`));
+
+// ---- simulated liveness: the PostToolUse hook appends a `tool run` to whichever session is working ----
+const LIVE_RUNS = [
+  { tool: 'Read', text: 'sql/views/sessions.sql' },
+  { t: 'file', tool: 'Edit', text: 'sql/views/sessions.sql' },
+  { tool: 'Bash', text: 'Run sessions view tests' },
+  { tool: 'Grep', text: 'page_location', agent: 'Explore' },
+  { tool: 'Glob', text: 'sql/views/*.sql', agent: 'Explore' },
+  { tool: 'Bash', text: 'Compare session counts before and after on stage' },
+  { tool: 'Bash', text: '' },
+];
+let liveIndex = 0;
+let liveSeconds = 14 * 3600 + 21 * 60 + 8;
+const pad = n => String(n).padStart(2, '0');
+function clock() { return `${pad(Math.floor(liveSeconds / 3600))}:${pad(Math.floor(liveSeconds / 60) % 60)}:${pad(liveSeconds % 60)}`; }
+setInterval(() => {
+  liveSeconds += 4;
+  LOGS.filter(l => l.on && l.session.state === 'working').forEach(l => {
+    const run = LIVE_RUNS[liveIndex++ % LIVE_RUNS.length];
+    const s = ST(l.key);
+    s.activity.unshift({ ts: clock(), by: 'hook', t: run.t || 'tool', op: run.t ? 'touch' : 'run', tool: run.tool, text: run.text, agent: run.agent || null, fresh: true });
+    if (s.activity.length > 350) s.activity.pop();
+    l.session.lastEventAgo = 'now';
+    // Reason: patch only the ticker, pill and log list so typed answers and notes are never clobbered
+    document.querySelectorAll(`[data-ticker="${CSS.escape(l.key)}"]`).forEach(el => {
+      el.innerHTML = tickerInner(l.key);
+      el.classList.remove('fresh'); void el.offsetWidth; el.classList.add('fresh');
+    });
+    document.querySelectorAll(`[data-pill="${CSS.escape(l.key)}"]`).forEach(el => { el.textContent = `${l.session.state} · now`; });
+  });
+  const list = document.getElementById('log-list');
+  if (list) { const rows = logListHtml(); list.innerHTML = rows.html; document.getElementById('log-count').textContent = `${rows.count} rows`; }
+}, 4000);
+
+render();
+</script>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  const palettes = {
+    dark: { primaryColor: '#0c2f48', primaryTextColor: '#d8e6f2', primaryBorderColor: '#38bdf8', lineColor: '#5f7d96', secondaryColor: '#0f1e2c', tertiaryColor: '#0c1925',
+      background: '#0f1e2c', mainBkg: '#0c2f48', edgeLabelBackground: '#0f1e2c', actorBkg: '#0c2f48', actorBorder: '#38bdf8', actorTextColor: '#d8e6f2', actorLineColor: '#1f5a82',
+      signalColor: '#8299ae', signalTextColor: '#d8e6f2', noteBkgColor: '#132638', noteTextColor: '#d8e6f2', noteBorderColor: '#1f5a82' },
+    light: { primaryColor: '#e0f2fe', primaryTextColor: '#0d1f2e', primaryBorderColor: '#0284c7', lineColor: '#7b93a8', secondaryColor: '#ffffff', tertiaryColor: '#f3f7fb',
+      background: '#ffffff', mainBkg: '#e0f2fe', edgeLabelBackground: '#ffffff', actorBkg: '#e0f2fe', actorBorder: '#0284c7', actorTextColor: '#0d1f2e', actorLineColor: '#7cc4ee',
+      signalColor: '#557087', signalTextColor: '#0d1f2e', noteBkgColor: '#fef3c7', noteTextColor: '#0d1f2e', noteBorderColor: '#b45309' },
+  };
+  // Reason: a diagram only re-renders when its source or the theme changed; every other redraw reuses the cached SVG
+  const cache = new Map();
+  let pass = 0;
+  async function paintDiagrams() {
+    for (const el of document.querySelectorAll('[data-mermaid]')) {
+      const diagram = ERNIE_SAMPLE.states[el.dataset.key]?.diagrams.find(d => d.name === el.dataset.mermaid);
+      if (!diagram) continue;
+      const theme = window.currentTheme();
+      const cacheKey = `${theme}\n${diagram.mermaid}`;
+      if (!cache.has(cacheKey)) {
+        mermaid.initialize({ startOnLoad: false, theme: 'base', securityLevel: 'strict', fontFamily: "'Fragment Mono', ui-monospace, monospace",
+          themeVariables: { ...palettes[theme], fontFamily: "'Fragment Mono', ui-monospace, monospace", fontSize: '13px' },
+          flowchart: { curve: 'basis' }, sequence: { mirrorActors: false } });
+        try { cache.set(cacheKey, (await mermaid.render(`dgm-${++pass}`, diagram.mermaid)).svg); }
+        catch (err) { cache.set(cacheKey, `<span class="loading">Diagram failed to render: ${String(err.message || err).replace(/[<>&]/g, '')}</span>`); }
+      }
+      if (el.isConnected) el.innerHTML = cache.get(cacheKey);
+    }
+  }
+  window.paintDiagrams = paintDiagrams;
+  await document.fonts.ready;
+  paintDiagrams();
+  window.addEventListener('themechange', paintDiagrams);
+</script>
+</body>
+</html>

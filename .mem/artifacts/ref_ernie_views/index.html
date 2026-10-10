@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ernie view variations</title>
+  <style>
+    :root { --bg: #0a1520; --card: #0f1e2c; --text: #d8e6f2; --dim: #8299ae; --accent: #38bdf8; --border: #1c3246; color-scheme: dark; }
+    @media (prefers-color-scheme: light) {
+      :root:not([data-theme="dark"]) { --bg: #f3f7fb; --card: #fff; --text: #0d1f2e; --dim: #557087; --accent: #0284c7; --border: #d3dfea; color-scheme: light; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px 16px 48px; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, sans-serif; }
+    main { max-width: 960px; margin: 0 auto; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    p.sub { color: var(--dim); margin: 0 0 20px; }
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+    a.card { display: block; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); color: inherit; text-decoration: none; }
+    a.card:hover { border-color: var(--accent); }
+    .num { font: 12px ui-monospace, monospace; color: var(--accent); }
+    .name { font-weight: 700; font-size: 16px; margin: 2px 0 4px; }
+    .idea, .tabs { color: var(--dim); font-size: 13px; margin: 0; }
+    .tabs { margin-top: 6px; font-family: ui-monospace, monospace; font-size: 11.5px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>ernie · page view variations</h1>
+  <p class="sub">10 mocks, same sample data (<code>_sample_state.js</code>). Tabs (a) = one per worktree, (b) = one per ernie issue.</p>
+  <div class="grid">
+    <a class="card" href="01-mission-control.html"><div class="num">01</div><div class="name">Mission Control</div><p class="idea">Home = worktree card wall with big "needs you" counts; browser-style worktree tabs holding the board + tall tool log.</p><p class="tabs">tabs (a)</p></a>
+    <a class="card" href="02-triage-inbox.html"><div class="num">02</div><div class="name">Triage Inbox</div><p class="idea">One impact-sorted "needs you" queue across worktrees; one item at a time, N of M, j/k/a/n keys; acting moves to the next.</p><p class="tabs">tabs (b) pinned items</p></a>
+    <a class="card" href="03-issue-workbench.html"><div class="num">03</div><div class="name">Issue Workbench</div><p class="idea">Editor tabs per issue; each a worksheet (example → cause → fix → impact → method) under an explained → approved → fixed stepper; split view.</p><p class="tabs">tabs (b)</p></a>
+    <a class="card" href="04-terminal-sidecar.html"><div class="num">04</div><div class="name">Terminal Sidecar</div><p class="idea">360–480px column beside the terminal: "now" ticker, pinned worktree chips, icon tabs, terminal-style log tail.</p><p class="tabs">tabs (a) chips</p></a>
+    <a class="card" href="05-turn-timeline.html"><div class="num">05</div><div class="name">Turn Timeline</div><p class="idea">Timeline by turn: you sent → Claude did → Claude logged; the outbox is drawn as the next turn; "open now" rail.</p><p class="tabs">tabs (a)</p></a>
+    <a class="card" href="06-kanban-swimlanes.html"><div class="num">06</div><div class="name">Kanban Swimlanes</div><p class="idea">Lane per worktree, columns = the issue gate; approve is a button, never a drag; ours/theirs toggle across all lanes.</p><p class="tabs">tabs (b)</p></a>
+    <a class="card" href="07-ide-layout.html"><div class="num">07</div><div class="name">IDE Layout</div><p class="idea">VS Code-style: explorer tree as selector, color-striped editor tabs in split groups, bottom Tools/Files/Events/Outbox panel.</p><p class="tabs">tabs (a)+(b)</p></a>
+    <a class="card" href="08-briefing.html"><div class="num">08</div><div class="name">Briefing</div><p class="idea">Calm reading column: one-line bottom line, "since you last looked", priority-ordered sections; "What Claude did" in prose.</p><p class="tabs">tabs (a)</p></a>
+    <a class="card" href="09-monitor-wall.html"><div class="num">09</div><div class="name">Monitor Wall</div><p class="idea">Every worktree as a live tile at once; ranked by attention; NEEDS YOU banner jumps into a focus tab.</p><p class="tabs">tabs (a) focus</p></a>
+    <a class="card" href="10-issue-threads.html"><div class="num">10</div><div class="name">Issue Threads</div><p class="idea">Slack-style: each issue is a thread telling its story from finding → approval → tool runs → fixed.</p><p class="tabs">tabs (b)</p></a>
+  </div>
+</main>
+</body>
+</html>

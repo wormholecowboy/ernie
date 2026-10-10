@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<!--
+  VARIATION 01 · Mission Control
+  For: someone running 2–4 Claude sessions at once (one per worktree) who wants one glance to see which one needs them.
+  Key idea: the page is a browser inside the browser. A pinned Home tab is a wall of worktree cards (state, "needs you"
+  count, active plan step, live 3-row tool feed); each open worktree gets its own tab holding a full board.
+  MUST items:
+    1. Selector: "+ open worktree" dropdown beside the tabs, grouped by repo, each branch with session state + on/off
+       (dotfiles/main shows off). Picking one opens or focuses its tab.
+    2. Tool log: tall right column on every worktree tab, filters (tool, hide subagents, files only, tools only);
+       Bash rows show the description only; a new row lands every ~4 s on the "working" session, highlighted.
+       Home cards show the 3 newest tool rows of each session, live.
+    3. Tabs: meaning (a), one browser-style tab per open worktree, with state dot, needs-you badge and close ×.
+       Meaning (b) is supported inside a tab: issues and questions carry N/M positions and "next" jump links.
+    4. Home: pinned first tab; card grid sorted waiting → working → idle → off; clicking a card opens/focuses its tab.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ernie · Mission Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  img, svg, pre { max-width: 100%; }
+  :root {
+    --sans: 'Bricolage Grotesque', system-ui, sans-serif;
+    --mono: 'Fragment Mono', ui-monospace, SFMono-Regular, monospace;
+    --bg: #0a1520; --bg-card: #0f1e2c; --bg-recessed: #0c1925; --bg-raised: #132638;
+    --text: #d8e6f2; --text-dim: #8299ae; --text-accent: #7dd3fc;
+    --accent: #38bdf8; --accent-soft: #0c2f48;
+    --border: #1c3246; --border-accent: #1f5a82;
+    --grid: rgba(56,189,248,.04);
+    --success: #34d399; --warning: #fbbf24; --error: #f87171;
+    --pass-bg: #064e3b; --pass-fg: #a7f3d0;
+    --warn-bg: #78350f; --warn-fg: #fde68a;
+    --info-bg: #1e3a8a; --info-fg: #dbeafe;
+    --shadow: rgba(0,0,0,.5);
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f3f7fb; --bg-card: #ffffff; --bg-recessed: #eef3f8; --bg-raised: #ffffff;
+      --text: #0d1f2e; --text-dim: #557087; --text-accent: #0369a1;
+      --accent: #0284c7; --accent-soft: #e0f2fe;
+      --border: #d3dfea; --border-accent: #7cc4ee;
+      --grid: rgba(2,132,199,.05);
+      --success: #059669; --warning: #b45309; --error: #dc2626;
+      --pass-bg: #d1fae5; --pass-fg: #065f46;
+      --warn-bg: #fef3c7; --warn-fg: #92400e;
+      --info-bg: #dbeafe; --info-fg: #1e40af;
+      --shadow: rgba(13,31,46,.16);
+      color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f3f7fb; --bg-card: #ffffff; --bg-recessed: #eef3f8; --bg-raised: #ffffff;
+    --text: #0d1f2e; --text-dim: #557087; --text-accent: #0369a1;
+    --accent: #0284c7; --accent-soft: #e0f2fe;
+    --border: #d3dfea; --border-accent: #7cc4ee;
+    --grid: rgba(2,132,199,.05);
+    --success: #059669; --warning: #b45309; --error: #dc2626;
+    --pass-bg: #d1fae5; --pass-fg: #065f46;
+    --warn-bg: #fef3c7; --warn-fg: #92400e;
+    --info-bg: #dbeafe; --info-fg: #1e40af;
+    --shadow: rgba(13,31,46,.16);
+    color-scheme: light;
+  }
+  body { margin: 0; font-family: var(--sans); font-size: 14px; line-height: 1.5; color: var(--text);
+    background-color: var(--bg); overflow-x: hidden;
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 24px 24px; background-attachment: fixed; }
+  code, .mono { font-family: var(--mono); font-size: .92em; }
+  button { font: inherit; color: inherit; }
+  .mock-banner { font: 11px var(--mono); text-align: center; padding: 5px 16px; background: var(--warn-bg); color: var(--warn-fg); letter-spacing: .05em; }
+
+  /* State colors, shared by chips, dots and card rails */
+  .s-working { --st: var(--accent); } .s-waiting { --st: var(--warning); }
+  .s-idle { --st: var(--text-dim); } .s-off { --st: var(--border-accent); }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--st); flex: none; }
+  .s-working .dot { animation: pulse 1.6s ease-in-out infinite; }
+  .s-off .dot { background: transparent; border: 1.5px solid var(--st); }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+  .state-chip { font: 11px var(--mono); padding: 2px 8px; border-radius: 10px; border: 1px solid var(--st); color: var(--st);
+    white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
+  .badge { font: 10.5px var(--mono); min-width: 18px; padding: 1px 6px; border-radius: 9px; background: var(--warning); color: var(--bg); text-align: center; }
+
+  /* Top bar: brand · tabs · open-worktree · status */
+  .topbar { position: sticky; top: 0; z-index: 50; display: flex; align-items: flex-end; gap: 10px; padding: 8px 20px 0;
+    border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(8px); }
+  .brand { font-weight: 800; font-size: 19px; letter-spacing: -.02em; padding-bottom: 7px; }
+  .brand span { color: var(--accent); }
+  .tabstrip { display: flex; align-items: flex-end; gap: 2px; min-width: 0; flex: 1; overflow-x: auto; scrollbar-width: thin; }
+  .tab { display: flex; align-items: center; border: 1px solid var(--border); border-bottom: none; border-radius: 8px 8px 0 0;
+    background: var(--bg-recessed); color: var(--text-dim); flex: none; max-width: 260px; }
+  .tab.active { background: var(--bg-card); color: var(--text); border-color: var(--border-accent); box-shadow: inset 0 2px 0 var(--accent); }
+  .tab > button { background: none; border: 0; cursor: pointer; padding: 7px 8px 7px 12px; display: flex; align-items: center; gap: 7px;
+    font: 12px var(--mono); min-width: 0; }
+  .tab .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tab .repo { color: var(--text-dim); }
+  .tab .x { padding: 7px 9px 7px 2px; color: var(--text-dim); }
+  .tab .x:hover { color: var(--error); }
+  .tab.home > button { padding-right: 12px; font-weight: 600; }
+  .opener { position: relative; flex: none; padding-bottom: 5px; }
+  .status { display: flex; align-items: center; gap: 12px; font: 11.5px var(--mono); color: var(--text-dim); padding-bottom: 7px; flex: none; }
+  .live { color: var(--success); display: inline-flex; align-items: center; gap: 6px; }
+  .live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--success); animation: pulse 1.8s infinite; }
+  .icon-btn { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; font: 11.5px var(--mono); }
+  .icon-btn:hover { border-color: var(--accent); }
+  .menu { position: absolute; right: 0; top: calc(100% + 4px); width: 340px; max-width: calc(100vw - 32px); z-index: 70; background: var(--bg-raised);
+    border: 1px solid var(--border-accent); border-radius: 10px; box-shadow: 0 20px 50px -20px var(--shadow); padding: 6px; display: none; }
+  .menu.open { display: block; }
+  .menu h4 { margin: 8px 8px 4px; font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); }
+  .menu button { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 8px; align-items: center; width: 100%; text-align: left;
+    background: none; border: 0; border-radius: 6px; padding: 7px 8px; cursor: pointer; font: 12px var(--mono); }
+  .menu button:hover { background: var(--accent-soft); }
+  .menu .meta { color: var(--text-dim); font-size: 11px; }
+  .menu .br { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media (max-width: 720px) {
+    .topbar { flex-wrap: wrap; padding: 8px 16px 0; }
+    .status { margin-left: auto; }
+    .tabstrip { order: 3; flex-basis: 100%; }
+    .opener { order: 2; }
+  }
+
+  main { max-width: 1680px; margin: 0 auto; padding: 16px 20px 150px; }
+  @media (max-width: 720px) { main { padding: 12px 16px 200px; } }
+
+  /* Home */
+  .summary { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: baseline; margin: 2px 0 14px; font: 12.5px var(--mono); color: var(--text-dim); }
+  .summary h1 { font: 800 22px var(--sans); letter-spacing: -.02em; color: var(--text); margin: 0 6px 0 0; }
+  .summary b { color: var(--warning); font-weight: 400; }
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); }
+  .card { background: var(--bg-card); border: 1px solid var(--border); border-left: 3px solid var(--st); border-radius: 10px; padding: 14px;
+    cursor: pointer; display: flex; flex-direction: column; gap: 10px; min-width: 0; text-align: left; }
+  .card:hover, .card:focus-visible { border-color: var(--border-accent); border-left-color: var(--st); outline: none; box-shadow: 0 12px 30px -20px var(--shadow); }
+  .card.s-off { opacity: .6; }
+  .card-top { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+  .card-name { font-weight: 600; font-size: 15px; overflow-wrap: anywhere; }
+  .card-name .repo { color: var(--text-dim); font-weight: 400; }
+  .card .path { font: 11px var(--mono); color: var(--text-dim); overflow-wrap: anywhere; }
+  .needs { display: flex; align-items: baseline; gap: 10px; font: 12px var(--mono); color: var(--text-dim); }
+  .needs strong { font: 800 30px/1 var(--sans); color: var(--warning); }
+  .needs.zero strong { color: var(--text-dim); opacity: .5; }
+  .step { font-size: 13px; display: flex; justify-content: space-between; gap: 8px; }
+  .step span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .step .n { font: 11px var(--mono); color: var(--text-dim); flex: none; }
+  .progress { height: 4px; background: var(--bg-recessed); border-radius: 2px; overflow: hidden; }
+  .progress > i { display: block; height: 100%; background: var(--success); transition: width .3s; }
+  .mini { list-style: none; margin: 0; padding: 6px 8px; font: 11.5px var(--mono); background: var(--bg-recessed); border-radius: 6px; min-height: 66px; }
+  .mini li { display: flex; gap: 8px; white-space: nowrap; overflow: hidden; padding: 1px 0; color: var(--text-dim); }
+  .mini li span:last-child { overflow: hidden; text-overflow: ellipsis; }
+  .card-foot { font: 11px var(--mono); color: var(--text-dim); display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .card-foot .queued { color: var(--warning); }
+  .fresh { animation: flash 1.6s ease-out; }
+  @keyframes flash { from { background: var(--accent-soft); color: var(--text-accent); } to { background: transparent; } }
+
+  /* Worktree tab */
+  .wt-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 14px; }
+  .wt-head h1 { font: 800 20px var(--sans); letter-spacing: -.02em; margin: 0; overflow-wrap: anywhere; }
+  .wt-head h1 .repo { color: var(--text-dim); font-weight: 400; }
+  .wt-head .meta { font: 11.5px var(--mono); color: var(--text-dim); overflow-wrap: anywhere; }
+  .jump { font: 11.5px var(--mono); color: var(--warning); background: none; border: 1px solid var(--warning); border-radius: 12px; padding: 2px 10px; cursor: pointer; }
+  .board { display: grid; gap: 16px; align-items: start;
+    grid-template-columns: minmax(0, .95fr) minmax(0, 1.2fr) minmax(0, 1.15fr) minmax(0, .95fr); grid-template-areas: "a b c log"; }
+  .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .col-a { grid-area: a; } .col-b { grid-area: b; } .col-c { grid-area: c; } .col-log { grid-area: log; position: sticky; top: 64px; }
+  @media (max-width: 1279px) { .board { grid-template-columns: minmax(0,1fr) minmax(0,1fr); grid-template-areas: "b c" "a log"; } .col-log { position: static; } }
+  @media (max-width: 860px) { .board { grid-template-columns: minmax(0,1fr); grid-template-areas: "b" "c" "a" "log"; } }
+  .panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; min-width: 0; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid var(--border);
+    font: 11px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); }
+  .panel-head .count { color: var(--text-accent); text-transform: none; letter-spacing: 0; }
+  .panel-body { padding: 10px 14px 14px; min-width: 0; }
+  .empty { color: var(--text-dim); font-size: 13px; padding: 4px 0; }
+  .item-id { font: 10.5px var(--mono); color: var(--text-dim); margin-right: 6px; }
+  .sub { font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); margin: 12px 0 6px; }
+  .sub:first-child { margin-top: 0; }
+
+  .plan { list-style: none; margin: 0; padding: 0; }
+  .plan li { position: relative; padding: 7px 0 7px 30px; border-bottom: 1px dashed var(--border); overflow-wrap: break-word; }
+  .plan li:last-child { border-bottom: none; }
+  .status-box { position: absolute; left: 0; top: 7px; width: 20px; height: 20px; border-radius: 5px; border: 1.5px solid var(--text-dim);
+    background: transparent; cursor: pointer; padding: 0; font: 800 12px var(--sans); line-height: 17px; text-align: center; }
+  .plan li.done { color: var(--text-dim); } .plan li.done .text { text-decoration: line-through; }
+  .plan li.done .status-box { background: var(--success); border-color: var(--success); color: var(--bg); }
+  .plan li.active .status-box { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); color: var(--accent); }
+  .plan li.active .text { color: var(--text-accent); } .plan li.dropped { opacity: .5; }
+
+  .q, .iss { border: 1px solid var(--border); border-radius: 8px; padding: 11px 12px; margin-bottom: 10px; background: var(--bg-recessed); overflow-wrap: break-word; }
+  .q.open, .iss.st-explained { border-color: var(--border-accent); background: var(--accent-soft); }
+  .q-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .q-num { font: 11px var(--mono); color: var(--accent); }
+  .q-text { font-size: 15px; font-weight: 600; margin: 3px 0 8px; }
+  .q.done .q-text, .iss.closed .q-text { font-size: 13.5px; font-weight: 400; color: var(--text-dim); margin-bottom: 2px; }
+  .kv { margin: 0 0 8px; font-size: 13px; }
+  .kv b { font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); margin-right: 6px; font-weight: 400; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .chip { font: 12px var(--mono); padding: 5px 11px; border-radius: 14px; border: 1px solid var(--border); background: var(--bg-card); cursor: pointer; }
+  .chip:hover { border-color: var(--accent); }
+  .chip.rec { border-color: var(--success); color: var(--success); }
+  .row-in { display: flex; gap: 6px; }
+  .row-in input, .note-input { flex: 1; min-width: 0; width: 100%; font: 12.5px var(--mono); padding: 7px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); }
+  input:focus { outline: none; border-color: var(--accent); }
+  .btn { font: 12px var(--mono); padding: 6px 11px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border); background: var(--bg-card); white-space: nowrap; }
+  .btn:hover { border-color: var(--accent); }
+  .btn--go { background: var(--success); border-color: var(--success); color: var(--bg); }
+  .link-btn { background: none; border: none; padding: 0; cursor: pointer; font: 11px var(--mono); color: var(--text-dim); text-decoration: underline; }
+  .link-btn:hover { color: var(--accent); }
+  .answer { font: 12.5px var(--mono); color: var(--success); }
+  .wait { font: 11.5px var(--mono); color: var(--warning); margin-bottom: 8px; }
+  .gate { display: inline-flex; gap: 4px; font: 10.5px var(--mono); color: var(--text-dim); }
+  .gate i { font-style: normal; padding: 0 5px; border-radius: 4px; }
+  .gate i.on { background: var(--info-bg); color: var(--info-fg); }
+  .gate i.on.g-approved { background: var(--warn-bg); color: var(--warn-fg); }
+  .gate i.on.g-fixed { background: var(--pass-bg); color: var(--pass-fg); }
+  .actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 4px; }
+  .quote { font: 12px var(--mono); color: var(--text-dim); }
+  .quote q { color: var(--text); }
+
+  .conf { font: 10.5px var(--mono); padding: 1px 6px; border-radius: 4px; border: 0; cursor: help; margin-right: 6px; vertical-align: 1px; }
+  .c-verified { background: var(--pass-bg); color: var(--pass-fg); } .c-inferred { background: var(--warn-bg); color: var(--warn-fg); }
+  .c-unchecked { background: var(--bg-raised); color: var(--text-dim); border: 1px dashed var(--text-dim); }
+  .method { font: 11.5px var(--mono); color: var(--text-dim); margin: 4px 0 6px; padding: 5px 8px; border-left: 2px solid var(--border-accent); overflow-wrap: anywhere; }
+
+  .ex { margin: 6px 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); }
+  .ex summary { cursor: pointer; padding: 6px 9px; font: 11.5px var(--mono); color: var(--text-accent); }
+  .ex-wrap { overflow-x: auto; padding: 0 9px; }
+  .ex table { border-collapse: collapse; font: 11.5px var(--mono); width: 100%; }
+  .ex th, .ex td { text-align: left; padding: 4px 8px 4px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .ex th { color: var(--text-dim); font-weight: 400; } .ex td:first-child { color: var(--text-dim); }
+  .ex .cap { font-size: 12.5px; padding: 6px 9px 2px; } .ex .run { font: 11px var(--mono); color: var(--text-dim); padding: 0 9px 8px; }
+
+  .dec { padding: 4px 0 4px 10px; border-left: 2px solid var(--accent); margin: 4px 0 10px; overflow-wrap: break-word; }
+  .dec b { font-weight: 600; display: block; } .dec .why { font-size: 13px; color: var(--text-dim); }
+  .facts { list-style: none; margin: 0; padding: 0; }
+  .facts li { position: relative; padding: 6px 26px 6px 0; border-bottom: 1px dashed var(--border); overflow-wrap: break-word; }
+  .facts li:last-child { border-bottom: none; }
+  .dismiss { position: absolute; right: 0; top: 5px; width: 22px; height: 22px; border-radius: 5px; border: 1px solid transparent; background: none; cursor: pointer; color: var(--text-dim); }
+  .dismiss:hover { border-color: var(--border); color: var(--error); }
+  .gloss { margin: 0; display: grid; grid-template-columns: auto minmax(0,1fr); gap: 4px 10px; font-size: 13px; }
+  .gloss dt { font: 12px var(--mono); color: var(--text-accent); } .gloss dd { margin: 0; }
+  .note { font-size: 13px; padding: 4px 0; } .note .ref { font: 11px var(--mono); color: var(--accent); }
+  .dtabs { display: flex; gap: 4px; }
+  .dtab { font: 11px var(--mono); padding: 2px 9px; border-radius: 5px; border: 1px solid var(--border); background: var(--bg-recessed); cursor: pointer; text-transform: none; letter-spacing: 0; }
+  .dtab.sel { border-color: var(--accent); color: var(--text-accent); }
+  .diagram { overflow: auto; padding: 14px; min-height: 180px; display: flex; justify-content: center; }
+  .diagram .loading { font: 12px var(--mono); color: var(--text-dim); align-self: center; }
+  .diagram .nodeLabel { color: var(--text) !important; }
+  .diagram .edgeLabel, .diagram .edgeLabel p { color: var(--text-dim) !important; background-color: var(--bg-card) !important; }
+  .diagram .edgeLabel rect { fill: var(--bg-card) !important; }
+
+  /* Tool log */
+  .filters { display: flex; flex-wrap: wrap; gap: 6px 10px; padding: 8px 14px; border-bottom: 1px solid var(--border); font: 11.5px var(--mono); color: var(--text-dim); }
+  .filters select { max-width: 100%; font: 11.5px var(--mono); background: var(--bg-recessed); color: var(--text); border: 1px solid var(--border); border-radius: 5px; padding: 2px 4px; }
+  .filters label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+  .log-body { max-height: calc(100dvh - 190px); overflow-y: auto; padding: 4px 0; }
+  @media (max-width: 1279px) { .log-body { max-height: 440px; } }
+  .feed { list-style: none; margin: 0; padding: 0; font: 11.5px var(--mono); }
+  .feed li { display: grid; grid-template-columns: 64px 62px minmax(0,1fr); gap: 6px; padding: 4px 14px; border-bottom: 1px solid var(--border); color: var(--text-dim); }
+  .feed .tool { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .feed .txt { overflow-wrap: anywhere; }
+  .feed li.ev .tool { color: var(--accent); } .feed li.ev.by-user .tool { color: var(--success); }
+  .feed li.ev .txt { color: var(--text); } .feed li.file .tool { color: var(--warning); }
+  .ag { font-size: 10px; padding: 0 5px; margin-left: 6px; border-radius: 4px; background: var(--info-bg); color: var(--info-fg); white-space: nowrap; }
+
+  /* Outbox */
+  .outbox { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; background: var(--bg-raised); border-top: 1px solid var(--border-accent); box-shadow: 0 -20px 50px -30px var(--shadow); }
+  .outbox-inner { max-width: 1680px; margin: 0 auto; padding: 10px 20px; display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 12px; align-items: center; }
+  .outbox-state { font: 12px var(--mono); overflow-wrap: anywhere; } .outbox-state b { color: var(--warning); font-weight: 400; }
+  .outbox-state.clear b { color: var(--success); }
+  .hint { font: 11px var(--mono); color: var(--text-dim); text-transform: none; letter-spacing: 0; }
+  .preview { max-width: 1680px; margin: 0 auto; padding: 0 20px 10px; display: none; }
+  .preview.open { display: block; }
+  .preview pre { margin: 0; padding: 10px 14px; border-radius: 8px; background: var(--bg-recessed); border: 1px solid var(--border); font: 12px/1.7 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+  body.on-home .note-input, body.on-home #preview-btn { display: none; }
+  @media (max-width: 720px) { .outbox-inner { grid-template-columns: minmax(0,1fr); padding: 10px 16px; } .preview { padding: 0 16px 10px; } }
+</style>
+</head>
+<body class="on-home">
+<div class="mock-banner">MOCK · Mission Control · sample data, no server</div>
+
+<header class="topbar">
+  <div class="brand">ernie<span>.</span></div>
+  <nav class="tabstrip" id="tabstrip" aria-label="Open worktrees"></nav>
+  <div class="opener">
+    <button class="icon-btn" id="open-btn" type="button" aria-haspopup="true">+ open worktree ▾</button>
+    <div class="menu" id="menu" role="menu"></div>
+  </div>
+  <div class="status"><span class="live" id="live">live</span><button class="icon-btn" id="theme-toggle" type="button">◐</button></div>
+</header>
+
+<main id="main"></main>
+
+<div class="outbox">
+  <div class="preview" id="preview"><pre id="preview-text"></pre></div>
+  <div class="outbox-inner">
+    <div class="outbox-state" id="outbox-state"></div>
+    <input class="note-input" id="note-input" type="text" placeholder="Note to Claude… (enter to queue)">
+    <div><button class="btn" id="preview-btn" type="button">preview</button> <span class="hint">sent on your next prompt</span></div>
+  </div>
+</div>
+
+<script>
+// Shared sample data for the ernie view variations (ref_ernie_views/*.html).
+// Every mock inlines a copy of ERNIE_SAMPLE so all ten show the same data and differ only in layout.
+// Shapes follow spec_ernie.md (event types, fold output) plus A114 `tool run` activity rows.
+// Fields marked "view-only" are not in the spec yet; mocks that use them should say so.
+
+const ERNIE_SAMPLE = {
+  server: { port: 7477, version: 'v0.1.0-12-g3c9e1a7', connected: true },
+
+  // One entry per log file (~/.local/state/ernie/<repo>/<branch>.jsonl). Worktrees of one repo share the repo slug.
+  logs: [
+    {
+      key: 'glue/CDIT-2631-ga4-dedupe', repo: 'glue', branch: 'CDIT-2631-ga4-dedupe', on: true,
+      worktree: '~/things/myc/glue/CDIT-2631-ga4-dedupe', // view-only: spec stores the repo root, not the worktree path
+      session: { id: '4995d496', state: 'working', lastEventAgo: '3s' }, // view-only: derived from hook timestamps
+    },
+    {
+      key: 'glue/CDIT-2627-gsc-backfill', repo: 'glue', branch: 'CDIT-2627-gsc-backfill', on: true,
+      worktree: '~/things/myc/glue/CDIT-2627-gsc-backfill',
+      session: { id: '3fb7e802', state: 'waiting on you', lastEventAgo: '6m' },
+    },
+    {
+      key: 'glue/main', repo: 'glue', branch: 'main', on: true,
+      worktree: '~/things/myc/glue/main',
+      session: { id: null, state: 'idle', lastEventAgo: '1d' },
+    },
+    {
+      key: 'ernie/main', repo: 'ernie', branch: 'main', on: true,
+      worktree: '~/things/myc/ernie/main',
+      session: { id: '715abde2', state: 'idle', lastEventAgo: '2h' },
+    },
+    {
+      key: 'dotfiles/main', repo: 'dotfiles', branch: 'main', on: false, // has a main.off marker
+      worktree: '~/.dotfiles',
+      session: { id: null, state: 'off', lastEventAgo: '5d' },
+    },
+  ],
+
+  // Folded state per log key, as `GET /stream` would push it.
+  states: {
+    'glue/CDIT-2631-ga4-dedupe': {
+      turn: 14,
+      plan: [
+        { id: 'p1', text: 'Reproduce double count on one Dealer Spike host', status: 'done' },
+        { id: 'p2', text: 'Find the dedupe gap', status: 'done' },
+        { id: 'p3', text: 'Normalize page_location before hashing', status: 'active' },
+        { id: 'p4', text: 'Backfill 90 days', status: 'todo' },
+        { id: 'p5', text: 'Verify session counts on stage', status: 'todo' },
+        { id: 'p6', text: 'Open PR', status: 'todo' },
+      ],
+      decisions: [
+        { id: 'd1', text: 'dedupe_key = sha1(session_id, normalized page_location, event_ts)', why: 'event_ts alone collides across tabs; session_id alone merges real repeat views' },
+        { id: 'd2', text: 'Platform-side bugs go to the platform team, not fixed in glue', why: 'we only own the loader and views' },
+      ],
+      questions: [
+        {
+          id: 'q1', kind: 'assume', text: 'publicDigmsDB.clients = Glue\'s client list', choices: ['yes', 'no'],
+          context: 'The 212-site count below comes from joining ga4_hits to publicDigmsDB.clients.',
+          impact: 'If clients is missing sites, the double-count rate is understated.',
+        },
+        {
+          id: 'q2', text: 'Normalize page_location in the SQL view or in the loader?', choices: ['view', 'loader'], recommended: 'view',
+          context: 'Both fix new rows. Only the view also fixes old rows without a backfill.',
+          impact: 'Loader means a 90-day backfill (~40 min on stage) before counts are right.',
+          example: 'e2',
+        },
+        { id: 'q3', text: 'Backfill window?', choices: ['30 days', '90 days'], answer: '90 days' },
+        {
+          id: 'q4', text: 'Should the dedupe also cover Dealer Inspire hosts?', choices: ['yes', 'no'],
+          more: true, followUp: 'need more context', // answered "need more context" → stays open (A88)
+        },
+      ],
+      issues: [
+        {
+          id: 'i1', title: 'Dedupe key ignores the trailing "i" on listing ids', status: 'explained', owner: 'us',
+          cause: 'page_location for the same listing arrives as …-14615315i and …-14615315, so one session hashes to two keys.',
+          fix: 'Strip a trailing "i" from the listing id segment before hashing.',
+          impact: '~3.1% of sessions double-counted on 212 Dealer Spike sites.',
+          confidence: 'verified', method: 'SELECT page_location, dedupe_key FROM ga4_hits WHERE host = \'ds-4471.dealerspike.com\' LIMIT 5',
+          example: 'e1',
+        },
+        {
+          id: 'i2', title: 'Backfill job skips days with late-arriving hits', status: 'approved', owner: 'us',
+          cause: 'The job filters on load_date, but late hits land under the next day\'s partition.',
+          fix: 'Filter on event_date with a 2-day lookback.',
+          impact: 'Up to 0.8% of hits missing from any backfilled day.',
+          confidence: 'inferred', method: 'read backfill.py:88; not run',
+          quote: 'approved, fix it',
+        },
+        {
+          id: 'i3', title: 'SPA route changes send page_view twice', status: 'explained', owner: 'other',
+          cause: 'The platform GTM container fires page_view on history change and on load.',
+          fix: 'Platform team removes the history-change trigger.',
+          impact: 'Inflates page_views ~1.4%; sessions are unaffected after i1.',
+          confidence: 'unchecked', method: 'needs GTM access (SSO wall)',
+        },
+        {
+          id: 'i4', title: 'Stage run reports success with 0 rows', status: 'fixed', owner: 'us',
+          cause: 'Empty result set was treated as success.', fix: 'Fail the run when rows_written = 0.',
+          impact: 'Silent empty loads on stage.', confidence: 'verified', method: 'go test ./loader/... and a stage run',
+        },
+        {
+          id: 'i5', title: 'GTM container v41 missing consent tag', status: 'dropped', owner: 'other',
+          cause: 'Consent tag removed in v41.', fix: 'Platform re-adds it.', impact: 'Not related to this ticket.',
+          confidence: 'inferred', method: 'GTM changelog',
+        },
+      ],
+      examples: [
+        {
+          name: 'e1', title: 'Same listing, two page_location values',
+          columns: ['ga4_hits field', 'Row A', 'Row B'],
+          rows: [
+            ['site_platform', 'Dealer Spike', 'Dealer Spike'],
+            ['session_id', '1728…441', '1728…441'],
+            ['page_location', '…/2019-ford-f150-14615315i', '…/2019-ford-f150-14615315'],
+            ['dedupe_key', 'a91f…', 'c03e…'],
+          ],
+          caption: 'Same session, same listing, two keys → counted twice.',
+          run: 'sql/probe_dedupe.sql',
+        },
+        {
+          name: 'e2', title: 'Where to normalize: options run on e1',
+          columns: ['option', 'Row A key', 'Row B key', 'result'],
+          rows: [
+            ['view', 'a91f…', 'a91f…', '✓ one row, old data fixed too'],
+            ['loader', 'a91f…', 'a91f…', '✓ one row, needs backfill'],
+            ['none (today)', 'a91f…', 'c03e…', '✗ counted twice'],
+          ],
+          caption: 'Both options fix e1; only the view fixes rows already loaded.',
+        },
+      ],
+      facts: [
+        { id: 'f1', text: 'ga4_hits holds 41.2M rows for September', confidence: 'verified', method: 'SELECT count(*) FROM ga4_hits WHERE event_date BETWEEN …' },
+        { id: 'f2', text: 'Duplicates appear only on Dealer Spike hosts', confidence: 'inferred', method: 'grouped by site_platform on a 1-day sample' },
+        { id: 'f3', text: 'Consent mode drops ~2% of hits', confidence: 'unchecked' },
+        { id: 'f4', kind: 'term', term: 'DS', text: 'Dealer Spike, the site platform behind 212 client sites' },
+        { id: 'f5', kind: 'term', term: 'H1', text: 'hypothesis that trailing-"i" listing ids split one session into two keys (now i1)' },
+      ],
+      notes: [
+        { id: 'n1', text: 'platform contact is #glue-platform, ask for GTM read access', ref: 'i3' },
+      ],
+      diagrams: [
+        {
+          name: 'flow', mermaid: `flowchart LR
+  GTM["GTM / gtag"] -->|hits| L["loader"]
+  L -->|"dedupe_key"| H[("ga4_hits")]
+  H --> V["sessions view"]
+  V --> D["dashboard"]
+  L -. "i1: key split here" .-> H`,
+        },
+        {
+          name: 'late-hits', mermaid: `sequenceDiagram
+  participant GTM
+  participant Loader
+  participant Backfill
+  GTM->>Loader: hit (event_date 10-07, arrives 10-08 02:10)
+  Loader->>Loader: partition load_date = 10-08
+  Backfill->>Loader: reload load_date = 10-07
+  Note over Backfill: late hit missed (i2)`,
+        },
+      ],
+      // Newest first. by: claude (CLI writes), hook (file touch, tool run, turn mark), user (page or your terminal).
+      // `tool run` text is the tool's one-line summary; Bash shows its description, never the command (A114).
+      activity: [
+        { ts: '14:21:08', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Run dedupe probe on stage' },
+        { ts: '14:21:02', by: 'hook', t: 'file', op: 'touch', tool: 'Edit', text: 'sql/views/sessions.sql' },
+        { ts: '14:20:51', by: 'hook', t: 'tool', op: 'run', tool: 'Read', text: 'sql/views/sessions.sql' },
+        { ts: '14:20:44', by: 'hook', t: 'tool', op: 'run', tool: 'Grep', text: 'dedupe_key' },
+        { ts: '14:20:30', by: 'claude', t: 'plan', op: 'set', text: 'p3 → active' },
+        { ts: '14:20:12', by: 'hook', t: 'turn', op: 'mark', text: 'turn 14 · delivered 1 event' },
+        { ts: '14:19:58', by: 'user', t: 'question', op: 'answer', text: 'q3 → 90 days' },
+        { ts: '14:12:40', by: 'claude', t: 'question', op: 'add', text: 'q2 Normalize in the view or the loader?' },
+        { ts: '14:12:31', by: 'claude', t: 'example', op: 'put', text: 'e2 Where to normalize: options run on e1' },
+        { ts: '14:12:05', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Compare keys for both options on e1 rows' },
+        { ts: '14:11:20', by: 'hook', t: 'tool', op: 'run', tool: 'Agent', text: 'Find every reader of dedupe_key', agent: null },
+        { ts: '14:11:18', by: 'hook', t: 'tool', op: 'run', tool: 'Grep', text: 'dedupe_key', agent: 'Explore' },
+        { ts: '14:11:16', by: 'hook', t: 'tool', op: 'run', tool: 'Glob', text: '**/*.sql', agent: 'Explore' },
+        { ts: '14:11:14', by: 'hook', t: 'tool', op: 'run', tool: 'Read', text: 'loader/hash.py', agent: 'Explore' },
+        { ts: '14:10:02', by: 'claude', t: 'issue', op: 'add', text: 'i3 [other] SPA route changes send page_view twice' },
+        { ts: '14:09:47', by: 'claude', t: 'issue', op: 'add', text: 'i1 [us] Dedupe key ignores the trailing "i"' },
+        { ts: '14:09:30', by: 'claude', t: 'example', op: 'put', text: 'e1 Same listing, two page_location values' },
+        { ts: '14:09:02', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Pull 5 hits for one Dealer Spike host' },
+        { ts: '14:08:40', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Count rows per dedupe_key for Sept' },
+        { ts: '14:07:15', by: 'hook', t: 'tool', op: 'run', tool: 'WebFetch', text: 'https://support.google.com/analytics/answer/9234069' },
+        { ts: '14:06:58', by: 'user', t: 'issue', op: 'set', text: 'i2 → approved' },
+        { ts: '14:06:02', by: 'hook', t: 'tool', op: 'run', tool: 'mcp__claude_ai_Google_Drive__search_files', text: '' },
+        { ts: '14:05:30', by: 'claude', t: 'fact', op: 'add', text: 'f1 ✓ ga4_hits holds 41.2M rows for September' },
+        { ts: '14:05:12', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: '' }, // a Bash call without a description
+        { ts: '14:04:50', by: 'hook', t: 'tool', op: 'run', tool: 'Skill', text: 'mem' },
+      ],
+      // Your page/terminal events since the last turn mark (what the next prompt delivers).
+      pending: [
+        { t: 'note', op: 'add', text: 'check Dealer Inspire after this', label: 'note: check Dealer Inspire after this' },
+      ],
+      inboxText: 'ernie inbox · turn 15\n- note: check Dealer Inspire after this',
+      warnings: 0,
+    },
+
+    'glue/CDIT-2627-gsc-backfill': {
+      turn: 9,
+      plan: [
+        { id: 'p1', text: 'Probe GSC lambda on stage (G0)', status: 'done' },
+        { id: 'p2', text: 'Pick backfill strategy', status: 'active' },
+        { id: 'p3', text: 'Backfill 16 months', status: 'todo' },
+        { id: 'p4', text: 'Add row-count alarm', status: 'todo' },
+      ],
+      decisions: [
+        { id: 'd1', text: 'Backfill one property at a time', why: 'GSC quota is per property; parallel runs hit 429s' },
+      ],
+      questions: [
+        {
+          id: 'q1', text: 'Backfill by day or by month?', choices: ['by day', 'by month'], recommended: 'by day',
+          context: 'GSC caps 50k rows per request; busy properties exceed it in a month.',
+          impact: 'By month silently truncates the 6 busiest properties.',
+          example: 'e1',
+        },
+        { id: 'q2', text: 'OK to run the backfill on prod tonight?', choices: ['yes', 'no, stage first'] },
+      ],
+      issues: [
+        {
+          id: 'i1', title: 'Retry drops 429s after 3 attempts', status: 'explained', owner: 'us',
+          cause: 'Retry gives up after 3 attempts with no backoff jitter.', fix: 'Exponential backoff with jitter, 8 attempts.',
+          impact: '~4% of days missing for busy properties.', confidence: 'verified', method: 'CloudWatch: 312 "429 giving up" lines on 10-06',
+        },
+      ],
+      examples: [
+        {
+          name: 'e1', title: 'One busy property, by day vs by month',
+          columns: ['request', 'rows returned', 'rows that exist'],
+          rows: [['2026-09 (by month)', '50,000', '61,204'], ['2026-09-14 (by day)', '2,031', '2,031']],
+          caption: 'By month hits the 50k cap and drops 11,204 rows.',
+        },
+      ],
+      facts: [
+        { id: 'f1', kind: 'term', term: 'G0', text: 'throwaway probe script against the stage GSC lambda' },
+        { id: 'f2', text: 'GSC keeps 16 months of data', confidence: 'verified', method: 'GSC API docs' },
+      ],
+      notes: [],
+      diagrams: [],
+      activity: [
+        { ts: '14:15:40', by: 'claude', t: 'question', op: 'add', text: 'q2 OK to run the backfill on prod tonight?' },
+        { ts: '14:15:22', by: 'claude', t: 'question', op: 'add', text: 'q1 Backfill by day or by month?' },
+        { ts: '14:15:01', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Invoke G0 for one property, by month' },
+        { ts: '14:14:30', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Tail GSC lambda logs for 429s' },
+        { ts: '14:13:55', by: 'hook', t: 'file', op: 'touch', tool: 'Write', text: 'scripts/g0_probe.py' },
+        { ts: '14:13:10', by: 'hook', t: 'turn', op: 'mark', text: 'turn 9' },
+      ],
+      pending: [],
+      inboxText: '',
+      warnings: 0,
+    },
+
+    'glue/main': {
+      turn: 3,
+      plan: [], decisions: [], questions: [], issues: [], examples: [], facts: [], notes: [], diagrams: [],
+      activity: [
+        { ts: 'yesterday 17:02', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Pull latest main' },
+      ],
+      pending: [], inboxText: '', warnings: 0,
+    },
+
+    'ernie/main': {
+      turn: 31,
+      plan: [
+        { id: 'p1', text: 'Spec + build plan', status: 'done' },
+        { id: 'p2', text: 'Scratch flow test', status: 'done' },
+        { id: 'p3', text: 'UI view variations', status: 'active' },
+        { id: 'p4', text: 'Phase 1: core (append, fold, dump)', status: 'todo' },
+      ],
+      decisions: [
+        { id: 'd1', text: 'Tool activity shows Bash descriptions only', why: 'no command text → no redactor in v1 (A114)' },
+      ],
+      questions: [],
+      issues: [],
+      examples: [],
+      facts: [
+        { id: 'f1', text: 'Hooks must exit 0 on any error', confidence: 'verified', method: 'flow test F4' },
+      ],
+      notes: [],
+      diagrams: [],
+      activity: [
+        { ts: '12:40:10', by: 'hook', t: 'file', op: 'touch', tool: 'Edit', text: '.mem/artifacts/spec_ernie.md' },
+        { ts: '12:39:55', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Fold A114 into the spec and memory pointer' },
+      ],
+      pending: [], inboxText: '', warnings: 0,
+    },
+  },
+};
+</script>
+
+<script>
+  // View-only state lives in `view`; everything else renders from S (a mutable copy of ERNIE_SAMPLE, standing in for SSE frames).
+  const S = structuredClone(ERNIE_SAMPLE);
+  const view = {
+    tabs: ['glue/CDIT-2631-ga4-dedupe', 'glue/CDIT-2627-gsc-backfill'],
+    active: 'home', diagram: {}, previewOpen: false, shownMethods: new Set(),
+    filter: { tool: 'all', hideAgents: false, filesOnly: false, toolsOnly: false },
+  };
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // Reason: the mock's clock continues from the sample's newest row so new rows sort naturally against sample times
+  let simSeconds = 14 * 3600 + 21 * 60 + 8;
+  const clock = () => { simSeconds += 4; return new Date(simSeconds * 1000).toISOString().slice(11, 19); };
+  const logOf = key => S.logs.find(l => l.key === key);
+  const stateClass = log => 's-' + log.session.state.split(' ')[0];
+  const STATE_ORDER = { 'waiting on you': 0, working: 1, idle: 2, off: 3 };
+  const nextStatus = { todo: 'active', active: 'done', done: 'todo', dropped: 'todo' };
+  const statusGlyph = { todo: '', active: '▶', done: '✓', dropped: '–' };
+  const confGlyph = { verified: '✓ verified', inferred: '~ inferred', unchecked: '✗ unchecked' };
+  const isToolRow = a => a.t === 'tool' || a.t === 'file';
+  const shortTime = (ts, seconds) => /^\d\d:\d\d:\d\d$/.test(ts) ? ts.slice(0, seconds ? 8 : 5) : ts.replace('yesterday', 'yday');
+
+  function needsYou(key) {
+    const st = S.states[key];
+    if (!st || !logOf(key).on) return { q: 0, i: 0, total: 0 };
+    // Reason: a "need more context" answer means the next move is Claude's, so it doesn't count against you
+    const q = st.questions.filter(x => !x.answer && !x.more && x.status !== 'dropped').length;
+    const i = st.issues.filter(x => x.status === 'explained').length;
+    return { q, i, total: q + i };
+  }
+
+  function rowHtml(a) {
+    const kind = a.t === 'tool' ? 'tl' : a.t === 'file' ? 'file' : `ev by-${a.by}`;
+    const who = isToolRow(a) ? a.tool : a.by === 'user' ? 'you' : a.by;
+    const agent = a.agent ? `<span class="ag">${esc(a.agent)}</span>` : '';
+    return `<li class="${kind} ${a.fresh ? 'fresh' : ''}"><span>${esc(shortTime(a.ts, true))}</span><span class="tool" title="${esc(who)}">${esc(who)}</span>`
+      + `<span class="txt">${esc(a.text)}${a.t === 'file' ? ' <span class="ag">file</span>' : ''}${agent}</span></li>`;
+  }
+
+  // ---------- Tabs + selector ----------
+  function renderTabs() {
+    const homeNeeds = S.logs.reduce((n, l) => n + needsYou(l.key).total, 0);
+    const home = `<div class="tab home ${view.active === 'home' ? 'active' : ''}"><button type="button" data-tab="home">⌂ Home
+      ${homeNeeds ? `<span class="badge" title="items need you across all sessions">${homeNeeds}</span>` : ''}</button></div>`;
+    const worktreeTabs = view.tabs.map(key => {
+      const log = logOf(key), n = needsYou(key).total;
+      return `<div class="tab ${stateClass(log)} ${view.active === key ? 'active' : ''}" title="${esc(log.worktree)} · ${esc(log.session.state)}">
+        <button type="button" data-tab="${esc(key)}"><i class="dot"></i><span class="label"><span class="repo">${esc(log.repo)}/</span>${esc(log.branch)}</span>
+        ${n ? `<span class="badge">${n}</span>` : ''}</button><button class="x" type="button" data-close="${esc(key)}" aria-label="Close tab">×</button></div>`;
+    }).join('');
+    document.getElementById('tabstrip').innerHTML = home + worktreeTabs;
+  }
+
+  function renderMenu() {
+    const repos = [...new Set(S.logs.map(l => l.repo))];
+    document.getElementById('menu').innerHTML = repos.map(repo => `<h4>${esc(repo)}</h4>` + S.logs.filter(l => l.repo === repo).map(l => `
+      <button type="button" class="${stateClass(l)}" data-tab="${esc(l.key)}" role="menuitem"><i class="dot"></i>
+        <span class="br">${esc(l.branch)}${view.tabs.includes(l.key) ? ' <span class="meta">· open</span>' : ''}</span>
+        <span class="meta">${l.on ? esc(l.session.state) : 'off'} · ${esc(l.session.lastEventAgo)}</span></button>`).join('')).join('');
+  }
+
+  function openTab(key) {
+    if (key !== 'home' && !view.tabs.includes(key)) view.tabs.push(key);
+    view.active = key;
+    document.getElementById('menu').classList.remove('open');
+    renderAll();
+    window.scrollTo({ top: 0 });
+  }
+
+  // ---------- Home ----------
+  function renderHome() {
+    const logs = [...S.logs].sort((a, b) => STATE_ORDER[a.session.state] - STATE_ORDER[b.session.state]);
+    const counts = Object.keys(STATE_ORDER).map(s => [s, S.logs.filter(l => l.session.state === s).length]).filter(([, n]) => n);
+    const total = S.logs.reduce((n, l) => n + needsYou(l.key).total, 0);
+    const cards = logs.map(log => {
+      const st = S.states[log.key], n = needsYou(log.key);
+      const head = `<div class="card-top"><div><div class="card-name"><span class="repo">${esc(log.repo)} / </span>${esc(log.branch)}</div>
+        <div class="path">${esc(log.worktree)}</div></div><span class="state-chip"><i class="dot"></i>${esc(log.session.state)}</span></div>`;
+      if (!log.on || !st) {
+        return `<article class="card ${stateClass(log)}" data-tab="${esc(log.key)}" tabindex="0">${head}
+          <div class="path">ernie is off for this branch (main.off). Run <code>ernie init</code> in your own shell to turn it back on.</div></article>`;
+      }
+      const done = st.plan.filter(p => p.status === 'done').length;
+      const active = st.plan.find(p => p.status === 'active');
+      const tools = st.activity.filter(isToolRow).slice(0, 3);
+      const parts = [n.q && `${n.q} question${n.q > 1 ? 's' : ''}`, n.i && `${n.i} issue${n.i > 1 ? 's' : ''} to approve`].filter(Boolean);
+      return `<article class="card ${stateClass(log)}" data-tab="${esc(log.key)}" tabindex="0">${head}
+        <div class="needs ${n.total ? '' : 'zero'}"><strong>${n.total}</strong><span>${n.total ? 'need you · ' + parts.join(' · ') : 'nothing needs you'}</span></div>
+        ${st.plan.length ? `<div class="step"><span>${active ? `▶ <span class="item-id">${active.id}</span>${esc(active.text)}` : 'no active step'}</span><span class="n">${done}/${st.plan.length}</span></div>
+        <div class="progress"><i style="width:${(done / st.plan.length) * 100}%"></i></div>` : '<div class="step"><span class="item-id">no plan yet</span></div>'}
+        <ul class="mini">${tools.map(a => `<li class="${a.fresh ? 'fresh' : ''}"><span>${esc(shortTime(a.ts))}</span><span>${esc(a.tool)}</span>
+          <span>${esc(a.text)}${a.agent ? ` · ${esc(a.agent)}` : ''}</span></li>`).join('') || '<li>no tool activity</li>'}</ul>
+        <div class="card-foot"><span>turn ${st.turn} · last event ${esc(log.session.lastEventAgo)} ago</span>
+          ${st.pending.length ? `<span class="queued">${st.pending.length} queued for next prompt</span>` : '<span>outbox empty</span>'}</div></article>`;
+    }).join('');
+    document.getElementById('main').innerHTML = `
+      <div class="summary"><h1>Sessions</h1>${counts.map(([s, n]) => `<span>${n} ${esc(s)}</span>`).join('<span>·</span>')}
+        <span><b>${total} item${total === 1 ? '' : 's'} need you</b></span></div>
+      <div class="grid">${cards}</div>`;
+  }
+
+  // ---------- Worktree board ----------
+  function confBadge(item, key) {
+    if (!item.confidence) return '';
+    return `<button class="conf c-${item.confidence}" type="button" data-method="${key}" title="${esc(item.method || 'no method given')}">${confGlyph[item.confidence]}</button>`;
+  }
+  const methodLine = (item, key) => view.shownMethods.has(key) ? `<div class="method">method: ${esc(item.method || 'none given')}</div>` : '';
+
+  function exampleHtml(st, name, open) {
+    const ex = st.examples.find(e => e.name === name);
+    if (!ex) return '';
+    return `<details class="ex" ${open ? 'open' : ''}><summary>${esc(ex.name)} · ${esc(ex.title)}</summary>
+      <div class="ex-wrap"><table><tr>${ex.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr>
+      ${ex.rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</table></div>
+      ${ex.caption ? `<div class="cap">${esc(ex.caption)}</div>` : ''}
+      ${ex.run ? `<div class="run">run it yourself: <code>${esc(ex.run)}</code> (ernie never runs it)</div>` : ''}</details>`;
+  }
+
+  function questionHtml(st, q, index, total) {
+    const num = `Q${index + 1}/${total} · ${q.id}`;
+    const text = q.kind === 'assume' ? `I assumed: ${q.text}. True?` : q.text;
+    if (q.answer) {
+      return `<div class="q done"><div class="q-top"><span class="q-num">${num}</span><button class="link-btn" type="button" data-reopen="${q.id}">change</button></div>
+        <div class="q-text">${esc(text)}</div><div class="answer">→ ${esc(q.answer)}</div></div>`;
+    }
+    const choices = q.kind === 'assume' ? ['yes', 'no'] : (q.choices || []);
+    const chips = choices.map(c => `<button class="chip ${c === q.recommended ? 'rec' : ''}" type="button" data-answer="${q.id}" data-value="${esc(c)}">
+      ${esc(c)}${c === q.recommended ? ' ★' : ''}</button>`).join('');
+    return `<div class="q open" id="item-${q.id}"><div class="q-top"><span class="q-num">${num}</span>
+        ${q.recommended ? `<span class="hint">★ recommended: ${esc(q.recommended)}</span>` : ''}</div>
+      <div class="q-text">${esc(text)}</div>
+      ${q.more ? `<div class="wait">you asked: ${esc(q.followUp || 'need more context')} · waiting on Claude</div>` : ''}
+      ${q.context ? `<p class="kv"><b>context</b>${esc(q.context)}</p>` : ''}
+      ${q.example ? exampleHtml(st, q.example, true) : ''}
+      ${q.impact ? `<p class="kv"><b>impact</b>${esc(q.impact)}</p>` : ''}
+      ${chips ? `<div class="chips">${chips}</div>` : ''}
+      <div class="row-in"><input type="text" data-answer-input="${q.id}" placeholder="${chips ? 'or type an answer + enter' : 'type an answer + enter'}">
+        ${q.more ? '' : `<button class="btn" type="button" data-more="${q.id}">need more context</button>`}</div></div>`;
+  }
+
+  function issueHtml(st, it, index, total) {
+    const gate = ['explained', 'approved', 'fixed'].map(s => `<i class="g-${s} ${it.status === s ? 'on' : ''}">${s}</i>`).join('→');
+    const head = `<div class="q-top"><span class="q-num">I${index + 1}/${total} · ${it.id}</span><span class="gate">${it.status === 'dropped' ? '<i class="on">dropped</i>' : gate}</span></div>`;
+    if (it.status === 'fixed' || it.status === 'dropped') {
+      return `<div class="iss closed">${head}<div class="q-text">${confBadge(it, it.id)}${esc(it.title)}</div>${methodLine(it, it.id)}</div>`;
+    }
+    let actions = `<button class="btn btn--go" type="button" data-issue="${it.id}" data-status="approved">Approve fix</button>
+      <button class="btn" type="button" data-issue="${it.id}" data-status="dropped">Drop</button>`;
+    if (it.status === 'approved') {
+      actions = `<span class="quote">${it.quote ? `approved in chat: <q>${esc(it.quote)}</q>` : 'approved by you'}</span>
+        <button class="link-btn" type="button" data-issue="${it.id}" data-status="explained">undo</button>`;
+    }
+    return `<div class="iss st-${it.status}" id="item-${it.id}">${head}<div class="q-text">${confBadge(it, it.id)}${esc(it.title)}</div>${methodLine(it, it.id)}
+      ${it.example ? exampleHtml(st, it.example, it.status === 'explained') : ''}
+      <p class="kv"><b>cause</b>${esc(it.cause)}</p><p class="kv"><b>fix</b>${esc(it.fix)}</p><p class="kv"><b>impact</b>${esc(it.impact)}</p>
+      <div class="actions">${actions}</div></div>`;
+  }
+
+  function panel(title, count, body, extraHead = '') {
+    return `<section class="panel"><div class="panel-head"><span>${title}</span>${extraHead}${count !== '' ? `<span class="count">${count}</span>` : ''}</div>${body}</section>`;
+  }
+
+  function renderBoard(key) {
+    const log = logOf(key), st = S.states[key];
+    const head = `<div class="wt-head"><h1><span class="repo">${esc(log.repo)} / </span>${esc(log.branch)}</h1>
+      <span class="${stateClass(log)}"><span class="state-chip"><i class="dot"></i>${esc(log.session.state)}</span></span>
+      <span class="meta">${esc(log.worktree)}${log.session.id ? ` · session ${esc(log.session.id)}` : ''}${st ? ` · turn ${st.turn}` : ''}</span>`;
+    if (!log.on || !st) {
+      document.getElementById('main').innerHTML = `${head}</div>${panel('ernie is off', '', `<div class="panel-body">This branch has a <code>main.off</code> marker, so hooks and CLI writes do nothing here.
+        Run <code>ernie init</code> in your own shell to turn it back on.</div>`)}`;
+      return;
+    }
+    const n = needsYou(key);
+    const firstOpenQ = st.questions.find(q => !q.answer && !q.more);
+    const firstIssue = st.issues.find(i => i.status === 'explained');
+    const jumps = [n.q && firstOpenQ && `<button class="jump" type="button" data-jump="${firstOpenQ.id}">${n.q} question${n.q > 1 ? 's' : ''} → ${firstOpenQ.id}</button>`,
+      n.i && firstIssue && `<button class="jump" type="button" data-jump="${firstIssue.id}">${n.i} to approve → ${firstIssue.id}</button>`].filter(Boolean).join('');
+
+    // Column A: plan, decisions, facts, glossary, notes
+    const done = st.plan.filter(p => p.status === 'done').length;
+    const planBody = st.plan.length ? `<div class="progress"><i style="width:${(done / st.plan.length) * 100}%"></i></div><div class="panel-body"><ul class="plan">
+      ${st.plan.map(p => `<li class="${p.status}"><button class="status-box" type="button" data-plan="${p.id}" title="${p.status}, click to change">${statusGlyph[p.status]}</button>
+        <span class="item-id">${p.id}</span><span class="text">${esc(p.text)}</span></li>`).join('')}</ul></div>` : '<div class="panel-body empty">No plan yet.</div>';
+    const decisions = st.decisions.map(d => `<div class="dec"><b><span class="item-id">${d.id}</span>${esc(d.text)}</b><span class="why">${esc(d.why)}</span></div>`).join('') || '<div class="empty">None yet.</div>';
+    const facts = st.facts.filter(f => f.kind !== 'term');
+    const terms = st.facts.filter(f => f.kind === 'term');
+    const factsBody = facts.map(f => `<li>${confBadge(f, f.id) || '<span class="conf c-unchecked" title="no confidence given">?</span>'}${esc(f.text)}
+      <button class="dismiss" type="button" data-dismiss="${f.id}" title="Dismiss">×</button>${methodLine(f, f.id)}</li>`).join('');
+    const colA = panel('Plan', st.plan.length ? `${done}/${st.plan.length}` : '', planBody)
+      + panel('Decisions', st.decisions.length, `<div class="panel-body">${decisions}</div>`)
+      + panel('Facts', '', `<div class="panel-body">${factsBody ? `<ul class="facts">${factsBody}</ul>` : '<div class="empty">No facts pinned.</div>'}
+        ${terms.length ? `<div class="sub">Glossary</div><dl class="gloss">${terms.map(t => `<dt>${esc(t.term)}</dt><dd>${esc(t.text)}</dd>`).join('')}</dl>` : ''}
+        ${st.notes.length ? `<div class="sub">Your notes</div>${st.notes.map(x => `<div class="note">${esc(x.text)}${x.ref ? ` <span class="ref">→ ${esc(x.ref)}</span>` : ''}</div>`).join('')}` : ''}</div>`, '<span class="hint">tap a badge for its method</span>');
+
+    // Column B: questions (open first), diagrams
+    const qs = st.questions.filter(q => q.status !== 'dropped');
+    const ordered = qs.map((q, i) => ({ q, i })).sort((a, b) => Boolean(a.q.answer) - Boolean(b.q.answer) || a.i - b.i);
+    const colB = panel('Questions', `${qs.filter(q => q.answer).length}/${qs.length} answered`,
+        `<div class="panel-body">${ordered.map(({ q, i }) => questionHtml(st, q, i, qs.length)).join('') || '<div class="empty">No questions.</div>'}</div>`)
+      + (st.diagrams.length ? panel('Diagrams', '', '<div class="diagram" id="diagram"><span class="loading">rendering…</span></div>',
+        `<div class="dtabs">${st.diagrams.map(d => `<button class="dtab ${d.name === selectedDiagram(key).name ? 'sel' : ''}" type="button" data-diagram="${esc(d.name)}">${esc(d.name)}</button>`).join('')}</div>`) : '');
+
+    // Column C: issues grouped ours / theirs, then examples no item links to
+    const groups = [['Ours', 'us'], ['Theirs (other team)', 'other']].map(([label, owner]) => {
+      const items = st.issues.filter(i => i.owner === owner);
+      return items.length ? `<div class="sub">${label} (${items.length})</div>` + items.map(it => issueHtml(st, it, st.issues.indexOf(it), st.issues.length)).join('') : '';
+    }).join('');
+    const linked = new Set([...st.questions, ...st.issues].map(x => x.example).filter(Boolean));
+    const looseExamples = st.examples.filter(e => !linked.has(e.name));
+    const approved = st.issues.filter(i => ['approved', 'fixed'].includes(i.status)).length;
+    const colC = panel('Issues', st.issues.length ? `${approved}/${st.issues.length} approved or fixed` : '', `<div class="panel-body">${groups || '<div class="empty">No issues.</div>'}</div>`)
+      + (looseExamples.length ? panel('Examples', looseExamples.length, `<div class="panel-body">${looseExamples.map(e => exampleHtml(st, e.name, true)).join('')}</div>`) : '');
+
+    const tools = [...new Set(st.activity.filter(isToolRow).map(a => a.tool))];
+    const f = view.filter;
+    const colLog = `<section class="panel"><div class="panel-head"><span>Tool log</span><span class="count" id="log-count"></span></div>
+      <div class="filters"><select id="f-tool" aria-label="Tool"><option value="all">all tools</option>${tools.map(t => `<option ${f.tool === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+        <label><input type="checkbox" id="f-agents" ${f.hideAgents ? 'checked' : ''}>hide subagents</label>
+        <label><input type="checkbox" id="f-files" ${f.filesOnly ? 'checked' : ''}>files only</label>
+        <label><input type="checkbox" id="f-tools" ${f.toolsOnly ? 'checked' : ''}>tools only</label></div>
+      <div class="log-body"><ul class="feed" id="feed"></ul></div></section>`;
+
+    document.getElementById('main').innerHTML = `${head}${jumps}</div>
+      <div class="board"><div class="col col-a">${colA}</div><div class="col col-b">${colB}</div><div class="col col-c">${colC}</div><div class="col col-log">${colLog}</div></div>`;
+    renderLog();
+    window.drawDiagram?.();
+  }
+
+  function renderLog() {
+    const feed = document.getElementById('feed');
+    const st = S.states[view.active];
+    if (!feed || !st) return;
+    const f = view.filter;
+    const rows = st.activity.filter(a => (f.tool === 'all' || a.tool === f.tool)
+      && !(f.hideAgents && a.agent)
+      && (!f.filesOnly || a.t === 'file')
+      && (!f.toolsOnly || isToolRow(a)));
+    feed.innerHTML = rows.map(rowHtml).join('') || '<li><span></span><span></span><span>nothing matches</span></li>';
+    document.getElementById('log-count').textContent = `${rows.length}/${st.activity.length} · newest first`;
+  }
+
+  // ---------- Outbox (pending + inboxText per log) ----------
+  // Mirrors Inbox/InboxText: latest plan set / question answer per id wins; notes and issue sets stay one per line.
+  function rebuildInbox(st) {
+    const kept = [];
+    st.pending.forEach(e => {
+      const key = (e.t === 'plan' && e.op === 'set') || (e.t === 'question' && e.op === 'answer') ? `${e.t}:${e.id}` : null;
+      const prev = key ? kept.findIndex(k => k.key === key) : -1;
+      if (prev >= 0) kept.splice(prev, 1);
+      kept.push({ ...e, key });
+    });
+    st.pending = kept.map(({ key, ...e }) => e);
+    st.inboxText = st.pending.length ? [`ernie inbox · turn ${st.turn + 1}`, ...st.pending.map(e => `- ${e.label}`)].join('\n') : '';
+  }
+
+  function renderOutbox() {
+    const el = document.getElementById('outbox-state');
+    document.body.classList.toggle('on-home', view.active === 'home');
+    const st = S.states[view.active];
+    if (view.active === 'home' || !st || !logOf(view.active).on) {
+      const queued = S.logs.filter(l => S.states[l.key]?.pending.length);
+      el.classList.toggle('clear', !queued.length);
+      el.innerHTML = queued.length
+        ? `→ queued for each session's next prompt: ${queued.map(l => `<b>${esc(l.branch)} ${S.states[l.key].pending.length}</b>`).join(' · ')}`
+        : '→ every session is up to date';
+      document.getElementById('preview').classList.remove('open');
+      return;
+    }
+    el.classList.toggle('clear', !st.pending.length);
+    el.innerHTML = `→ Claude in <span class="mono">${esc(logOf(view.active).branch)}</span>, next prompt: <b>${st.pending.length ? `${st.pending.length} queued` : 'up to date'}</b>`;
+    document.getElementById('preview-text').textContent = st.inboxText || 'Nothing queued. Claude is up to date.';
+    document.getElementById('preview').classList.toggle('open', view.previewOpen);
+    document.getElementById('preview-btn').textContent = view.previewOpen ? 'hide preview' : 'preview';
+  }
+
+  function queueUserEvent(event, label) {
+    const st = S.states[view.active];
+    st.pending.push({ ...event, label });
+    rebuildInbox(st);
+    st.activity.unshift({ ts: clock(), by: 'user', t: event.t, op: event.op, text: label, fresh: true });
+    renderAll();
+  }
+
+  // ---------- Render all (keeps typed-but-unsent answers, per the page render rules) ----------
+  function renderAll() {
+    const typed = [...document.querySelectorAll('[data-answer-input]')].map(i => [i.dataset.answerInput, i.value, i === document.activeElement]);
+    renderTabs();
+    renderMenu();
+    view.active === 'home' ? renderHome() : renderBoard(view.active);
+    renderOutbox();
+    typed.forEach(([id, value, focused]) => {
+      const input = document.querySelector(`[data-answer-input="${id}"]`);
+      if (!input) return;
+      input.value = value;
+      if (focused) input.focus();
+    });
+    Object.values(S.states).forEach(st => st.activity.forEach(a => { a.fresh = false; }));
+  }
+
+  function selectedDiagram(key) {
+    const diagrams = S.states[key].diagrams;
+    return diagrams.find(d => d.name === view.diagram[key]) || diagrams[0];
+  }
+  window.getSelectedDiagram = () => S.states[view.active] && S.states[view.active].diagrams.length ? selectedDiagram(view.active) : null;
+
+  function answerQuestion(id, value, more = false) {
+    const st = S.states[view.active];
+    const q = st.questions.find(x => x.id === id);
+    const answer = String(value).trim();
+    if (!q || (!answer && !more)) return;
+    if (more) {
+      q.more = true;
+      q.followUp = 'need more context';
+      return queueUserEvent({ t: 'question', op: 'answer', id, more: true }, `${id}: need more context`);
+    }
+    q.answer = answer;
+    queueUserEvent({ t: 'question', op: 'answer', id, text: answer }, `${id} "${q.kind === 'assume' ? 'assumed: ' + q.text : q.text}" → ${answer}`);
+  }
+
+  // ---------- Events ----------
+  document.addEventListener('click', e => {
+    const t = e.target;
+    const tab = t.closest('[data-tab]');
+    if (tab) return openTab(tab.dataset.tab);
+    const close = t.closest('[data-close]');
+    if (close) {
+      view.tabs = view.tabs.filter(k => k !== close.dataset.close);
+      if (view.active === close.dataset.close) view.active = 'home';
+      return renderAll();
+    }
+    if (t.closest('#open-btn')) return document.getElementById('menu').classList.toggle('open');
+    if (!t.closest('#menu')) document.getElementById('menu').classList.remove('open');
+    const st = S.states[view.active];
+    const plan = t.closest('[data-plan]');
+    if (plan) {
+      const item = st.plan.find(p => p.id === plan.dataset.plan);
+      item.status = nextStatus[item.status];
+      return queueUserEvent({ t: 'plan', op: 'set', id: item.id, status: item.status }, `${item.id} → ${item.status}`);
+    }
+    const chip = t.closest('[data-answer]');
+    if (chip) return answerQuestion(chip.dataset.answer, chip.dataset.value);
+    const more = t.closest('[data-more]');
+    if (more) return answerQuestion(more.dataset.more, '', true);
+    const reopen = t.closest('[data-reopen]');
+    if (reopen) { st.questions.find(q => q.id === reopen.dataset.reopen).answer = undefined; return renderAll(); }
+    const issueBtn = t.closest('[data-issue]');
+    if (issueBtn) {
+      const it = st.issues.find(i => i.id === issueBtn.dataset.issue);
+      const status = issueBtn.dataset.status;
+      const label = status === 'explained' ? `${it.id} approval undone → explained` : `${it.id} → ${status}`;
+      it.status = status;
+      if (status !== 'approved') delete it.quote;
+      return queueUserEvent({ t: 'issue', op: 'set', id: it.id, status }, label);
+    }
+    const dismiss = t.closest('[data-dismiss]');
+    if (dismiss) {
+      const fact = st.facts.find(x => x.id === dismiss.dataset.dismiss);
+      st.facts = st.facts.filter(x => x !== fact);
+      return queueUserEvent({ t: 'fact', op: 'dismiss', id: fact.id }, `dismissed ${fact.id} "${fact.text}"`);
+    }
+    const method = t.closest('[data-method]');
+    if (method) {
+      const k = method.dataset.method;
+      view.shownMethods.has(k) ? view.shownMethods.delete(k) : view.shownMethods.add(k);
+      return renderAll();
+    }
+    const jump = t.closest('[data-jump]');
+    if (jump) return document.getElementById(`item-${jump.dataset.jump}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const dtab = t.closest('[data-diagram]');
+    if (dtab) { view.diagram[view.active] = dtab.dataset.diagram; return renderAll(); }
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    const card = e.target.closest('.card[data-tab]');
+    if (card) return openTab(card.dataset.tab);
+    const input = e.target.closest('[data-answer-input]');
+    if (input) return answerQuestion(input.dataset.answerInput, input.value);
+    if (e.target.id !== 'note-input' || !e.target.value.trim()) return;
+    const text = e.target.value.trim();
+    e.target.value = '';
+    queueUserEvent({ t: 'note', op: 'add', text }, `note: ${text}`);
+  });
+
+  document.addEventListener('change', e => {
+    const f = view.filter;
+    if (e.target.id === 'f-tool') f.tool = e.target.value;
+    else if (e.target.id === 'f-agents') f.hideAgents = e.target.checked;
+    else if (e.target.id === 'f-files') f.filesOnly = e.target.checked;
+    else if (e.target.id === 'f-tools') f.toolsOnly = e.target.checked;
+    else return;
+    renderLog();
+  });
+
+  document.getElementById('preview-btn').addEventListener('click', () => { view.previewOpen = !view.previewOpen; renderOutbox(); });
+
+  // ---------- Simulated liveness: the "working" session keeps calling tools (PostToolUse → tool run / file touch) ----------
+  const LIVE_ROWS = [
+    { t: 'tool', tool: 'Read', text: 'loader/hash.py' },
+    { t: 'tool', tool: 'Grep', text: 'page_location', agent: 'Explore' },
+    { t: 'file', tool: 'Edit', text: 'sql/views/sessions.sql' },
+    { t: 'tool', tool: 'Bash', text: 'Re-run dedupe probe after normalizing' },
+    { t: 'tool', tool: 'Glob', text: 'sql/views/*.sql', agent: 'Explore' },
+    { t: 'tool', tool: 'Bash', text: '' },
+    { t: 'tool', tool: 'Bash', text: 'Compare September session counts before and after' },
+  ];
+  let liveIndex = 0;
+  setInterval(() => {
+    const row = LIVE_ROWS[liveIndex++ % LIVE_ROWS.length];
+    S.logs.filter(l => l.on && l.session.state === 'working').forEach(log => {
+      const st = S.states[log.key];
+      st.activity.unshift({ ts: clock(), by: 'hook', op: row.t === 'file' ? 'touch' : 'run', ...row, fresh: true });
+      st.activity.length = Math.min(st.activity.length, 350);
+      log.session.lastEventAgo = '0s';
+      if (view.active === 'home') renderHome();
+      else if (view.active === log.key) renderLog();
+      st.activity.forEach(a => { a.fresh = false; });
+    });
+  }, 4000);
+
+  // Theme
+  const root = document.documentElement;
+  window.currentTheme = () => root.dataset.theme || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  document.getElementById('theme-toggle').addEventListener('click', () => {
+    root.dataset.theme = window.currentTheme() === 'dark' ? 'light' : 'dark';
+    window.dispatchEvent(new Event('themechange'));
+  });
+
+  // View-only deep link: #<repo>/<branch> opens that worktree's tab
+  const hashKey = decodeURIComponent(location.hash.slice(1));
+  if (logOf(hashKey)) openTab(hashKey); else renderAll();
+</script>
+
+<!-- Mermaid: a diagram re-renders only when its source or the theme changed; otherwise the cached SVG is reused -->
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  const palettes = {
+    dark: { primaryColor: '#0c2f48', primaryTextColor: '#d8e6f2', primaryBorderColor: '#38bdf8', lineColor: '#5f7d96', secondaryColor: '#0f1e2c',
+      tertiaryColor: '#0c1925', background: '#0f1e2c', mainBkg: '#0c2f48', edgeLabelBackground: '#0f1e2c', actorBkg: '#0c2f48', actorBorder: '#38bdf8',
+      actorTextColor: '#d8e6f2', actorLineColor: '#1f5a82', signalColor: '#8299ae', signalTextColor: '#d8e6f2', noteBkgColor: '#132638', noteTextColor: '#d8e6f2' },
+    light: { primaryColor: '#e0f2fe', primaryTextColor: '#0d1f2e', primaryBorderColor: '#0284c7', lineColor: '#7b93a8', secondaryColor: '#ffffff',
+      tertiaryColor: '#f3f7fb', background: '#ffffff', mainBkg: '#e0f2fe', edgeLabelBackground: '#ffffff', actorBkg: '#e0f2fe', actorBorder: '#0284c7',
+      actorTextColor: '#0d1f2e', actorLineColor: '#7cc4ee', signalColor: '#557087', signalTextColor: '#0d1f2e', noteBkgColor: '#fef3c7', noteTextColor: '#0d1f2e' },
+  };
+  const svgCache = new Map();
+  let renderPass = 0;
+  window.drawDiagram = async () => {
+    const target = document.getElementById('diagram');
+    const diagram = window.getSelectedDiagram();
+    if (!target || !diagram) return;
+    const theme = window.currentTheme();
+    const cacheKey = `${theme}\n${diagram.mermaid}`;
+    if (svgCache.has(cacheKey)) { target.innerHTML = svgCache.get(cacheKey); return; }
+    const pass = ++renderPass;
+    mermaid.initialize({ startOnLoad: false, theme: 'base', securityLevel: 'strict', fontFamily: "'Fragment Mono', ui-monospace, monospace",
+      themeVariables: { ...palettes[theme], fontFamily: "'Fragment Mono', ui-monospace, monospace", fontSize: '13px' },
+      flowchart: { curve: 'basis' }, sequence: { mirrorActors: false } });
+    try {
+      const { svg } = await mermaid.render(`dgm-${pass}`, diagram.mermaid);
+      svgCache.set(cacheKey, svg);
+      if (pass === renderPass && document.getElementById('diagram')) document.getElementById('diagram').innerHTML = svg;
+    } catch (err) {
+      target.innerHTML = `<span class="loading">Diagram failed to render: ${String(err.message || err).replace(/[<>&]/g, '')}</span>`;
+    }
+  };
+  await document.fonts.ready;
+  window.drawDiagram();
+  window.addEventListener('themechange', window.drawDiagram);
+</script>
+</body>
+</html>

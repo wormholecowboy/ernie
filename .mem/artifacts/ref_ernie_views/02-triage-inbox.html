@@ -1,0 +1,1259 @@
+<!--
+  VARIATION 02 · Triage Inbox
+  For: the "fix. next" user who runs several Claude worktrees at once and wants the one thing to answer, not a dashboard.
+  Key idea: an email client. Home is ONE "Needs you" queue across every on worktree (open questions, assumption checks,
+  issues awaiting approval), each row tagged with its worktree and sorted by impact. The reading pane shows one item big,
+  with "N of M across K worktrees", its example table, context, impact, confidence + method, and answer / approve /
+  need more context / next. Acting on an item queues the page event and jumps to the next one. Keys: j/k a n p 1-9 x esc.
+  MUST items:
+   1. Selector: left sidebar = Home, then repo → worktree/branch rows with session state dot (working / waiting on you /
+      idle / off) and a needs-you count; dotfiles/main is shown off. Selecting one filters the queue to that log and adds
+      its plan, issues (ours / theirs + gate), decisions, facts, glossary, notes and diagrams below the queue.
+   2. Tool log: its own sidebar view. One merged stream across worktrees with a worktree column and filters (worktree,
+      tool group, hide subagents, files only, + ernie events). A new tool row lands on the working worktree every ~4 s.
+   3. Tabs: meaning (b). Pin any item (p or "pin as tab") as a tab along the top of the reading pane; the first tab is
+      always the queue cursor. Meaning (a) is covered by the sidebar and the worktree tag on every row and tab.
+   4. Home: the unified queue + reading pane, then "Waiting on Claude" and "Done" below the queue.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ernie · Triage Inbox</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Fragment+Mono&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    img, svg, pre { max-width: 100%; }
+    :root {
+      --sans: 'Bricolage Grotesque', system-ui, sans-serif;
+      --mono: 'Fragment Mono', ui-monospace, SFMono-Regular, monospace;
+      --bg: #0a1520; --bg-card: #0f1e2c; --bg-recessed: #0c1925; --bg-raised: #132638;
+      --text: #d8e6f2; --text-dim: #8299ae; --text-accent: #7dd3fc;
+      --accent: #38bdf8; --accent-soft: #0c2f48;
+      --border: #1c3246; --border-accent: #1f5a82;
+      --grid: rgba(56,189,248,.04);
+      --success: #34d399; --warning: #fbbf24; --error: #f87171;
+      --pass-bg: #064e3b; --pass-fg: #a7f3d0;
+      --warn-bg: #78350f; --warn-fg: #fde68a;
+      --info-bg: #1e3a8a; --info-fg: #dbeafe;
+      --shadow: rgba(0,0,0,.5);
+      color-scheme: dark;
+    }
+    @media (prefers-color-scheme: light) {
+      :root:not([data-theme="dark"]) {
+        --bg: #f3f7fb; --bg-card: #ffffff; --bg-recessed: #eef3f8; --bg-raised: #ffffff;
+        --text: #0d1f2e; --text-dim: #557087; --text-accent: #0369a1;
+        --accent: #0284c7; --accent-soft: #e0f2fe;
+        --border: #d3dfea; --border-accent: #7cc4ee;
+        --grid: rgba(2,132,199,.05);
+        --success: #059669; --warning: #b45309; --error: #dc2626;
+        --pass-bg: #d1fae5; --pass-fg: #065f46;
+        --warn-bg: #fef3c7; --warn-fg: #92400e;
+        --info-bg: #dbeafe; --info-fg: #1e40af;
+        --shadow: rgba(13,31,46,.16);
+        color-scheme: light;
+      }
+    }
+    :root[data-theme="light"] {
+      --bg: #f3f7fb; --bg-card: #ffffff; --bg-recessed: #eef3f8; --bg-raised: #ffffff;
+      --text: #0d1f2e; --text-dim: #557087; --text-accent: #0369a1;
+      --accent: #0284c7; --accent-soft: #e0f2fe;
+      --border: #d3dfea; --border-accent: #7cc4ee;
+      --grid: rgba(2,132,199,.05);
+      --success: #059669; --warning: #b45309; --error: #dc2626;
+      --pass-bg: #d1fae5; --pass-fg: #065f46;
+      --warn-bg: #fef3c7; --warn-fg: #92400e;
+      --info-bg: #dbeafe; --info-fg: #1e40af;
+      --shadow: rgba(13,31,46,.16);
+      color-scheme: light;
+    }
+    body { margin: 0; font-family: var(--sans); font-size: 14px; line-height: 1.5; color: var(--text); background-color: var(--bg);
+      background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 24px 24px; background-attachment: fixed; }
+    code, .mono { font-family: var(--mono); font-size: .92em; }
+    button, input, select { font: inherit; color: inherit; }
+    kbd { font: 10px var(--mono); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px;
+      padding: 0 4px; color: var(--text-dim); background: var(--bg-recessed); }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+    @keyframes flash { from { background: var(--accent-soft); } to { background: transparent; } }
+
+    .mock-banner { font: 11px var(--mono); text-align: center; padding: 6px 16px; background: var(--warn-bg); color: var(--warn-fg); letter-spacing: .05em; }
+    .topbar { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+      padding: 10px 20px; border-bottom: 1px solid var(--border);
+      background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); }
+    .brand { font-weight: 800; font-size: 19px; letter-spacing: -.02em; }
+    .brand span { color: var(--accent); }
+    .top-needs { font: 600 12px var(--mono); background: var(--warn-bg); color: var(--warn-fg); border-radius: 12px; padding: 2px 10px; }
+    .status { margin-left: auto; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font: 11.5px var(--mono); color: var(--text-dim); }
+    .live { color: var(--success); display: inline-flex; align-items: center; gap: 6px; }
+    .live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--success); animation: pulse 1.8s ease-in-out infinite; }
+    .icon-btn { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; font: 11.5px var(--mono); }
+    .icon-btn:hover { border-color: var(--accent); }
+
+    /* Shell: sidebar + main */
+    .app { display: grid; grid-template-columns: 252px minmax(0, 1fr); max-width: 1600px; margin: 0 auto; }
+    .side { position: sticky; top: 50px; align-self: start; max-height: calc(100dvh - 50px); overflow-y: auto;
+      padding: 14px 10px 140px 14px; border-right: 1px solid var(--border); }
+    .side-h { font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); margin: 18px 8px 6px; }
+    .repo { font: 11px var(--mono); color: var(--text-dim); margin: 8px 8px 2px; }
+    .nav { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: none; border: 1px solid transparent;
+      border-radius: 7px; padding: 7px 8px; cursor: pointer; min-width: 0; }
+    .nav:hover { background: var(--bg-card); }
+    .nav.on { background: var(--accent-soft); border-color: var(--border-accent); }
+    .nav.off { opacity: .55; }
+    .nav-home { font-weight: 600; }
+    .wt-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .wt-name { font: 12.5px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .wt-sub { font: 10.5px var(--mono); color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .grow { flex: 1; min-width: 0; }
+    .wt-repo { display: none; color: var(--text-dim); }
+    .cnt { font: 600 11px var(--mono); background: var(--warn-bg); color: var(--warn-fg); border-radius: 10px; padding: 1px 7px; flex: none; }
+    .cnt.new { background: var(--accent-soft); color: var(--text-accent); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; display: inline-block; }
+    .s-working { background: var(--accent); animation: pulse 1.6s infinite; }
+    .s-waiting-on-you { background: var(--warning); }
+    .s-idle { background: var(--text-dim); }
+    .s-off { border: 1.5px solid var(--text-dim); }
+    .main { min-width: 0; padding: 16px 20px 170px; }
+    .loghead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 2px 14px; font: 12px var(--mono); color: var(--text-dim); min-width: 0; }
+    .loghead b { font: 700 17px var(--sans); color: var(--text); overflow-wrap: anywhere; }
+
+    /* Queue */
+    .triage { display: grid; grid-template-columns: minmax(0, 370px) minmax(0, 1fr); gap: 18px; align-items: start; }
+    .qcol { min-width: 0; }
+    .qhead { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; width: 100%; margin: 0 0 8px; padding: 0 2px;
+      font: 11px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); background: none; border: 0; }
+    .qhead b { color: var(--text-accent); }
+    .qtoggle { cursor: pointer; }
+    .qlist { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
+    .row { display: flex; flex-direction: column; gap: 3px; width: 100%; min-width: 0; text-align: left; cursor: pointer;
+      padding: 9px 11px 9px 12px; border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: 8px; background: var(--bg-card); }
+    .row:hover { border-color: var(--border-accent); }
+    .row.sel { background: var(--accent-soft); border-color: var(--accent); }
+    .row.t-high { border-left-color: var(--error); } .row.t-med { border-left-color: var(--warning); } .row.t-low { border-left-color: var(--text-dim); }
+    .row.t-quiet { opacity: .78; }
+    .row-top { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font: 10.5px var(--mono); color: var(--text-dim); }
+    .row-title { font-weight: 600; font-size: 13.5px; overflow-wrap: anywhere; }
+    .row-sub { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .wt-tag { font: 10.5px var(--mono); color: var(--text-accent); background: var(--bg-recessed); border: 1px solid var(--border); border-radius: 4px;
+      padding: 0 5px; max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    button.wt-tag { cursor: pointer; } button.wt-tag:hover { border-color: var(--accent); }
+    .tier { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+    .tier.t-high { color: var(--error); } .tier.t-med { color: var(--warning); } .tier.t-low { color: var(--text-dim); }
+    .pinned { color: var(--accent); }
+    .empty { color: var(--text-dim); font-size: 13px; padding: 6px 2px; margin: 0 0 14px; }
+
+    /* Reading pane */
+    .reader { min-width: 0; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; scroll-margin-top: 60px; }
+    .tabstrip { display: flex; gap: 2px; padding: 6px 6px 0; background: var(--bg-recessed); border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: thin; }
+    .rtab { display: inline-flex; align-items: center; flex: none; max-width: 250px; border: 1px solid transparent; border-bottom: none;
+      border-radius: 7px 7px 0 0; font: 11.5px var(--mono); color: var(--text-dim); }
+    .rtab > button { background: none; border: 0; padding: 7px 10px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .rtab .x { padding: 7px 8px 7px 0; flex: none; } .rtab .x:hover { color: var(--error); }
+    .rtab.on { background: var(--bg-card); border-color: var(--border); color: var(--text); margin-bottom: -1px; }
+    .rtab.resolved > button:first-child::before { content: '✓ '; color: var(--success); }
+    .rbody { padding: 16px 20px 20px; }
+    .rhead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font: 12px var(--mono); color: var(--text-dim); }
+    .counter { font-size: 13px; color: var(--text); margin-right: auto; } .counter b { color: var(--accent); font-size: 16px; }
+    .rmeta { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 12px; font: 11px var(--mono); color: var(--text-dim); }
+    .rtitle { font-size: 22px; font-weight: 700; line-height: 1.25; margin: 8px 0 14px; letter-spacing: -.01em; overflow-wrap: anywhere; }
+    abbr { text-decoration: underline dotted var(--text-dim); cursor: help; }
+    .field { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 10px; padding: 8px 0; border-top: 1px dashed var(--border); overflow-wrap: anywhere; }
+    .field > b { font: 400 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); padding-top: 3px; }
+    .ex { margin: 4px 0 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-recessed); padding: 10px 12px; min-width: 0; }
+    .ex-title { font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+    .ex-scroll { overflow-x: auto; }
+    .ex table { border-collapse: collapse; font: 12px var(--mono); width: 100%; }
+    .ex th, .ex td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    .ex thead th { color: var(--text-dim); font-weight: 400; }
+    .ex tbody th { color: var(--text-accent); font-weight: 400; }
+    .ok { color: var(--success); } .bad { color: var(--error); }
+    .ex-cap { margin: 8px 0 0; font-size: 13px; }
+    .ex-run { margin: 4px 0 0; font: 11.5px var(--mono); color: var(--text-dim); overflow-wrap: anywhere; }
+    .badge { display: inline-block; font: 11px var(--mono); padding: 1px 7px; border-radius: 10px; border: 0; cursor: help; }
+    .c-verified { background: var(--pass-bg); color: var(--pass-fg); }
+    .c-inferred { background: var(--warn-bg); color: var(--warn-fg); }
+    .c-unchecked { background: color-mix(in srgb, var(--error) 20%, transparent); color: var(--error); }
+    .method { display: block; margin-top: 5px; font: 11.5px var(--mono); color: var(--text-dim); overflow-wrap: anywhere; }
+    .gate { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font: 11px var(--mono); color: var(--text-dim); }
+    .gate span.step { padding: 1px 8px; border-radius: 10px; border: 1px solid var(--border); }
+    .gate .on { border-color: var(--accent); color: var(--text-accent); }
+    .gate .cur { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+    .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; align-items: center; }
+    .btn { font: 12px var(--mono); padding: 7px 12px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border); background: var(--bg-card); }
+    .btn:hover { border-color: var(--accent); }
+    .btn.sm { padding: 3px 9px; font-size: 11px; }
+    .btn--primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+    .btn--primary kbd { color: var(--bg); background: transparent; border-color: color-mix(in srgb, var(--bg) 40%, transparent); }
+    .btn:disabled { opacity: .45; cursor: default; }
+    .chip { font: 12.5px var(--mono); padding: 6px 12px; border-radius: 16px; border: 1px solid var(--border); background: var(--bg-recessed); cursor: pointer; }
+    .chip:hover, .chip.on { border-color: var(--accent); color: var(--text-accent); }
+    .chip.rec { border-color: var(--accent); background: var(--accent-soft); }
+    .chip em { font-style: normal; font-size: 10.5px; color: var(--text-accent); }
+    .answer-input, .note-input { flex: 1 1 220px; min-width: 0; font: 12.5px var(--mono); padding: 8px 10px; border-radius: 6px;
+      border: 1px solid var(--border); background: var(--bg-recessed); color: var(--text); }
+    .answer-input:focus, .note-input:focus { outline: none; border-color: var(--accent); }
+    .answer { font: 13px var(--mono); color: var(--success); margin-top: 12px; }
+    .approved { margin-top: 14px; padding: 8px 12px; border-radius: 8px; background: var(--pass-bg); color: var(--pass-fg); font: 12.5px var(--mono); overflow-wrap: anywhere; }
+    .link-btn { background: none; border: none; padding: 0; cursor: pointer; font: 11px var(--mono); color: inherit; text-decoration: underline; }
+    .hint { font: 11px var(--mono); color: var(--text-dim); margin: 8px 0 0; }
+    .queued { margin-top: 14px; padding: 7px 10px; border-left: 2px solid var(--warning); font: 12px var(--mono); color: var(--warning); overflow-wrap: anywhere; }
+    .keys { border-top: 1px solid var(--border); padding: 8px 20px; font: 11px var(--mono); color: var(--text-dim); background: var(--bg-recessed); }
+
+    /* Worktree context */
+    .ctx-h { margin: 26px 2px 10px; font: 11px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); }
+    .ctx { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); }
+    .panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; min-width: 0; }
+    .panel.wide { grid-column: 1 / -1; }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border);
+      font: 11px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); }
+    .panel-head .count { color: var(--text-accent); text-transform: none; letter-spacing: 0; }
+    .panel-body { padding: 8px 14px 12px; min-width: 0; overflow-wrap: anywhere; }
+    .progress { height: 4px; background: var(--bg-recessed); } .progress > i { display: block; height: 100%; background: var(--success); }
+    .plan, .facts, .notes { list-style: none; margin: 0; padding: 0; }
+    .plan li { position: relative; padding: 7px 0 7px 32px; border-bottom: 1px dashed var(--border); }
+    .plan li:last-child, .facts li:last-child { border-bottom: none; }
+    .status-box { position: absolute; left: 0; top: 7px; width: 20px; height: 20px; border-radius: 5px; border: 1.5px solid var(--text-dim);
+      background: transparent; cursor: pointer; padding: 0; font: 800 12px var(--sans); line-height: 17px; text-align: center; }
+    .plan li.done { color: var(--text-dim); } .plan li.done .text { text-decoration: line-through; }
+    .plan li.done .status-box { background: var(--success); border-color: var(--success); color: var(--bg); }
+    .plan li.active .status-box { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); color: var(--accent); }
+    .plan li.active .text { color: var(--text-accent); } .plan li.dropped { opacity: .5; }
+    .item-id { font: 10.5px var(--mono); color: var(--text-dim); margin-right: 6px; }
+    .grp { font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); margin: 8px 0 2px; }
+    .irow { display: flex; gap: 8px; align-items: baseline; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px dashed var(--border); padding: 6px 0; cursor: pointer; }
+    .irow:hover .grow { color: var(--text-accent); }
+    .st { font: 10.5px var(--mono); flex: none; }
+    .st-explained { color: var(--warning); } .st-approved { color: var(--accent); } .st-fixed { color: var(--success); } .st-dropped { color: var(--text-dim); }
+    .dec { padding: 6px 0 6px 12px; border-left: 2px solid var(--accent); margin: 6px 0 10px; }
+    .dec b { font-weight: 600; display: block; } .dec span { font-size: 13px; color: var(--text-dim); }
+    .facts li { position: relative; padding: 7px 28px 7px 0; border-bottom: 1px dashed var(--border); }
+    .facts .method { display: none; } .facts li.open .method { display: block; }
+    .facts .dismiss { position: absolute; right: 0; top: 6px; width: 22px; height: 22px; border-radius: 5px; border: 1px solid transparent; background: none; cursor: pointer; color: var(--text-dim); }
+    .facts .dismiss:hover { border-color: var(--border); color: var(--error); }
+    .terms { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; }
+    .terms dt { font: 600 12px var(--mono); color: var(--text-accent); } .terms dd { margin: 0; }
+    .notes li { padding: 5px 0; }
+    .tabs { display: flex; gap: 4px; }
+    .tab { font: 11px var(--mono); padding: 3px 10px; border-radius: 5px; border: 1px solid var(--border); background: var(--bg-recessed); cursor: pointer; text-transform: none; letter-spacing: 0; }
+    .tab.selected { border-color: var(--accent); color: var(--text-accent); }
+    .diagram { overflow: auto; padding: 16px; min-height: 200px; display: flex; justify-content: center; }
+    .diagram .loading { font: 12px var(--mono); color: var(--text-dim); align-self: center; }
+    .diagram .nodeLabel { color: var(--text) !important; }
+    .diagram .edgeLabel { color: var(--text-dim) !important; background-color: var(--bg-card) !important; }
+    .diagram .edgeLabel rect { fill: var(--bg-card) !important; } .diagram .edgeLabel p { background-color: var(--bg-card) !important; }
+
+    /* Tool log */
+    .tfilters { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 12px; font: 12px var(--mono); }
+    .tfilters select { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; max-width: 100%; }
+    .tfilters .chips { display: flex; flex-wrap: wrap; gap: 4px; } .tfilters .chip { padding: 3px 10px; font-size: 11.5px; }
+    .tlog { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .trow { display: grid; grid-template-columns: 64px minmax(0, 190px) minmax(0, 120px) minmax(0, 1fr) auto; gap: 10px; align-items: baseline;
+      padding: 6px 12px; border-bottom: 1px solid var(--border); font: 12px var(--mono); }
+    .trow:last-child { border-bottom: 0; }
+    .trow.thead { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); background: var(--bg-recessed); }
+    .trow.fresh { animation: flash 1.5s ease-out; }
+    .trow.ev { color: var(--text-dim); }
+    .tt { color: var(--text-dim); } .tw { color: var(--text-accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ttool, .tx { overflow-wrap: anywhere; }
+    .tag { font: 10.5px var(--mono); color: var(--warning); white-space: nowrap; }
+    .who--hook { color: var(--warning); } .who--claude { color: var(--accent); } .who--user { color: var(--success); }
+
+    /* Outbox */
+    .outbox { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; background: var(--bg-raised); border-top: 1px solid var(--border-accent); box-shadow: 0 -20px 50px -30px var(--shadow); }
+    .outbox-inner { max-width: 1600px; margin: 0 auto; padding: 10px 20px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+    .outbox-state { font: 12px var(--mono); } .outbox-state b { color: var(--warning); font-weight: 400; margin-right: 6px; }
+    .outbox-state.clear b { color: var(--success); }
+    .note-wrap { display: flex; gap: 8px; align-items: center; min-width: 0; }
+    .note-target { font: 11px var(--mono); color: var(--text-accent); white-space: nowrap; }
+    .preview { max-width: 1600px; margin: 0 auto; padding: 10px 20px 0; display: none; max-height: 42vh; overflow-y: auto; }
+    .preview.open { display: block; }
+    .pv-h { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: center; font: 11.5px var(--mono); color: var(--text-dim); margin-bottom: 6px; }
+    .preview pre { margin: 0 0 10px; padding: 10px 12px; border-radius: 8px; background: var(--bg-recessed); border: 1px solid var(--border);
+      font: 12px/1.7 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+    @media (max-width: 1080px) {
+      .triage { grid-template-columns: minmax(0, 1fr); }
+      .reader { order: -1; }
+    }
+    @media (max-width: 760px) {
+      .topbar { padding: 10px 16px; } .status { margin-left: 0; }
+      .app { grid-template-columns: minmax(0, 1fr); }
+      .side { position: static; max-height: none; display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 16px; border-right: 0; border-bottom: 1px solid var(--border); }
+      .side-h, .repo, .wt-sub, .keys { display: none; }
+      .wt-repo { display: inline; }
+      .nav { width: auto; border-color: var(--border); padding: 4px 9px; }
+      .wt-name { max-width: 150px; }
+      .main { padding: 12px 16px 230px; }
+      .rbody { padding: 14px 14px 16px; }
+      .rtitle { font-size: 19px; }
+      .field { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+      .trow { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "tt ttool tw" "tx tx tag"; gap: 2px 8px; }
+      .trow .tt { grid-area: tt; } .trow .ttool { grid-area: ttool; } .trow .tw { grid-area: tw; max-width: 130px; } .trow .tx { grid-area: tx; } .trow .tag { grid-area: tag; }
+      .trow.thead { display: none; }
+      .outbox-inner { grid-template-columns: minmax(0, 1fr) auto; padding: 10px 16px; }
+      .outbox-state { grid-column: 1 / -1; }
+      .preview { padding: 10px 16px 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="mock-banner">MOCK · Triage Inbox · sample data, no server</div>
+  <header class="topbar">
+    <div class="brand">ernie<span>.</span></div>
+    <span class="top-needs" id="top-needs"></span>
+    <div class="status">
+      <span class="live">live</span>
+      <span id="server-info"></span>
+      <button class="icon-btn" id="theme-toggle" type="button">◐ theme</button>
+    </div>
+  </header>
+
+  <div class="app">
+    <nav class="side" id="side" aria-label="Views and worktrees"></nav>
+    <main class="main" id="main"></main>
+  </div>
+
+  <div class="outbox">
+    <div class="preview" id="preview"></div>
+    <div class="outbox-inner">
+      <div class="outbox-state" id="outbox-state"></div>
+      <div class="note-wrap"><span class="note-target" id="note-target"></span>
+        <input class="note-input" id="note-input" type="text" placeholder="Note to Claude… (enter to queue)"></div>
+      <button class="btn" id="preview-btn" type="button">preview</button>
+    </div>
+  </div>
+
+  <script>
+// Shared sample data for the ernie view variations (ref_ernie_views/*.html).
+// Every mock inlines a copy of ERNIE_SAMPLE so all ten show the same data and differ only in layout.
+// Shapes follow spec_ernie.md (event types, fold output) plus A114 `tool run` activity rows.
+// Fields marked "view-only" are not in the spec yet; mocks that use them should say so.
+
+const ERNIE_SAMPLE = {
+  server: { port: 7477, version: 'v0.1.0-12-g3c9e1a7', connected: true },
+
+  // One entry per log file (~/.local/state/ernie/<repo>/<branch>.jsonl). Worktrees of one repo share the repo slug.
+  logs: [
+    {
+      key: 'glue/CDIT-2631-ga4-dedupe', repo: 'glue', branch: 'CDIT-2631-ga4-dedupe', on: true,
+      worktree: '~/things/myc/glue/CDIT-2631-ga4-dedupe', // view-only: spec stores the repo root, not the worktree path
+      session: { id: '4995d496', state: 'working', lastEventAgo: '3s' }, // view-only: derived from hook timestamps
+    },
+    {
+      key: 'glue/CDIT-2627-gsc-backfill', repo: 'glue', branch: 'CDIT-2627-gsc-backfill', on: true,
+      worktree: '~/things/myc/glue/CDIT-2627-gsc-backfill',
+      session: { id: '3fb7e802', state: 'waiting on you', lastEventAgo: '6m' },
+    },
+    {
+      key: 'glue/main', repo: 'glue', branch: 'main', on: true,
+      worktree: '~/things/myc/glue/main',
+      session: { id: null, state: 'idle', lastEventAgo: '1d' },
+    },
+    {
+      key: 'ernie/main', repo: 'ernie', branch: 'main', on: true,
+      worktree: '~/things/myc/ernie/main',
+      session: { id: '715abde2', state: 'idle', lastEventAgo: '2h' },
+    },
+    {
+      key: 'dotfiles/main', repo: 'dotfiles', branch: 'main', on: false, // has a main.off marker
+      worktree: '~/.dotfiles',
+      session: { id: null, state: 'off', lastEventAgo: '5d' },
+    },
+  ],
+
+  // Folded state per log key, as `GET /stream` would push it.
+  states: {
+    'glue/CDIT-2631-ga4-dedupe': {
+      turn: 14,
+      plan: [
+        { id: 'p1', text: 'Reproduce double count on one Dealer Spike host', status: 'done' },
+        { id: 'p2', text: 'Find the dedupe gap', status: 'done' },
+        { id: 'p3', text: 'Normalize page_location before hashing', status: 'active' },
+        { id: 'p4', text: 'Backfill 90 days', status: 'todo' },
+        { id: 'p5', text: 'Verify session counts on stage', status: 'todo' },
+        { id: 'p6', text: 'Open PR', status: 'todo' },
+      ],
+      decisions: [
+        { id: 'd1', text: 'dedupe_key = sha1(session_id, normalized page_location, event_ts)', why: 'event_ts alone collides across tabs; session_id alone merges real repeat views' },
+        { id: 'd2', text: 'Platform-side bugs go to the platform team, not fixed in glue', why: 'we only own the loader and views' },
+      ],
+      questions: [
+        {
+          id: 'q1', kind: 'assume', text: 'publicDigmsDB.clients = Glue\'s client list', choices: ['yes', 'no'],
+          context: 'The 212-site count below comes from joining ga4_hits to publicDigmsDB.clients.',
+          impact: 'If clients is missing sites, the double-count rate is understated.',
+        },
+        {
+          id: 'q2', text: 'Normalize page_location in the SQL view or in the loader?', choices: ['view', 'loader'], recommended: 'view',
+          context: 'Both fix new rows. Only the view also fixes old rows without a backfill.',
+          impact: 'Loader means a 90-day backfill (~40 min on stage) before counts are right.',
+          example: 'e2',
+        },
+        { id: 'q3', text: 'Backfill window?', choices: ['30 days', '90 days'], answer: '90 days' },
+        {
+          id: 'q4', text: 'Should the dedupe also cover Dealer Inspire hosts?', choices: ['yes', 'no'],
+          more: true, followUp: 'need more context', // answered "need more context" → stays open (A88)
+        },
+      ],
+      issues: [
+        {
+          id: 'i1', title: 'Dedupe key ignores the trailing "i" on listing ids', status: 'explained', owner: 'us',
+          cause: 'page_location for the same listing arrives as …-14615315i and …-14615315, so one session hashes to two keys.',
+          fix: 'Strip a trailing "i" from the listing id segment before hashing.',
+          impact: '~3.1% of sessions double-counted on 212 Dealer Spike sites.',
+          confidence: 'verified', method: 'SELECT page_location, dedupe_key FROM ga4_hits WHERE host = \'ds-4471.dealerspike.com\' LIMIT 5',
+          example: 'e1',
+        },
+        {
+          id: 'i2', title: 'Backfill job skips days with late-arriving hits', status: 'approved', owner: 'us',
+          cause: 'The job filters on load_date, but late hits land under the next day\'s partition.',
+          fix: 'Filter on event_date with a 2-day lookback.',
+          impact: 'Up to 0.8% of hits missing from any backfilled day.',
+          confidence: 'inferred', method: 'read backfill.py:88; not run',
+          quote: 'approved, fix it',
+        },
+        {
+          id: 'i3', title: 'SPA route changes send page_view twice', status: 'explained', owner: 'other',
+          cause: 'The platform GTM container fires page_view on history change and on load.',
+          fix: 'Platform team removes the history-change trigger.',
+          impact: 'Inflates page_views ~1.4%; sessions are unaffected after i1.',
+          confidence: 'unchecked', method: 'needs GTM access (SSO wall)',
+        },
+        {
+          id: 'i4', title: 'Stage run reports success with 0 rows', status: 'fixed', owner: 'us',
+          cause: 'Empty result set was treated as success.', fix: 'Fail the run when rows_written = 0.',
+          impact: 'Silent empty loads on stage.', confidence: 'verified', method: 'go test ./loader/... and a stage run',
+        },
+        {
+          id: 'i5', title: 'GTM container v41 missing consent tag', status: 'dropped', owner: 'other',
+          cause: 'Consent tag removed in v41.', fix: 'Platform re-adds it.', impact: 'Not related to this ticket.',
+          confidence: 'inferred', method: 'GTM changelog',
+        },
+      ],
+      examples: [
+        {
+          name: 'e1', title: 'Same listing, two page_location values',
+          columns: ['ga4_hits field', 'Row A', 'Row B'],
+          rows: [
+            ['site_platform', 'Dealer Spike', 'Dealer Spike'],
+            ['session_id', '1728…441', '1728…441'],
+            ['page_location', '…/2019-ford-f150-14615315i', '…/2019-ford-f150-14615315'],
+            ['dedupe_key', 'a91f…', 'c03e…'],
+          ],
+          caption: 'Same session, same listing, two keys → counted twice.',
+          run: 'sql/probe_dedupe.sql',
+        },
+        {
+          name: 'e2', title: 'Where to normalize: options run on e1',
+          columns: ['option', 'Row A key', 'Row B key', 'result'],
+          rows: [
+            ['view', 'a91f…', 'a91f…', '✓ one row, old data fixed too'],
+            ['loader', 'a91f…', 'a91f…', '✓ one row, needs backfill'],
+            ['none (today)', 'a91f…', 'c03e…', '✗ counted twice'],
+          ],
+          caption: 'Both options fix e1; only the view fixes rows already loaded.',
+        },
+      ],
+      facts: [
+        { id: 'f1', text: 'ga4_hits holds 41.2M rows for September', confidence: 'verified', method: 'SELECT count(*) FROM ga4_hits WHERE event_date BETWEEN …' },
+        { id: 'f2', text: 'Duplicates appear only on Dealer Spike hosts', confidence: 'inferred', method: 'grouped by site_platform on a 1-day sample' },
+        { id: 'f3', text: 'Consent mode drops ~2% of hits', confidence: 'unchecked' },
+        { id: 'f4', kind: 'term', term: 'DS', text: 'Dealer Spike, the site platform behind 212 client sites' },
+        { id: 'f5', kind: 'term', term: 'H1', text: 'hypothesis that trailing-"i" listing ids split one session into two keys (now i1)' },
+      ],
+      notes: [
+        { id: 'n1', text: 'platform contact is #glue-platform, ask for GTM read access', ref: 'i3' },
+      ],
+      diagrams: [
+        {
+          name: 'flow', mermaid: `flowchart LR
+  GTM["GTM / gtag"] -->|hits| L["loader"]
+  L -->|"dedupe_key"| H[("ga4_hits")]
+  H --> V["sessions view"]
+  V --> D["dashboard"]
+  L -. "i1: key split here" .-> H`,
+        },
+        {
+          name: 'late-hits', mermaid: `sequenceDiagram
+  participant GTM
+  participant Loader
+  participant Backfill
+  GTM->>Loader: hit (event_date 10-07, arrives 10-08 02:10)
+  Loader->>Loader: partition load_date = 10-08
+  Backfill->>Loader: reload load_date = 10-07
+  Note over Backfill: late hit missed (i2)`,
+        },
+      ],
+      // Newest first. by: claude (CLI writes), hook (file touch, tool run, turn mark), user (page or your terminal).
+      // `tool run` text is the tool's one-line summary; Bash shows its description, never the command (A114).
+      activity: [
+        { ts: '14:21:08', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Run dedupe probe on stage' },
+        { ts: '14:21:02', by: 'hook', t: 'file', op: 'touch', tool: 'Edit', text: 'sql/views/sessions.sql' },
+        { ts: '14:20:51', by: 'hook', t: 'tool', op: 'run', tool: 'Read', text: 'sql/views/sessions.sql' },
+        { ts: '14:20:44', by: 'hook', t: 'tool', op: 'run', tool: 'Grep', text: 'dedupe_key' },
+        { ts: '14:20:30', by: 'claude', t: 'plan', op: 'set', text: 'p3 → active' },
+        { ts: '14:20:12', by: 'hook', t: 'turn', op: 'mark', text: 'turn 14 · delivered 1 event' },
+        { ts: '14:19:58', by: 'user', t: 'question', op: 'answer', text: 'q3 → 90 days' },
+        { ts: '14:12:40', by: 'claude', t: 'question', op: 'add', text: 'q2 Normalize in the view or the loader?' },
+        { ts: '14:12:31', by: 'claude', t: 'example', op: 'put', text: 'e2 Where to normalize: options run on e1' },
+        { ts: '14:12:05', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Compare keys for both options on e1 rows' },
+        { ts: '14:11:20', by: 'hook', t: 'tool', op: 'run', tool: 'Agent', text: 'Find every reader of dedupe_key', agent: null },
+        { ts: '14:11:18', by: 'hook', t: 'tool', op: 'run', tool: 'Grep', text: 'dedupe_key', agent: 'Explore' },
+        { ts: '14:11:16', by: 'hook', t: 'tool', op: 'run', tool: 'Glob', text: '**/*.sql', agent: 'Explore' },
+        { ts: '14:11:14', by: 'hook', t: 'tool', op: 'run', tool: 'Read', text: 'loader/hash.py', agent: 'Explore' },
+        { ts: '14:10:02', by: 'claude', t: 'issue', op: 'add', text: 'i3 [other] SPA route changes send page_view twice' },
+        { ts: '14:09:47', by: 'claude', t: 'issue', op: 'add', text: 'i1 [us] Dedupe key ignores the trailing "i"' },
+        { ts: '14:09:30', by: 'claude', t: 'example', op: 'put', text: 'e1 Same listing, two page_location values' },
+        { ts: '14:09:02', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Pull 5 hits for one Dealer Spike host' },
+        { ts: '14:08:40', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Count rows per dedupe_key for Sept' },
+        { ts: '14:07:15', by: 'hook', t: 'tool', op: 'run', tool: 'WebFetch', text: 'https://support.google.com/analytics/answer/9234069' },
+        { ts: '14:06:58', by: 'user', t: 'issue', op: 'set', text: 'i2 → approved' },
+        { ts: '14:06:02', by: 'hook', t: 'tool', op: 'run', tool: 'mcp__claude_ai_Google_Drive__search_files', text: '' },
+        { ts: '14:05:30', by: 'claude', t: 'fact', op: 'add', text: 'f1 ✓ ga4_hits holds 41.2M rows for September' },
+        { ts: '14:05:12', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: '' }, // a Bash call without a description
+        { ts: '14:04:50', by: 'hook', t: 'tool', op: 'run', tool: 'Skill', text: 'mem' },
+      ],
+      // Your page/terminal events since the last turn mark (what the next prompt delivers).
+      pending: [
+        { t: 'note', op: 'add', text: 'check Dealer Inspire after this', label: 'note: check Dealer Inspire after this' },
+      ],
+      inboxText: 'ernie inbox · turn 15\n- note: check Dealer Inspire after this',
+      warnings: 0,
+    },
+
+    'glue/CDIT-2627-gsc-backfill': {
+      turn: 9,
+      plan: [
+        { id: 'p1', text: 'Probe GSC lambda on stage (G0)', status: 'done' },
+        { id: 'p2', text: 'Pick backfill strategy', status: 'active' },
+        { id: 'p3', text: 'Backfill 16 months', status: 'todo' },
+        { id: 'p4', text: 'Add row-count alarm', status: 'todo' },
+      ],
+      decisions: [
+        { id: 'd1', text: 'Backfill one property at a time', why: 'GSC quota is per property; parallel runs hit 429s' },
+      ],
+      questions: [
+        {
+          id: 'q1', text: 'Backfill by day or by month?', choices: ['by day', 'by month'], recommended: 'by day',
+          context: 'GSC caps 50k rows per request; busy properties exceed it in a month.',
+          impact: 'By month silently truncates the 6 busiest properties.',
+          example: 'e1',
+        },
+        { id: 'q2', text: 'OK to run the backfill on prod tonight?', choices: ['yes', 'no, stage first'] },
+      ],
+      issues: [
+        {
+          id: 'i1', title: 'Retry drops 429s after 3 attempts', status: 'explained', owner: 'us',
+          cause: 'Retry gives up after 3 attempts with no backoff jitter.', fix: 'Exponential backoff with jitter, 8 attempts.',
+          impact: '~4% of days missing for busy properties.', confidence: 'verified', method: 'CloudWatch: 312 "429 giving up" lines on 10-06',
+        },
+      ],
+      examples: [
+        {
+          name: 'e1', title: 'One busy property, by day vs by month',
+          columns: ['request', 'rows returned', 'rows that exist'],
+          rows: [['2026-09 (by month)', '50,000', '61,204'], ['2026-09-14 (by day)', '2,031', '2,031']],
+          caption: 'By month hits the 50k cap and drops 11,204 rows.',
+        },
+      ],
+      facts: [
+        { id: 'f1', kind: 'term', term: 'G0', text: 'throwaway probe script against the stage GSC lambda' },
+        { id: 'f2', text: 'GSC keeps 16 months of data', confidence: 'verified', method: 'GSC API docs' },
+      ],
+      notes: [],
+      diagrams: [],
+      activity: [
+        { ts: '14:15:40', by: 'claude', t: 'question', op: 'add', text: 'q2 OK to run the backfill on prod tonight?' },
+        { ts: '14:15:22', by: 'claude', t: 'question', op: 'add', text: 'q1 Backfill by day or by month?' },
+        { ts: '14:15:01', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Invoke G0 for one property, by month' },
+        { ts: '14:14:30', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Tail GSC lambda logs for 429s' },
+        { ts: '14:13:55', by: 'hook', t: 'file', op: 'touch', tool: 'Write', text: 'scripts/g0_probe.py' },
+        { ts: '14:13:10', by: 'hook', t: 'turn', op: 'mark', text: 'turn 9' },
+      ],
+      pending: [],
+      inboxText: '',
+      warnings: 0,
+    },
+
+    'glue/main': {
+      turn: 3,
+      plan: [], decisions: [], questions: [], issues: [], examples: [], facts: [], notes: [], diagrams: [],
+      activity: [
+        { ts: 'yesterday 17:02', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Pull latest main' },
+      ],
+      pending: [], inboxText: '', warnings: 0,
+    },
+
+    'ernie/main': {
+      turn: 31,
+      plan: [
+        { id: 'p1', text: 'Spec + build plan', status: 'done' },
+        { id: 'p2', text: 'Scratch flow test', status: 'done' },
+        { id: 'p3', text: 'UI view variations', status: 'active' },
+        { id: 'p4', text: 'Phase 1: core (append, fold, dump)', status: 'todo' },
+      ],
+      decisions: [
+        { id: 'd1', text: 'Tool activity shows Bash descriptions only', why: 'no command text → no redactor in v1 (A114)' },
+      ],
+      questions: [],
+      issues: [],
+      examples: [],
+      facts: [
+        { id: 'f1', text: 'Hooks must exit 0 on any error', confidence: 'verified', method: 'flow test F4' },
+      ],
+      notes: [],
+      diagrams: [],
+      activity: [
+        { ts: '12:40:10', by: 'hook', t: 'file', op: 'touch', tool: 'Edit', text: '.mem/artifacts/spec_ernie.md' },
+        { ts: '12:39:55', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Fold A114 into the spec and memory pointer' },
+      ],
+      pending: [], inboxText: '', warnings: 0,
+    },
+  },
+};
+  </script>
+
+  <!-- View + interactions. The real page gets each log's state over SSE and POSTs user events; here actions edit local state. -->
+  <script>
+    const LOGS = ERNIE_SAMPLE.logs;
+    const STATES = ERNIE_SAMPLE.states;
+    const ACTIVE_LOG = (LOGS.find(l => l.session.state === 'working') || LOGS[0]).key;
+
+    // View-only state: not part of any log
+    const view = {
+      mode: 'home', log: null, cursor: null, tab: 'queue',
+      pins: ['glue/CDIT-2627-gsc-backfill|i1'],
+      diagram: {}, showDone: false, previewOpen: false, unseenTools: 0,
+      moreAskedIssues: new Set(),
+      tools: { log: 'all', group: 'all', hideSub: false, filesOnly: false, events: false },
+    };
+    window.diagramCache = {};
+    const freshUntil = new WeakMap();
+    let simSeconds = 14 * 3600 + 21 * 60 + 10;
+
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const hms = s => [Math.floor(s / 3600), Math.floor(s / 60) % 60, s % 60].map(n => String(n).padStart(2, '0')).join(':');
+    const splitKey = k => [k.slice(0, k.indexOf('|')), k.slice(k.indexOf('|') + 1)];
+    const logOf = key => LOGS.find(l => l.key === key);
+    const branchOf = key => logOf(key).branch;
+    const shortName = key => branchOf(key).split('-').slice(0, 2).join('-');
+    const stateClass = l => `s-${l.session.state.replace(/ /g, '-')}`;
+    const isNarrow = () => window.matchMedia('(max-width: 1080px)').matches;
+    const GLYPH = { verified: '✓', inferred: '~', unchecked: '✗' };
+    const NEXT_STATUS = { todo: 'active', active: 'done', done: 'todo', dropped: 'todo' };
+    const STATUS_GLYPH = { todo: '', active: '▶', done: '✓', dropped: '–' };
+
+    // ---- Queue model: one row per question / issue, bucketed by who has the ball ----
+    function buildItems(logKey) {
+      const st = STATES[logKey];
+      if (!st) return [];
+      const issues = st.issues.map((x, i) => {
+        const key = `${logKey}|${x.id}`;
+        const waiting = x.status === 'approved' || (x.status === 'explained' && view.moreAskedIssues.has(key));
+        return { key, log: logKey, id: x.id, obj: x, type: 'issue', pos: `I${i + 1}/${st.issues.length}`,
+          bucket: x.status === 'explained' && !waiting ? 'needs' : waiting ? 'waiting' : 'done' };
+      });
+      const questions = st.questions.map((q, i) => ({
+        key: `${logKey}|${q.id}`, log: logKey, id: q.id, obj: q, type: q.kind === 'assume' ? 'assume' : 'question',
+        pos: `Q${i + 1}/${st.questions.length}`,
+        bucket: q.status === 'dropped' || (q.answer && !q.more) ? 'done' : q.more ? 'waiting' : 'needs',
+      }));
+      return [...issues, ...questions].map(it => ({ ...it, score: scoreOf(it) }));
+    }
+    // Reason: the spec has no severity field, so rank by owner + whether Claude stated an impact
+    function scoreOf(it) {
+      if (it.type === 'issue') return it.obj.owner === 'us' ? 3 : 1;
+      return it.obj.impact ? 2 : 0;
+    }
+    const tierOf = score => (score >= 3 ? 'high' : score === 2 ? 'med' : 'low');
+    const scopeKeys = () => (view.mode === 'log' ? [view.log] : LOGS.filter(l => l.on).map(l => l.key));
+
+    function getQueue() {
+      const items = scopeKeys().flatMap((key, li) => buildItems(key).map((it, i) => ({ ...it, li, i })));
+      const needs = items.filter(it => it.bucket === 'needs').sort((a, b) => b.score - a.score || a.li - b.li || a.i - b.i);
+      return { needs, waiting: items.filter(it => it.bucket === 'waiting'), done: items.filter(it => it.bucket === 'done') };
+    }
+    function findItem(key) {
+      if (!key) return null;
+      const [logKey] = splitKey(key);
+      return buildItems(logKey).find(it => it.key === key) || null;
+    }
+    const currentKey = () => (view.tab === 'queue' ? view.cursor : view.tab);
+    const currentItem = () => findItem(currentKey());
+    const needsCount = key => buildItems(key).filter(it => it.bucket === 'needs').length;
+
+    const titleOf = it => (it.type === 'issue' ? it.obj.title : it.type === 'assume' ? `I assumed: ${it.obj.text}. True?` : it.obj.text);
+    const kindOf = it => (it.type === 'issue' ? `issue · ${it.obj.owner === 'us' ? 'ours' : 'theirs'}` : it.type === 'assume' ? 'assumption' : 'question');
+    function subOf(it) {
+      const o = it.obj;
+      if (it.type === 'issue' && o.status === 'approved') return o.quote ? `approved in chat: "${o.quote}"` : 'approved · Claude fixes it next';
+      if (it.bucket === 'waiting') return 'you asked for more context';
+      if (it.bucket === 'done') return it.type === 'issue' ? o.status : `→ ${o.answer || o.status}`;
+      return o.impact || o.context || '';
+    }
+    function withTerms(html, logKey) {
+      return STATES[logKey].facts.filter(f => f.kind === 'term').reduce((out, f) =>
+        out.replace(new RegExp(`\\b${reEsc(f.term)}\\b`, 'g'), `<abbr title="${esc(f.text)}">${esc(f.term)}</abbr>`), html);
+    }
+
+    // ---- Sidebar ----
+    function lastToolLine(key) {
+      const row = (STATES[key]?.activity || []).find(a => a.t === 'tool' || a.t === 'file');
+      return row ? (row.text ? `${row.tool} · ${row.text}` : row.tool) : '';
+    }
+    function wtSub(l) {
+      if (!l.on) return `off · ${l.branch}.off marker`;
+      return l.session.state === 'working' ? `working · ${lastToolLine(l.key)}` : `${l.session.state} · ${l.session.lastEventAgo}`;
+    }
+    function renderSide() {
+      const total = LOGS.filter(l => l.on).reduce((n, l) => n + needsCount(l.key), 0);
+      const repos = [...new Set(LOGS.map(l => l.repo))];
+      const wtRow = l => {
+        const n = l.on ? needsCount(l.key) : 0;
+        const on = view.mode === 'log' && view.log === l.key ? 'on' : '';
+        return `<button class="nav ${on} ${l.on ? '' : 'off'}" type="button" data-nav="log" data-log="${esc(l.key)}" title="${esc(l.worktree)}">
+          <span class="dot ${stateClass(l)}"></span>
+          <span class="wt-main"><span class="wt-name"><span class="wt-repo">${esc(l.repo)}/</span>${esc(l.branch)}</span><span class="wt-sub" data-sub="${esc(l.key)}">${esc(wtSub(l))}</span></span>
+          ${n ? `<b class="cnt">${n}</b>` : ''}</button>`;
+      };
+      document.getElementById('side').innerHTML = `
+        <button class="nav nav-home ${view.mode === 'home' ? 'on' : ''}" type="button" data-nav="home"><span class="grow">Home · needs you</span><b class="cnt">${total}</b></button>
+        <div class="side-h">Worktrees</div>
+        ${repos.map(r => `<div class="repo">${esc(r)}/</div>${LOGS.filter(l => l.repo === r).map(wtRow).join('')}`).join('')}
+        <div class="side-h">Activity</div>
+        <button class="nav ${view.mode === 'tools' ? 'on' : ''}" type="button" data-nav="tools"><span class="dot s-working"></span><span class="grow">Tool log</span><b class="cnt new" id="tool-unseen" ${view.unseenTools ? '' : 'hidden'}>+${view.unseenTools}</b></button>`;
+      document.getElementById('top-needs').textContent = `${total} need you`;
+    }
+
+    // ---- Home / worktree: queue + reading pane ----
+    function rowHtml(it) {
+      const tier = it.bucket === 'needs' ? tierOf(it.score) : 'quiet';
+      const sub = subOf(it);
+      return `<button class="row t-${tier} ${it.key === currentKey() ? 'sel' : ''}" type="button" data-item="${esc(it.key)}">
+        <span class="row-top">${it.bucket === 'needs' ? `<span class="tier t-${tier}">${tier}</span>` : ''}<span class="wt-tag">${esc(branchOf(it.log))}</span>
+          <span>${esc(kindOf(it))}</span><span>${it.pos}</span>${view.pins.includes(it.key) ? '<span class="pinned">pinned</span>' : ''}</span>
+        <span class="row-title">${esc(titleOf(it))}</span>${sub ? `<span class="row-sub">${esc(sub)}</span>` : ''}</button>`;
+    }
+    function queueHtml(q) {
+      const where = view.mode === 'log' ? `in ${esc(shortName(view.log))}` : `· ${new Set(q.needs.map(it => it.log)).size} worktrees`;
+      const list = items => `<div class="qlist">${items.map(rowHtml).join('')}</div>`;
+      return `<div class="qhead"><span>Needs you <b>${q.needs.length}</b> ${where}</span><span>by impact</span></div>
+        ${q.needs.length ? list(q.needs) : '<p class="empty">Nothing needs you here.</p>'}
+        ${q.waiting.length ? `<div class="qhead"><span>Waiting on Claude <b>${q.waiting.length}</b></span></div>${list(q.waiting)}` : ''}
+        ${q.done.length ? `<button class="qhead qtoggle" type="button" data-done-toggle><span>Done <b>${q.done.length}</b></span><span>${view.showDone ? 'hide' : 'show'}</span></button>${view.showDone ? list(q.done) : ''}` : ''}`;
+    }
+    function tabsHtml(q) {
+      const pinTab = k => {
+        const p = findItem(k);
+        if (!p) return '';
+        return `<span class="rtab ${view.tab === k ? 'on' : ''} ${p.bucket !== 'needs' ? 'resolved' : ''}" title="${esc(p.log)} · ${esc(titleOf(p))}">
+          <button type="button" data-tab="${esc(k)}">${esc(shortName(p.log))} ${p.id} · ${esc(titleOf(p))}</button>
+          <button class="x" type="button" data-unpin="${esc(k)}" aria-label="Close tab">×</button></span>`;
+      };
+      return `<div class="tabstrip"><span class="rtab ${view.tab === 'queue' ? 'on' : ''}"><button type="button" data-tab="queue">▤ Queue · ${q.needs.length}</button></span>${view.pins.map(pinTab).join('')}</div>`;
+    }
+    const field = (label, text, logKey) => (text ? `<div class="field"><b>${label}</b><span>${withTerms(esc(text), logKey)}</span></div>` : '');
+    const badge = o => (o.confidence ? `<span class="badge c-${o.confidence}" title="${esc(o.method ? `method: ${o.method}` : 'no method given')}">${GLYPH[o.confidence]} ${o.confidence}</span>` : '');
+    const cellHtml = c => (/^✓/.test(c) ? `<span class="ok">${esc(c)}</span>` : /^✗/.test(c) ? `<span class="bad">${esc(c)}</span>` : esc(c));
+    function exampleHtml(ex) {
+      return `<figure class="ex"><figcaption class="ex-title"><span class="item-id">${esc(ex.name)}</span>${esc(ex.title)}</figcaption>
+        <div class="ex-scroll"><table><thead><tr>${ex.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
+        <tbody>${ex.rows.map(r => `<tr>${r.map((c, i) => (i ? `<td>${cellHtml(c)}</td>` : `<th scope="row">${esc(c)}</th>`)).join('')}</tr>`).join('')}</tbody></table></div>
+        ${ex.caption ? `<p class="ex-cap">${esc(ex.caption)}</p>` : ''}
+        ${ex.run ? `<p class="ex-run">see for yourself: <code>${esc(ex.run)}</code> (shown, never run)</p>` : ''}</figure>`;
+    }
+    function gateHtml(status) {
+      if (status === 'dropped') return '<span class="st st-dropped">dropped</span>';
+      const steps = ['explained', 'approved', 'fixed'];
+      const at = steps.indexOf(status);
+      return `<span class="gate">${steps.map((s, i) => `<span class="step ${i < at ? 'on' : i === at ? 'cur' : ''}">${s}</span>`).join('→')}</span>`;
+    }
+    function bodyHtml(it) {
+      const o = it.obj;
+      const ex = o.example ? STATES[it.log].examples.find(e => e.name === o.example) : null;
+      const exHtml = ex ? exampleHtml(ex) : '';
+      // Reason: issues lead with the worked example (the user learns from one row first); questions lead with purpose
+      if (it.type === 'issue') {
+        return `${exHtml}${field('cause', o.cause, it.log)}${field('fix', o.fix, it.log)}${field('impact', o.impact, it.log)}
+          <div class="field"><b>how sure</b><span>${badge(o)}${o.method ? `<code class="method">${esc(o.method)}</code>` : ''}</span></div>
+          <div class="field"><b>gate</b><span>${gateHtml(o.status)}</span></div>`;
+      }
+      return `${field(it.type === 'assume' ? 'why it matters' : 'context', o.context, it.log)}${exHtml}${field('impact', o.impact, it.log)}
+        ${o.recommended ? field('recommend', `${o.recommended}${ex ? ` (tried on ${ex.name})` : ''}`, it.log) : ''}`;
+    }
+    function actionsHtml(it) {
+      const o = it.obj;
+      const next = '<button class="btn" type="button" data-act="next">Next <kbd>j</kbd></button>';
+      if (it.type === 'issue') {
+        if (o.status === 'approved') {
+          return `<div class="approved">✓ ${o.quote ? `approved in chat: "${esc(o.quote)}"` : 'approved on the page'} · Claude may fix it now
+            <button class="link-btn" type="button" data-act="undo">undo</button></div><div class="acts">${next}</div>`;
+        }
+        if (o.status !== 'explained') return `<div class="acts">${next}</div>`;
+        const asked = view.moreAskedIssues.has(it.key);
+        return `<div class="acts"><button class="btn btn--primary" type="button" data-act="approve">Approve fix <kbd>a</kbd></button>
+          <button class="btn" type="button" data-act="more" ${asked ? 'disabled' : ''}>${asked ? 'Asked for more context' : 'Need more context'} <kbd>n</kbd></button>
+          <button class="btn" type="button" data-act="drop">Drop</button>${next}</div>
+          <p class="hint">Claude can't mark ${o.id} fixed until you approve it.</p>`;
+      }
+      if (o.answer && !o.more) {
+        return `<div class="answer">→ ${esc(o.answer)} <button class="link-btn" type="button" data-act="reopen">change</button></div><div class="acts">${next}</div>`;
+      }
+      const label = c => (it.type === 'assume' ? (c === 'yes' ? 'Yes, true' : 'No, not true') : c);
+      const chips = o.choices.map((c, i) => `<button class="chip ${c === o.recommended ? 'rec' : ''}" type="button" data-choice="${esc(c)}">
+        <kbd>${i + 1}</kbd> ${esc(label(c))}${c === o.recommended ? ' <em>recommended</em>' : ''}</button>`).join('');
+      return `${o.more ? '<p class="hint">You asked for more context. It stays open until Claude adds it, or answer now.</p>' : ''}
+        <div class="acts">${chips}</div>
+        <div class="acts"><input class="answer-input" type="text" data-answer-input placeholder="${it.type === 'assume' ? 'or say what is true + enter' : 'or type an answer + enter'}">
+          ${o.more ? '' : '<button class="btn" type="button" data-act="more">Need more context <kbd>n</kbd></button>'}${next}</div>`;
+    }
+    function queuedHtml(it) {
+      const mine = STATES[it.log].pending.filter(p => p.id === it.id || p.ref === it.id);
+      return mine.length ? `<div class="queued">queued → Claude on your next prompt in ${esc(shortName(it.log))}: ${mine.map(p => esc(p.label)).join(' · ')}</div>` : '';
+    }
+    function readerHtml(q) {
+      const it = currentItem();
+      if (!it) {
+        return `${tabsHtml(q)}<div class="rbody"><div class="rtitle">Inbox zero</div>
+          <p>Nothing needs you ${view.mode === 'log' ? `in ${esc(branchOf(view.log))}` : 'in any worktree'}. New questions and issues land here as Claude logs them.</p></div>`;
+      }
+      const idx = q.needs.findIndex(n => n.key === it.key);
+      const scope = view.mode === 'log' ? `in ${esc(shortName(view.log))}` : `across ${new Set(q.needs.map(n => n.log)).size} worktrees`;
+      const counter = idx >= 0 ? `<b>${idx + 1}</b> of ${q.needs.length} ${scope}` : it.bucket === 'waiting' ? 'waiting on Claude' : 'done';
+      const pinned = view.pins.includes(it.key);
+      return `${tabsHtml(q)}<div class="rbody">
+        <div class="rhead"><span class="counter">${counter}</span>
+          <button class="btn sm" type="button" data-act="prev" aria-label="Previous">‹ k</button>
+          <button class="btn sm" type="button" data-act="next" aria-label="Next">j ›</button>
+          <button class="btn sm" type="button" data-pin>${pinned ? 'unpin tab' : 'pin as tab'} <kbd>p</kbd></button></div>
+        <div class="rmeta"><button class="wt-tag" type="button" data-nav="log" data-log="${esc(it.log)}" title="Open this worktree">${esc(it.log)}</button>
+          <span>${esc(kindOf(it))}</span><span>${it.pos} · ${it.id}</span>
+          ${it.bucket === 'needs' ? `<span class="tier t-${tierOf(it.score)}">${tierOf(it.score)} impact</span>` : ''}</div>
+        <h2 class="rtitle">${withTerms(esc(titleOf(it)), it.log)}</h2>
+        ${bodyHtml(it)}${actionsHtml(it)}${queuedHtml(it)}</div>
+        <div class="keys"><kbd>j</kbd> <kbd>k</kbd> next / prev · <kbd>a</kbd> approve · <kbd>n</kbd> need more context · <kbd>1</kbd>–<kbd>9</kbd> pick choice · <kbd>p</kbd> pin as tab · <kbd>x</kbd> close tab · <kbd>esc</kbd> back to queue</div>`;
+    }
+
+    // ---- Worktree context (below the queue when one worktree is selected) ----
+    function ctxHtml(key) {
+      const st = STATES[key];
+      const empty = text => `<p class="empty">${text}</p>`;
+      const panel = (title, count, body, wide) => `<section class="panel ${wide ? 'wide' : ''}"><div class="panel-head"><span>${title}</span>${count}</div>${body}</section>`;
+      const done = st.plan.filter(p => p.status === 'done').length;
+      const plan = st.plan.length ? `<div class="progress"><i style="width:${(done / st.plan.length) * 100}%"></i></div><div class="panel-body"><ul class="plan">
+        ${st.plan.map(p => `<li class="${p.status}"><button class="status-box" type="button" data-plan="${esc(key)}|${p.id}" title="${p.status}: click to change">${STATUS_GLYPH[p.status]}</button>
+          <span class="item-id">${p.id}</span><span class="text">${withTerms(esc(p.text), key)}</span></li>`).join('')}</ul></div>` : `<div class="panel-body">${empty('No plan yet.')}</div>`;
+      const issueGroup = (label, list) => (list.length ? `<div class="grp">${label} · ${list.length}</div>${list.map((x, i) => `
+        <button class="irow" type="button" data-item="${esc(key)}|${x.id}"><span class="item-id">${x.id} ${i + 1}/${list.length}</span>${badge(x).replace(/ \w+<\/span>$/, '</span>')}
+          <span class="grow">${esc(x.title)}</span><span class="st st-${x.status}">${x.status}</span></button>`).join('')}` : '');
+      const issues = st.issues.length ? issueGroup('Ours', st.issues.filter(x => x.owner === 'us')) + issueGroup('Theirs', st.issues.filter(x => x.owner !== 'us')) : empty('No issues.');
+      const decisions = st.decisions.length ? st.decisions.map(d => `<div class="dec"><b><span class="item-id">${d.id}</span>${esc(d.text)}</b><span>${esc(d.why)}</span></div>`).join('') : empty('No decisions yet.');
+      const facts = st.facts.filter(f => f.kind !== 'term');
+      const factList = facts.length ? `<ul class="facts">${facts.map(f => `<li>
+        ${f.confidence ? `<button class="badge c-${f.confidence}" type="button" data-method title="${esc(f.method ? `method: ${f.method}` : 'no method given')}">${GLYPH[f.confidence]}</button>` : ''} ${esc(f.text)}
+        <button class="dismiss" type="button" data-dismiss="${esc(key)}|${f.id}" title="Dismiss">×</button><code class="method">method: ${esc(f.method || 'none given')}</code></li>`).join('')}</ul>` : empty('No facts.');
+      const terms = st.facts.filter(f => f.kind === 'term');
+      const glossary = terms.length ? `<dl class="terms">${terms.map(t => `<dt>${esc(t.term)}</dt><dd>${esc(t.text)}</dd>`).join('')}</dl>` : empty('No terms.');
+      const notes = st.notes.length ? `<ul class="notes">${st.notes.map(n => `<li><span class="item-id">${n.id}</span>${esc(n.text)}${n.ref ? ` <span class="item-id">re ${esc(n.ref)}</span>` : ''}</li>`).join('')}</ul>` : empty('No notes.');
+      let diagrams = '';
+      if (st.diagrams.length) {
+        const sel = window.getSelectedDiagram();
+        const tabs = `<div class="tabs">${st.diagrams.map(d => `<button class="tab ${sel.name === d.name ? 'selected' : ''}" type="button" data-dgm="${esc(d.name)}">${esc(d.name)}</button>`).join('')}</div>`;
+        diagrams = panel('Diagrams', tabs, `<div class="diagram" id="diagram">${window.diagramCache[sel.key] || '<span class="loading">rendering…</span>'}</div>`, true);
+      }
+      return `<div class="ctx-h">Everything else in ${esc(branchOf(key))}</div><div class="ctx">
+        ${panel('Plan', `<span class="count">${done}/${st.plan.length}</span>`, plan)}
+        ${panel('Issues', `<span class="count">${st.issues.filter(x => x.status === 'fixed').length}/${st.issues.length} fixed</span>`, `<div class="panel-body">${issues}</div>`)}
+        ${panel('Decisions', `<span class="count">${st.decisions.length}</span>`, `<div class="panel-body">${decisions}</div>`)}
+        ${panel('Facts', '<span class="count">tap a badge for the method</span>', `<div class="panel-body">${factList}</div>`)}
+        ${panel('Glossary', `<span class="count">${terms.length}</span>`, `<div class="panel-body">${glossary}</div>`)}
+        ${panel('Notes', `<span class="count">${st.notes.length}</span>`, `<div class="panel-body">${notes}</div>`)}
+        ${diagrams}</div>`;
+    }
+    function logHead(l) {
+      const st = STATES[l.key];
+      return `<div class="loghead"><span class="dot ${stateClass(l)}"></span><b>${esc(l.key)}</b>
+        <span>${esc(l.worktree)} · ${esc(l.session.state)}${st ? ` · turn ${st.turn}` : ''}</span></div>`;
+    }
+
+    // ---- Tool log (merged across worktrees) ----
+    const KNOWN_TOOLS = ['Bash', 'Read', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Grep', 'Glob', 'Agent', 'WebFetch', 'WebSearch'];
+    const TOOL_GROUPS = {
+      all: () => true,
+      Bash: a => a.tool === 'Bash',
+      Read: a => a.tool === 'Read',
+      'Edit/Write': a => ['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(a.tool),
+      'Grep/Glob': a => ['Grep', 'Glob'].includes(a.tool),
+      Agent: a => a.tool === 'Agent',
+      Web: a => ['WebFetch', 'WebSearch'].includes(a.tool),
+      other: a => !KNOWN_TOOLS.includes(a.tool),
+    };
+    const sortKey = a => (a.ts.startsWith('yesterday') ? '0' : '1') + a.ts;
+    function toolsHtml() {
+      const f = view.tools;
+      const check = (name, label) => `<label><input type="checkbox" data-tf="${name}" ${f[name] ? 'checked' : ''}> ${label}</label>`;
+      return `<div class="loghead"><span class="dot s-working"></span><b>Tool log</b><span>every tool call, all worktrees, newest first · Bash shows its description, never the command</span></div>
+        <div class="tfilters">
+          <select id="tf-log" aria-label="Worktree"><option value="all">all worktrees</option>
+            ${LOGS.filter(l => l.on).map(l => `<option value="${esc(l.key)}" ${f.log === l.key ? 'selected' : ''}>${esc(l.key)}</option>`).join('')}</select>
+          <span class="chips">${Object.keys(TOOL_GROUPS).map(g => `<button class="chip ${f.group === g ? 'on' : ''}" type="button" data-tgroup="${esc(g)}">${esc(g)}</button>`).join('')}</span>
+          ${check('hideSub', 'hide subagents')}${check('filesOnly', 'files only')}${check('events', '+ ernie events')}
+        </div><div class="tlog" id="trows"></div>`;
+    }
+    function renderToolRows() {
+      const el = document.getElementById('trows');
+      if (!el) return;
+      const f = view.tools;
+      const rows = LOGS.flatMap(l => (STATES[l.key]?.activity || []).map(a => ({ a, log: l.key })))
+        .filter(({ a, log }) => {
+          const isTool = a.t === 'tool' || a.t === 'file';
+          if (!isTool && !f.events) return false;
+          if (f.log !== 'all' && log !== f.log) return false;
+          if (f.hideSub && a.agent) return false;
+          if (f.filesOnly && a.t !== 'file') return false;
+          return !isTool || TOOL_GROUPS[f.group](a);
+        })
+        .sort((x, y) => sortKey(y.a).localeCompare(sortKey(x.a)));
+      const now = Date.now();
+      el.innerHTML = rows.length ? `<div class="trow thead"><span>time</span><span>worktree</span><span>tool</span><span>what</span><span>agent</span></div>${rows.map(({ a, log }) => {
+        const isTool = a.t === 'tool' || a.t === 'file';
+        const toolCell = isTool ? `${esc(a.tool)}${a.t === 'file' ? ' <span class="tag">file</span>' : ''}` : `<span class="who--${esc(a.by)}">${esc(a.by)}</span> ${esc(a.t)} ${esc(a.op)}`;
+        return `<div class="trow ${(freshUntil.get(a) || 0) > now ? 'fresh' : ''} ${isTool ? '' : 'ev'}"><span class="tt">${esc(a.ts)}</span>
+          <span class="tw" title="${esc(log)}">${esc(branchOf(log))}</span><span class="ttool">${toolCell}</span><span class="tx">${esc(a.text)}</span>
+          <span class="tag">${a.agent ? `⤷ ${esc(a.agent)}` : ''}</span></div>`;
+      }).join('')}` : '<p class="empty" style="padding:10px 12px">No rows match these filters.</p>';
+    }
+
+    // ---- Outbox (per worktree: what each session's next prompt delivers) ----
+    function noteTarget() {
+      const it = currentItem();
+      if (view.mode === 'log' && logOf(view.log).on) return { log: view.log, ref: it && it.log === view.log ? it.id : null };
+      if (view.mode === 'tools') return { log: view.tools.log === 'all' ? ACTIVE_LOG : view.tools.log, ref: null };
+      return it ? { log: it.log, ref: it.id } : { log: ACTIVE_LOG, ref: null };
+    }
+    function renderOutbox() {
+      const queued = LOGS.filter(l => STATES[l.key]?.pending.length);
+      const stateEl = document.getElementById('outbox-state');
+      stateEl.classList.toggle('clear', !queued.length);
+      stateEl.innerHTML = queued.length
+        ? `→ next prompt: ${queued.map(l => `<b>${esc(shortName(l.key))} · ${STATES[l.key].pending.length}</b>`).join('')}`
+        : '→ Claude: <b>up to date</b>';
+      const target = noteTarget();
+      document.getElementById('note-target').textContent = `→ ${shortName(target.log)}${target.ref ? ` · re ${target.ref}` : ''}`;
+      const preview = document.getElementById('preview');
+      preview.classList.toggle('open', view.previewOpen);
+      preview.innerHTML = queued.length ? queued.map(l => `<div class="pv-h"><span>${esc(l.key)}: the next prompt there delivers</span>
+        <button class="btn sm" type="button" data-sim="${esc(l.key)}">simulate your next prompt there</button></div><pre>${esc(STATES[l.key].inboxText)}</pre>`).join('')
+        : '<pre>Nothing queued. Every session is up to date.</pre>';
+      document.getElementById('preview-btn').textContent = view.previewOpen ? 'hide' : 'preview';
+    }
+
+    // ---- Render ----
+    function renderMain() {
+      const main = document.getElementById('main');
+      if (view.mode === 'tools') { main.innerHTML = toolsHtml(); renderToolRows(); return; }
+      const log = view.mode === 'log' ? logOf(view.log) : null;
+      if (log && !log.on) {
+        main.innerHTML = `${logHead(log)}<section class="panel"><div class="panel-body"><p><b>ernie is off for ${esc(log.key)}.</b>
+          A <code>${esc(log.branch)}.off</code> marker is set, so hooks and CLI writes do nothing here and there is no queue.</p>
+          <p class="hint">To turn it on, run <code>ernie init</code> from your own shell in <code>${esc(log.worktree)}</code>.</p></div></section>`;
+        return;
+      }
+      const q = getQueue();
+      const inScope = [...q.needs, ...q.waiting, ...q.done].some(it => it.key === view.cursor);
+      if (!inScope) view.cursor = q.needs[0]?.key || null;
+      main.innerHTML = `${log ? logHead(log) : ''}<div class="triage"><section class="qcol">${queueHtml(q)}</section>
+        <section class="reader" id="reader">${readerHtml(q)}</section></div>${log ? ctxHtml(log.key) : ''}`;
+      if (log) window.dispatchEvent(new Event('diagramchange'));
+    }
+    function render() {
+      renderSide();
+      renderMain();
+      renderOutbox();
+    }
+
+    // ---- Actions (only the page ops the spec allows) ----
+    function queueEvent(logKey, event, label) {
+      const st = STATES[logKey];
+      // Reason: the inbox keeps only the latest set/answer per id since the last turn mark; notes stay one per line
+      const sameTarget = p => event.t !== 'note' && p.t === event.t && p.id === event.id;
+      st.pending = st.pending.filter(p => !sameTarget(p)).concat({ ...event, label });
+      st.inboxText = [`ernie inbox · turn ${st.turn + 1}`, ...st.pending.map(p => `- ${p.label}`)].join('\n');
+      const row = { ts: hms(simSeconds), by: 'user', t: event.t, op: event.op, text: label };
+      st.activity.unshift(row);
+      freshUntil.set(row, Date.now() + 1500);
+    }
+    function act(kind, value) {
+      const it = currentItem();
+      if (!it) return;
+      const o = it.obj;
+      const before = getQueue().needs.findIndex(n => n.key === it.key);
+      if (kind === 'approve' && it.type === 'issue' && o.status === 'explained') {
+        o.status = 'approved';
+        queueEvent(it.log, { t: 'issue', op: 'set', id: o.id, status: 'approved' }, `${o.id} → approved`);
+      } else if (kind === 'undo' && it.type === 'issue') {
+        o.status = 'explained';
+        delete o.quote;
+        queueEvent(it.log, { t: 'issue', op: 'set', id: o.id, status: 'explained' }, `${o.id} → explained (approval undone)`);
+      } else if (kind === 'drop' && it.type === 'issue') {
+        o.status = 'dropped';
+        queueEvent(it.log, { t: 'issue', op: 'set', id: o.id, status: 'dropped' }, `${o.id} → dropped`);
+      } else if (kind === 'more' && it.type === 'issue' && o.status === 'explained' && !view.moreAskedIssues.has(it.key)) {
+        // Reason: the spec has no "more" op for issues, so this posts a note that refs the issue
+        view.moreAskedIssues.add(it.key);
+        queueEvent(it.log, { t: 'note', op: 'add', text: 'need more context', ref: o.id }, `note (re ${o.id}): need more context`);
+      } else if (kind === 'more' && it.type !== 'issue' && !o.more && !o.answer) {
+        o.more = true;
+        o.followUp = 'need more context';
+        queueEvent(it.log, { t: 'question', op: 'answer', id: o.id, more: true }, `${o.id}: need more context`);
+      } else if (kind === 'answer' && it.type !== 'issue' && value) {
+        o.answer = value;
+        o.more = false;
+        queueEvent(it.log, { t: 'question', op: 'answer', id: o.id, text: value }, `${o.id}: ${value}`);
+      } else if (kind === 'reopen') {
+        delete o.answer;
+      } else {
+        return;
+      }
+      // Reason: "fix. next" — after acting from the queue, the cursor lands on the item that slid into this slot
+      if (view.tab === 'queue' && before >= 0) {
+        const needs = getQueue().needs;
+        view.cursor = needs[Math.min(before, needs.length - 1)]?.key || view.cursor;
+      }
+      render();
+    }
+    function move(delta) {
+      const needs = getQueue().needs;
+      if (!needs.length) return;
+      const idx = needs.findIndex(n => n.key === view.cursor);
+      const next = idx < 0 ? 0 : Math.max(0, Math.min(needs.length - 1, idx + delta));
+      view.tab = 'queue';
+      view.cursor = needs[next].key;
+      render();
+    }
+    function unpin(key) {
+      view.pins = view.pins.filter(k => k !== key);
+      if (view.tab === key) view.tab = 'queue';
+      render();
+    }
+    function togglePin() {
+      const key = currentKey();
+      if (!key) return;
+      if (view.pins.includes(key)) return unpin(key);
+      view.pins.push(key);
+      render();
+    }
+    function addNote(text) {
+      const target = noteTarget();
+      const st = STATES[target.log];
+      st.notes.push({ id: `n${st.notes.length + 1}`, text, ...(target.ref ? { ref: target.ref } : {}) });
+      queueEvent(target.log, { t: 'note', op: 'add', text, ...(target.ref ? { ref: target.ref } : {}) }, `note${target.ref ? ` (re ${target.ref})` : ''}: ${text}`);
+      render();
+    }
+    // Simulates: you send a prompt in that worktree → UserPromptSubmit delivers its inbox → turn mark
+    function simulatePrompt(key) {
+      const st = STATES[key];
+      const delivered = st.pending.length;
+      st.turn += 1;
+      st.pending = [];
+      st.inboxText = '';
+      const row = { ts: hms(simSeconds), by: 'hook', t: 'turn', op: 'mark', text: `turn ${st.turn} · delivered ${delivered} event${delivered === 1 ? '' : 's'}` };
+      st.activity.unshift(row);
+      freshUntil.set(row, Date.now() + 1500);
+      render();
+    }
+
+    document.addEventListener('click', e => {
+      const t = e.target;
+      const nav = t.closest('[data-nav]');
+      if (nav) {
+        view.mode = nav.dataset.nav;
+        if (view.mode === 'log') view.log = nav.dataset.log;
+        if (view.mode === 'tools') view.unseenTools = 0;
+        view.tab = 'queue';
+        render();
+        window.scrollTo(0, 0);
+        return;
+      }
+      const item = t.closest('[data-item]');
+      if (item) {
+        view.cursor = item.dataset.item;
+        view.tab = view.pins.includes(item.dataset.item) ? item.dataset.item : 'queue';
+        render();
+        if (isNarrow()) document.getElementById('reader')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        return;
+      }
+      const tab = t.closest('[data-tab]');
+      if (tab) { view.tab = tab.dataset.tab; return render(); }
+      const unpinBtn = t.closest('[data-unpin]');
+      if (unpinBtn) return unpin(unpinBtn.dataset.unpin);
+      if (t.closest('[data-pin]')) return togglePin();
+      const actBtn = t.closest('[data-act]');
+      if (actBtn) {
+        const kind = actBtn.dataset.act;
+        return kind === 'next' ? move(1) : kind === 'prev' ? move(-1) : act(kind);
+      }
+      const choice = t.closest('[data-choice]');
+      if (choice) return act('answer', choice.dataset.choice);
+      const planBtn = t.closest('[data-plan]');
+      if (planBtn) {
+        const [logKey, id] = splitKey(planBtn.dataset.plan);
+        const step = STATES[logKey].plan.find(p => p.id === id);
+        step.status = NEXT_STATUS[step.status];
+        queueEvent(logKey, { t: 'plan', op: 'set', id, status: step.status }, `${id} → ${step.status}`);
+        return render();
+      }
+      const dismiss = t.closest('[data-dismiss]');
+      if (dismiss) {
+        const [logKey, id] = splitKey(dismiss.dataset.dismiss);
+        const st = STATES[logKey];
+        const fact = st.facts.find(f => f.id === id);
+        st.facts = st.facts.filter(f => f !== fact);
+        queueEvent(logKey, { t: 'fact', op: 'dismiss', id }, `dismissed ${id} "${fact.text}"`);
+        return render();
+      }
+      const method = t.closest('[data-method]');
+      if (method) return method.closest('li').classList.toggle('open');
+      const dgm = t.closest('[data-dgm]');
+      if (dgm) { view.diagram[view.log] = dgm.dataset.dgm; return render(); }
+      if (t.closest('[data-done-toggle]')) { view.showDone = !view.showDone; return render(); }
+      const group = t.closest('[data-tgroup]');
+      if (group) { view.tools.group = group.dataset.tgroup; return render(); }
+      const sim = t.closest('[data-sim]');
+      if (sim) return simulatePrompt(sim.dataset.sim);
+    });
+    document.addEventListener('change', e => {
+      if (e.target.id === 'tf-log') { view.tools.log = e.target.value; renderToolRows(); renderOutbox(); return; }
+      if (e.target.dataset.tf) { view.tools[e.target.dataset.tf] = e.target.checked; renderToolRows(); }
+    });
+    document.getElementById('preview-btn').addEventListener('click', () => { view.previewOpen = !view.previewOpen; renderOutbox(); });
+
+    document.addEventListener('keydown', e => {
+      const typing = e.target.closest?.('input, textarea, select');
+      if (typing) {
+        if (e.key !== 'Enter' || !e.target.value.trim()) return;
+        if (e.target.matches('[data-answer-input]')) return act('answer', e.target.value.trim());
+        if (e.target.id === 'note-input') { addNote(e.target.value.trim()); e.target.value = ''; }
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey || view.mode === 'tools') return;
+      const it = currentItem();
+      const open = it && it.type !== 'issue' && !(it.obj.answer && !it.obj.more);
+      if (e.key === 'j') move(1);
+      else if (e.key === 'k') move(-1);
+      else if (e.key === 'a') act('approve');
+      else if (e.key === 'n') act('more');
+      else if (e.key === 'p') togglePin();
+      else if (e.key === 'x' && view.tab !== 'queue') unpin(view.tab);
+      else if (e.key === 'Escape') { view.tab = 'queue'; render(); }
+      else if (/^[1-9]$/.test(e.key) && open && it.obj.choices[+e.key - 1]) act('answer', it.obj.choices[+e.key - 1]);
+      else return;
+      e.preventDefault();
+    });
+
+    // ---- Simulated liveness: the working session keeps calling tools (A114 `tool run` / `file touch` rows) ----
+    const LIVE_ROWS = [
+      { tool: 'Read', text: 'loader/hash.py' },
+      { tool: 'Edit', text: 'loader/hash.py', file: true },
+      { tool: 'Bash', text: 'Re-run dedupe probe after the trailing-i strip' },
+      { tool: 'Grep', text: 'listing_id', agent: 'Explore' },
+      { tool: 'Glob', text: 'sql/views/*.sql', agent: 'Explore' },
+      { tool: 'Bash', text: '' },
+      { tool: 'Bash', text: 'Count keys per session on a 1-day sample' },
+      { tool: 'Skill', text: 'mem' },
+    ];
+    let liveIndex = 0;
+    setInterval(() => {
+      simSeconds += 4;
+      const spec = LIVE_ROWS[liveIndex++ % LIVE_ROWS.length];
+      const row = { ts: hms(simSeconds), by: 'hook', t: spec.file ? 'file' : 'tool', op: spec.file ? 'touch' : 'run', tool: spec.tool, text: spec.text };
+      if (spec.agent) row.agent = spec.agent;
+      const activity = STATES[ACTIVE_LOG].activity;
+      activity.unshift(row);
+      if (activity.length > 350) activity.pop();
+      freshUntil.set(row, Date.now() + 1500);
+      if (view.mode !== 'tools') view.unseenTools += 1;
+      // Reason: patch only the live bits so a click or a typed answer is never clobbered by the tick
+      const sub = document.querySelector(`[data-sub="${CSS.escape(ACTIVE_LOG)}"]`);
+      if (sub) sub.textContent = wtSub(logOf(ACTIVE_LOG));
+      const unseen = document.getElementById('tool-unseen');
+      if (unseen) { unseen.hidden = !view.unseenTools; unseen.textContent = `+${view.unseenTools}`; }
+      renderToolRows();
+    }, 4000);
+
+    // Theme
+    const root = document.documentElement;
+    window.currentTheme = () => root.dataset.theme || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    document.getElementById('theme-toggle').addEventListener('click', () => {
+      root.dataset.theme = window.currentTheme() === 'dark' ? 'light' : 'dark';
+      window.dispatchEvent(new Event('themechange'));
+    });
+    window.getSelectedDiagram = () => {
+      const list = view.mode === 'log' ? STATES[view.log]?.diagrams || [] : [];
+      if (!list.length) return null;
+      const d = list.find(x => x.name === view.diagram[view.log]) || list[0];
+      return { name: d.name, mermaid: d.mermaid, key: `${view.log}|${d.name}|${window.currentTheme()}` };
+    };
+
+    const server = ERNIE_SAMPLE.server;
+    document.getElementById('server-info').textContent = `127.0.0.1:${server.port} · ${server.version}`;
+    render();
+  </script>
+
+  <!-- Mermaid: renders the selected diagram of the selected worktree; SVGs are cached so redraws don't flicker -->
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
+    const palettes = {
+      dark: {
+        primaryColor: '#0c2f48', primaryTextColor: '#d8e6f2', primaryBorderColor: '#38bdf8',
+        lineColor: '#5f7d96', secondaryColor: '#0f1e2c', tertiaryColor: '#0c1925',
+        background: '#0f1e2c', mainBkg: '#0c2f48', edgeLabelBackground: '#0f1e2c',
+        actorBkg: '#0c2f48', actorBorder: '#38bdf8', actorTextColor: '#d8e6f2', actorLineColor: '#1f5a82',
+        signalColor: '#8299ae', signalTextColor: '#d8e6f2',
+      },
+      light: {
+        primaryColor: '#e0f2fe', primaryTextColor: '#0d1f2e', primaryBorderColor: '#0284c7',
+        lineColor: '#7b93a8', secondaryColor: '#ffffff', tertiaryColor: '#f3f7fb',
+        background: '#ffffff', mainBkg: '#e0f2fe', edgeLabelBackground: '#ffffff',
+        actorBkg: '#e0f2fe', actorBorder: '#0284c7', actorTextColor: '#0d1f2e', actorLineColor: '#7cc4ee',
+        signalColor: '#557087', signalTextColor: '#0d1f2e',
+      },
+    };
+    let renderPass = 0;
+
+    async function renderDiagram() {
+      const diagram = window.getSelectedDiagram();
+      if (!diagram || !document.getElementById('diagram')) return;
+      if (window.diagramCache[diagram.key]) { document.getElementById('diagram').innerHTML = window.diagramCache[diagram.key]; return; }
+      const pass = ++renderPass;
+      mermaid.initialize({
+        startOnLoad: false, theme: 'base', securityLevel: 'strict',
+        fontFamily: "'Fragment Mono', ui-monospace, monospace",
+        themeVariables: { ...palettes[window.currentTheme()], fontFamily: "'Fragment Mono', ui-monospace, monospace", fontSize: '13px' },
+        flowchart: { curve: 'basis' },
+        sequence: { mirrorActors: false },
+      });
+      try {
+        const { svg } = await mermaid.render(`dgm-${pass}`, diagram.mermaid);
+        window.diagramCache[diagram.key] = svg;
+        const target = document.getElementById('diagram');
+        if (pass === renderPass && target) target.innerHTML = svg;
+      } catch (err) {
+        const target = document.getElementById('diagram');
+        if (target) target.textContent = `Diagram failed to render: ${err.message || err}`;
+      }
+    }
+
+    await document.fonts.ready;
+    renderDiagram();
+    window.addEventListener('themechange', renderDiagram);
+    window.addEventListener('diagramchange', renderDiagram);
+  </script>
+</body>
+</html>

@@ -1,0 +1,964 @@
+<!--
+  Variation 10 · Issue Threads
+  For: following each issue's story from finding to fix, one item at a time, across several worktrees.
+  Key idea: every ernie issue and question is a THREAD (Slack/Linear style). Its history reads as a
+  conversation of structured events: Claude explained i1 with e1 (✓ + method) → you asked for more →
+  you approved → Claude's tool runs (linked to the item by timing) → fixed. The composer under a thread
+  offers only the spec's page actions and says they reach Claude on your next prompt.
+  MUST items:
+    1. Selector  → left sidebar: repo → worktree list with session-state dots (working / waiting / idle / off); click to switch log.
+    2. Tool log  → #tool-log channel (filters: tool, hide subagents, files only) + tool runs folded into each thread
+                   as "Claude: 1 file touched, 2 Bash runs" (expandable). A new row lands every ~4 s on the working log.
+    3. Tabs      → meaning (b): issue/question threads open as tabs, from any worktree (tab carries the ticket tag,
+                   which covers meaning (a)). Unread dot when something new lands in a background tab.
+    4. Home      → digest of threads changed since you last looked, grouped by worktree, with "needs you" counts.
+  View-only (not in the spec): per-thread history (HISTORY), last-seen marks, tool-run ↔ item linking by time.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ernie · Issue Threads</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; } img, svg, pre { max-width: 100%; }
+:root {
+  --sans: 'Bricolage Grotesque', system-ui, sans-serif;
+  --mono: 'Fragment Mono', ui-monospace, SFMono-Regular, monospace;
+  --bg: #0a1520; --bg-card: #0f1e2c; --bg-recessed: #0c1925; --bg-raised: #132638;
+  --text: #d8e6f2; --text-dim: #8299ae; --text-accent: #7dd3fc;
+  --accent: #38bdf8; --accent-soft: #0c2f48;
+  --border: #1c3246; --border-accent: #1f5a82;
+  --success: #34d399; --warning: #fbbf24; --error: #f87171;
+  --pass-bg: #064e3b; --pass-fg: #a7f3d0; --warn-bg: #78350f; --warn-fg: #fde68a;
+  --info-bg: #1e3a8a; --info-fg: #dbeafe; --shadow: rgba(0,0,0,.5);
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f3f7fb; --bg-card: #ffffff; --bg-recessed: #eef3f8; --bg-raised: #ffffff;
+    --text: #0d1f2e; --text-dim: #557087; --text-accent: #0369a1;
+    --accent: #0284c7; --accent-soft: #e0f2fe; --border: #d3dfea; --border-accent: #7cc4ee;
+    --success: #059669; --warning: #b45309; --error: #dc2626;
+    --pass-bg: #d1fae5; --pass-fg: #065f46; --warn-bg: #fef3c7; --warn-fg: #92400e;
+    --info-bg: #dbeafe; --info-fg: #1e40af; --shadow: rgba(13,31,46,.16);
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f3f7fb; --bg-card: #ffffff; --bg-recessed: #eef3f8; --bg-raised: #ffffff;
+  --text: #0d1f2e; --text-dim: #557087; --text-accent: #0369a1;
+  --accent: #0284c7; --accent-soft: #e0f2fe; --border: #d3dfea; --border-accent: #7cc4ee;
+  --success: #059669; --warning: #b45309; --error: #dc2626;
+  --pass-bg: #d1fae5; --pass-fg: #065f46; --warn-bg: #fef3c7; --warn-fg: #92400e;
+  --info-bg: #dbeafe; --info-fg: #1e40af; --shadow: rgba(13,31,46,.16);
+  color-scheme: light;
+}
+html, body { height: 100%; } body { margin: 0; font: 14px/1.5 var(--sans); color: var(--text); background: var(--bg); overflow: hidden; }
+code, .mono { font-family: var(--mono); font-size: .92em; } button { font: inherit; color: inherit; cursor: pointer; }
+.mock-banner { font: 11px var(--mono); text-align: center; padding: 5px 16px; height: 26px;
+  background: var(--warn-bg); color: var(--warn-fg); letter-spacing: .05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app { display: grid; grid-template-columns: 252px minmax(0, 1fr); height: calc(100dvh - 26px); }
+
+/* Sidebar */
+.side { background: var(--bg-recessed); border-right: 1px solid var(--border); overflow-y: auto; padding: 12px 10px 16px; }
+.side-head { display: flex; align-items: center; justify-content: space-between; padding: 0 6px 10px; }
+.brand { font-weight: 800; font-size: 19px; letter-spacing: -.02em; } .brand span { color: var(--accent); }
+.icon-btn { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 3px 9px; font: 11px var(--mono); }
+.icon-btn:hover { border-color: var(--accent); }
+.sec { font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); padding: 14px 8px 4px; }
+.nav { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: 0; background: none;
+  padding: 5px 8px; border-radius: 6px; font-size: 13.5px; min-width: 0; }
+.nav:hover { background: var(--bg-card); } .nav.sel { background: var(--accent-soft); color: var(--text-accent); }
+.nav .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .nav.unread .lbl { font-weight: 600; color: var(--text); }
+.nav small { display: block; font: 10.5px var(--mono); color: var(--text-dim); } .nav.off { opacity: .55; }
+.n { font: 10.5px var(--mono); padding: 0 6px; border-radius: 9px; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-dim); }
+.n.hot { background: var(--warn-bg); color: var(--warn-fg); border-color: transparent; }
+.repo { font: 11px var(--mono); color: var(--text-dim); padding: 6px 8px 2px; } .sdot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.s-working { background: var(--success); animation: pulse 1.8s ease-in-out infinite; }
+.s-waiting { background: var(--warning); } .s-idle { background: var(--text-dim); } .s-off { border: 1.5px solid var(--text-dim); }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+.udot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; }
+
+/* Main */
+.main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.tabbar { display: flex; align-items: flex-end; gap: 3px; padding: 8px 10px 0; border-bottom: 1px solid var(--border);
+  overflow-x: auto; scrollbar-width: thin; flex: none; }
+.tab { display: flex; align-items: center; gap: 6px; flex: none; max-width: 240px; padding: 6px 10px; border: 1px solid var(--border);
+  border-bottom: 0; border-radius: 7px 7px 0 0; background: var(--bg-recessed); font-size: 12.5px; color: var(--text-dim); }
+.tab.sel { background: var(--bg-card); color: var(--text); border-color: var(--border-accent); }
+.tab .tl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .tab .x { border: 0; background: none; padding: 0 2px; color: var(--text-dim); }
+.tab .x:hover { color: var(--error); } .tw { font: 10px var(--mono); color: var(--text-accent); } .menu-btn { display: none; margin-bottom: 4px; }
+.pane { flex: 1; overflow-y: auto; padding: 18px 24px 28px; min-height: 0; } .wrap { max-width: 860px; margin: 0 auto; }
+h2 { font-size: 20px; margin: 2px 0 6px; letter-spacing: -.01em; overflow-wrap: break-word; }
+h3 { font: 11px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); margin: 22px 0 8px; }
+.crumb, .hint { font: 11px var(--mono); color: var(--text-dim); } .empty { color: var(--text-dim); font-size: 13px; padding: 6px 0; }
+.tid { font: 11px var(--mono); color: var(--accent); }
+
+/* Thread rows (channel lists, home digest) */
+.trow { display: grid; grid-template-columns: 10px 46px minmax(0, 1fr) auto; gap: 4px 8px; align-items: baseline; width: 100%;
+  text-align: left; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); margin-bottom: 6px; }
+.trow:hover { border-color: var(--accent); } .trow .tt { font-weight: 600; overflow-wrap: break-word; }
+.trow .last { grid-column: 3 / 5; font: 11.5px var(--mono); color: var(--text-dim); overflow-wrap: anywhere; }
+.pill { font: 10.5px var(--mono); padding: 1px 7px; border-radius: 9px; border: 1px solid var(--border); white-space: nowrap; color: var(--text-dim); }
+.pill.explained, .pill.open { background: var(--warn-bg); color: var(--warn-fg); border-color: transparent; }
+.pill.approved { background: var(--info-bg); color: var(--info-fg); border-color: transparent; }
+.pill.fixed, .pill.answered { background: var(--pass-bg); color: var(--pass-fg); border-color: transparent; } .pill.dropped { text-decoration: line-through; }
+.wt-card { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px 6px; margin-bottom: 14px; background: var(--bg-recessed); }
+.wt-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.wt-head b { font-family: var(--mono); font-size: 13px; font-weight: 400; }
+
+/* Thread */
+.th-head { border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 6px; }
+.th-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.gate { display: inline-flex; gap: 4px; align-items: center; font: 11px var(--mono); flex-wrap: wrap; } .gate i { color: var(--text-dim); font-style: normal; }
+.step { padding: 2px 8px; border-radius: 9px; border: 1px dashed var(--border); color: var(--text-dim); }
+.step.done { border-style: solid; color: var(--success); }
+.step.cur { border: 1px solid var(--accent); background: var(--accent-soft); color: var(--text-accent); } .step.drop { text-decoration: line-through; }
+.msg { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; padding: 10px 0; position: relative; }
+.msg + .msg::before { content: ''; position: absolute; left: 14px; top: -10px; height: 18px; border-left: 1px solid var(--border); }
+.av { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font: 600 11px var(--mono); }
+.av.claude { background: var(--accent-soft); color: var(--accent); } .av.user { background: var(--pass-bg); color: var(--pass-fg); }
+.av.hook { background: var(--bg-recessed); color: var(--text-dim); border: 1px solid var(--border); }
+.who { font: 11px var(--mono); color: var(--text-dim); } .who b { font: 600 13px var(--sans); color: var(--text); margin-right: 4px; }
+.body { margin-top: 2px; overflow-wrap: break-word; min-width: 0; }
+.card { border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); padding: 10px 12px; margin-top: 6px; min-width: 0; }
+.kv { margin: 6px 0 0; } .kv b { font-weight: 600; }
+.queued { font: 10.5px var(--mono); color: var(--warn-fg); background: var(--warn-bg); padding: 1px 6px; border-radius: 4px; margin-left: 6px; }
+.badge { font: 11px var(--mono); padding: 1px 7px; border-radius: 9px; border: 0; } .b-verified { background: var(--pass-bg); color: var(--pass-fg); }
+.b-inferred { background: var(--info-bg); color: var(--info-fg); } .b-unchecked { background: var(--warn-bg); color: var(--warn-fg); }
+.method { font: 11.5px var(--mono); color: var(--text-dim); margin-top: 4px; overflow-wrap: anywhere; }
+.ex { margin: 8px 0 0; } .ex figcaption { font-size: 13px; margin-bottom: 4px; }
+.ex-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; }
+.ex table { border-collapse: collapse; font: 12px var(--mono); width: 100%; }
+.ex th, .ex td { padding: 5px 9px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+.ex th { color: var(--text-dim); font-weight: 400; background: var(--bg-recessed); } .ex tr:last-child td { border-bottom: 0; }
+.cap, .run { font-size: 12.5px; color: var(--text-dim); margin: 4px 0 0; } .tools summary { cursor: pointer; font: 12px var(--mono); color: var(--text-dim); }
+.feed { list-style: none; margin: 0; padding: 0; font: 12px var(--mono); }
+.feed li { display: grid; grid-template-columns: 62px 64px minmax(0, 1fr); gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.feed li:last-child { border-bottom: 0; } .feed .t { color: var(--text-dim); } .feed .tool { color: var(--warning); overflow: hidden; text-overflow: ellipsis; }
+.feed .tx { overflow-wrap: anywhere; } .feed .ag { color: var(--accent); margin-left: 6px; } .feed .ev .tool { color: var(--accent); }
+.fresh { animation: flash 1.6s ease-out; }
+@keyframes flash { from { background: var(--accent-soft); } to { background: transparent; } }
+.mmd { overflow: auto; padding: 10px; display: flex; justify-content: center; min-height: 80px; } .mmd .nodeLabel { color: var(--text) !important; }
+.link { background: none; border: 0; padding: 0; color: var(--text-accent); text-decoration: underline; font: 12px var(--mono); }
+.wait { font: 12px var(--mono); color: var(--text-dim); padding: 8px 0 0 40px; }
+
+/* Composer + outbox */
+.composer { border-top: 1px solid var(--border-accent); background: var(--bg-raised); padding: 10px 24px; flex: none; }
+.composer .wrap { display: flex; flex-direction: column; gap: 8px; } .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.btn { font: 12px var(--mono); padding: 6px 11px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-card); }
+.btn:hover { border-color: var(--accent); } .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.btn.rec { border-color: var(--accent); } .btn.danger:hover { border-color: var(--error); color: var(--error); }
+.inp { flex: 1; min-width: 140px; font: 12.5px var(--mono); padding: 7px 10px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg-card); color: var(--text); }
+.inp:focus { outline: none; border-color: var(--accent); } .deliver { font: 11px var(--mono); color: var(--text-dim); }
+.outbox { border-top: 1px solid var(--border); background: var(--bg-recessed); padding: 7px 24px; flex: none; }
+.outbox .row { max-width: 860px; margin: 0 auto; }
+.outbox pre { max-width: 860px; margin: 6px auto 0; padding: 10px 12px; border-radius: 8px; background: var(--bg-card);
+  border: 1px solid var(--border); font: 12px/1.6 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.plan { list-style: none; margin: 0; padding: 0; }
+.plan li { display: flex; gap: 10px; align-items: baseline; padding: 7px 0; border-bottom: 1px dashed var(--border); }
+.box { width: 20px; height: 20px; flex: none; border-radius: 5px; border: 1.5px solid var(--text-dim); background: none; padding: 0; font: 800 12px var(--sans); }
+.plan .done { color: var(--text-dim); text-decoration: line-through; }
+.plan .done .box { background: var(--success); border-color: var(--success); color: var(--bg); }
+.plan .active .box { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); } .plan .dropped { opacity: .5; }
+.dec { padding: 4px 0 4px 12px; border-left: 2px solid var(--accent); margin: 8px 0; } .dec .why { display: block; font-size: 13px; color: var(--text-dim); }
+.fact { display: flex; gap: 8px; align-items: baseline; padding: 6px 0; border-bottom: 1px dashed var(--border); flex-wrap: wrap; }
+.fact .ft { flex: 1; min-width: 180px; } dl.gloss { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 0; }
+dl.gloss dt { font: 600 12.5px var(--mono); color: var(--text-accent); } dl.gloss dd { margin: 0; }
+.filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font: 12px var(--mono); margin-bottom: 10px; }
+.filters select { font: 12px var(--mono); background: var(--bg-card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; }
+
+@media (max-width: 760px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .side { position: fixed; z-index: 40; top: 26px; bottom: 0; left: 0; width: min(86vw, 300px); transform: translateX(-105%);
+    transition: transform .2s; box-shadow: 0 0 40px var(--shadow); }
+  .side.open { transform: none; }
+  .menu-btn { display: inline-block; flex: none; }
+  .pane { padding: 14px 16px 24px; }
+  .composer, .outbox { padding-left: 16px; padding-right: 16px; }
+  .trow { grid-template-columns: 10px 40px minmax(0, 1fr); } .trow .pill { grid-column: 3; justify-self: start; }
+  .trow .last { grid-column: 2 / 4; }
+  .feed li { grid-template-columns: 58px minmax(0, 1fr); } .feed .tool { grid-column: 2; } .feed .tx { grid-column: 1 / 3; }
+}
+</style>
+</head>
+<body>
+<div class="mock-banner">MOCK · Issue Threads · sample data, no server</div>
+<div class="app">
+  <aside class="side" id="side"></aside>
+  <main class="main">
+    <nav class="tabbar" id="tabbar" aria-label="Open threads"></nav>
+    <section class="pane" id="pane"></section>
+    <div class="composer" id="composer" hidden></div>
+    <div class="outbox" id="outbox"></div>
+  </main>
+</div>
+
+<script>
+// Shared sample data for the ernie view variations (ref_ernie_views/*.html).
+// Every mock inlines a copy of ERNIE_SAMPLE so all ten show the same data and differ only in layout.
+// Shapes follow spec_ernie.md (event types, fold output) plus A114 `tool run` activity rows.
+// Fields marked "view-only" are not in the spec yet; mocks that use them should say so.
+
+const ERNIE_SAMPLE = {
+  server: { port: 7477, version: 'v0.1.0-12-g3c9e1a7', connected: true },
+
+  // One entry per log file (~/.local/state/ernie/<repo>/<branch>.jsonl). Worktrees of one repo share the repo slug.
+  logs: [
+    {
+      key: 'glue/CDIT-2631-ga4-dedupe', repo: 'glue', branch: 'CDIT-2631-ga4-dedupe', on: true,
+      worktree: '~/things/myc/glue/CDIT-2631-ga4-dedupe', // view-only: spec stores the repo root, not the worktree path
+      session: { id: '4995d496', state: 'working', lastEventAgo: '3s' }, // view-only: derived from hook timestamps
+    },
+    {
+      key: 'glue/CDIT-2627-gsc-backfill', repo: 'glue', branch: 'CDIT-2627-gsc-backfill', on: true,
+      worktree: '~/things/myc/glue/CDIT-2627-gsc-backfill',
+      session: { id: '3fb7e802', state: 'waiting on you', lastEventAgo: '6m' },
+    },
+    {
+      key: 'glue/main', repo: 'glue', branch: 'main', on: true,
+      worktree: '~/things/myc/glue/main',
+      session: { id: null, state: 'idle', lastEventAgo: '1d' },
+    },
+    {
+      key: 'ernie/main', repo: 'ernie', branch: 'main', on: true,
+      worktree: '~/things/myc/ernie/main',
+      session: { id: '715abde2', state: 'idle', lastEventAgo: '2h' },
+    },
+    {
+      key: 'dotfiles/main', repo: 'dotfiles', branch: 'main', on: false, // has a main.off marker
+      worktree: '~/.dotfiles',
+      session: { id: null, state: 'off', lastEventAgo: '5d' },
+    },
+  ],
+
+  // Folded state per log key, as `GET /stream` would push it.
+  states: {
+    'glue/CDIT-2631-ga4-dedupe': {
+      turn: 14,
+      plan: [
+        { id: 'p1', text: 'Reproduce double count on one Dealer Spike host', status: 'done' },
+        { id: 'p2', text: 'Find the dedupe gap', status: 'done' },
+        { id: 'p3', text: 'Normalize page_location before hashing', status: 'active' },
+        { id: 'p4', text: 'Backfill 90 days', status: 'todo' },
+        { id: 'p5', text: 'Verify session counts on stage', status: 'todo' },
+        { id: 'p6', text: 'Open PR', status: 'todo' },
+      ],
+      decisions: [
+        { id: 'd1', text: 'dedupe_key = sha1(session_id, normalized page_location, event_ts)', why: 'event_ts alone collides across tabs; session_id alone merges real repeat views' },
+        { id: 'd2', text: 'Platform-side bugs go to the platform team, not fixed in glue', why: 'we only own the loader and views' },
+      ],
+      questions: [
+        {
+          id: 'q1', kind: 'assume', text: 'publicDigmsDB.clients = Glue\'s client list', choices: ['yes', 'no'],
+          context: 'The 212-site count below comes from joining ga4_hits to publicDigmsDB.clients.',
+          impact: 'If clients is missing sites, the double-count rate is understated.',
+        },
+        {
+          id: 'q2', text: 'Normalize page_location in the SQL view or in the loader?', choices: ['view', 'loader'], recommended: 'view',
+          context: 'Both fix new rows. Only the view also fixes old rows without a backfill.',
+          impact: 'Loader means a 90-day backfill (~40 min on stage) before counts are right.',
+          example: 'e2',
+        },
+        { id: 'q3', text: 'Backfill window?', choices: ['30 days', '90 days'], answer: '90 days' },
+        {
+          id: 'q4', text: 'Should the dedupe also cover Dealer Inspire hosts?', choices: ['yes', 'no'],
+          more: true, followUp: 'need more context', // answered "need more context" → stays open (A88)
+        },
+      ],
+      issues: [
+        {
+          id: 'i1', title: 'Dedupe key ignores the trailing "i" on listing ids', status: 'explained', owner: 'us',
+          cause: 'page_location for the same listing arrives as …-14615315i and …-14615315, so one session hashes to two keys.',
+          fix: 'Strip a trailing "i" from the listing id segment before hashing.',
+          impact: '~3.1% of sessions double-counted on 212 Dealer Spike sites.',
+          confidence: 'verified', method: 'SELECT page_location, dedupe_key FROM ga4_hits WHERE host = \'ds-4471.dealerspike.com\' LIMIT 5',
+          example: 'e1',
+        },
+        {
+          id: 'i2', title: 'Backfill job skips days with late-arriving hits', status: 'approved', owner: 'us',
+          cause: 'The job filters on load_date, but late hits land under the next day\'s partition.',
+          fix: 'Filter on event_date with a 2-day lookback.',
+          impact: 'Up to 0.8% of hits missing from any backfilled day.',
+          confidence: 'inferred', method: 'read backfill.py:88; not run',
+          quote: 'approved, fix it',
+        },
+        {
+          id: 'i3', title: 'SPA route changes send page_view twice', status: 'explained', owner: 'other',
+          cause: 'The platform GTM container fires page_view on history change and on load.',
+          fix: 'Platform team removes the history-change trigger.',
+          impact: 'Inflates page_views ~1.4%; sessions are unaffected after i1.',
+          confidence: 'unchecked', method: 'needs GTM access (SSO wall)',
+        },
+        {
+          id: 'i4', title: 'Stage run reports success with 0 rows', status: 'fixed', owner: 'us',
+          cause: 'Empty result set was treated as success.', fix: 'Fail the run when rows_written = 0.',
+          impact: 'Silent empty loads on stage.', confidence: 'verified', method: 'go test ./loader/... and a stage run',
+        },
+        {
+          id: 'i5', title: 'GTM container v41 missing consent tag', status: 'dropped', owner: 'other',
+          cause: 'Consent tag removed in v41.', fix: 'Platform re-adds it.', impact: 'Not related to this ticket.',
+          confidence: 'inferred', method: 'GTM changelog',
+        },
+      ],
+      examples: [
+        {
+          name: 'e1', title: 'Same listing, two page_location values',
+          columns: ['ga4_hits field', 'Row A', 'Row B'],
+          rows: [
+            ['site_platform', 'Dealer Spike', 'Dealer Spike'],
+            ['session_id', '1728…441', '1728…441'],
+            ['page_location', '…/2019-ford-f150-14615315i', '…/2019-ford-f150-14615315'],
+            ['dedupe_key', 'a91f…', 'c03e…'],
+          ],
+          caption: 'Same session, same listing, two keys → counted twice.',
+          run: 'sql/probe_dedupe.sql',
+        },
+        {
+          name: 'e2', title: 'Where to normalize: options run on e1',
+          columns: ['option', 'Row A key', 'Row B key', 'result'],
+          rows: [
+            ['view', 'a91f…', 'a91f…', '✓ one row, old data fixed too'],
+            ['loader', 'a91f…', 'a91f…', '✓ one row, needs backfill'],
+            ['none (today)', 'a91f…', 'c03e…', '✗ counted twice'],
+          ],
+          caption: 'Both options fix e1; only the view fixes rows already loaded.',
+        },
+      ],
+      facts: [
+        { id: 'f1', text: 'ga4_hits holds 41.2M rows for September', confidence: 'verified', method: 'SELECT count(*) FROM ga4_hits WHERE event_date BETWEEN …' },
+        { id: 'f2', text: 'Duplicates appear only on Dealer Spike hosts', confidence: 'inferred', method: 'grouped by site_platform on a 1-day sample' },
+        { id: 'f3', text: 'Consent mode drops ~2% of hits', confidence: 'unchecked' },
+        { id: 'f4', kind: 'term', term: 'DS', text: 'Dealer Spike, the site platform behind 212 client sites' },
+        { id: 'f5', kind: 'term', term: 'H1', text: 'hypothesis that trailing-"i" listing ids split one session into two keys (now i1)' },
+      ],
+      notes: [
+        { id: 'n1', text: 'platform contact is #glue-platform, ask for GTM read access', ref: 'i3' },
+      ],
+      diagrams: [
+        {
+          name: 'flow', mermaid: `flowchart LR
+  GTM["GTM / gtag"] -->|hits| L["loader"]
+  L -->|"dedupe_key"| H[("ga4_hits")]
+  H --> V["sessions view"]
+  V --> D["dashboard"]
+  L -. "i1: key split here" .-> H`,
+        },
+        {
+          name: 'late-hits', mermaid: `sequenceDiagram
+  participant GTM
+  participant Loader
+  participant Backfill
+  GTM->>Loader: hit (event_date 10-07, arrives 10-08 02:10)
+  Loader->>Loader: partition load_date = 10-08
+  Backfill->>Loader: reload load_date = 10-07
+  Note over Backfill: late hit missed (i2)`,
+        },
+      ],
+      // Newest first. by: claude (CLI writes), hook (file touch, tool run, turn mark), user (page or your terminal).
+      // `tool run` text is the tool's one-line summary; Bash shows its description, never the command (A114).
+      activity: [
+        { ts: '14:21:08', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Run dedupe probe on stage' },
+        { ts: '14:21:02', by: 'hook', t: 'file', op: 'touch', tool: 'Edit', text: 'sql/views/sessions.sql' },
+        { ts: '14:20:51', by: 'hook', t: 'tool', op: 'run', tool: 'Read', text: 'sql/views/sessions.sql' },
+        { ts: '14:20:44', by: 'hook', t: 'tool', op: 'run', tool: 'Grep', text: 'dedupe_key' },
+        { ts: '14:20:30', by: 'claude', t: 'plan', op: 'set', text: 'p3 → active' },
+        { ts: '14:20:12', by: 'hook', t: 'turn', op: 'mark', text: 'turn 14 · delivered 1 event' },
+        { ts: '14:19:58', by: 'user', t: 'question', op: 'answer', text: 'q3 → 90 days' },
+        { ts: '14:12:40', by: 'claude', t: 'question', op: 'add', text: 'q2 Normalize in the view or the loader?' },
+        { ts: '14:12:31', by: 'claude', t: 'example', op: 'put', text: 'e2 Where to normalize: options run on e1' },
+        { ts: '14:12:05', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Compare keys for both options on e1 rows' },
+        { ts: '14:11:20', by: 'hook', t: 'tool', op: 'run', tool: 'Agent', text: 'Find every reader of dedupe_key', agent: null },
+        { ts: '14:11:18', by: 'hook', t: 'tool', op: 'run', tool: 'Grep', text: 'dedupe_key', agent: 'Explore' },
+        { ts: '14:11:16', by: 'hook', t: 'tool', op: 'run', tool: 'Glob', text: '**/*.sql', agent: 'Explore' },
+        { ts: '14:11:14', by: 'hook', t: 'tool', op: 'run', tool: 'Read', text: 'loader/hash.py', agent: 'Explore' },
+        { ts: '14:10:02', by: 'claude', t: 'issue', op: 'add', text: 'i3 [other] SPA route changes send page_view twice' },
+        { ts: '14:09:47', by: 'claude', t: 'issue', op: 'add', text: 'i1 [us] Dedupe key ignores the trailing "i"' },
+        { ts: '14:09:30', by: 'claude', t: 'example', op: 'put', text: 'e1 Same listing, two page_location values' },
+        { ts: '14:09:02', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Pull 5 hits for one Dealer Spike host' },
+        { ts: '14:08:40', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Count rows per dedupe_key for Sept' },
+        { ts: '14:07:15', by: 'hook', t: 'tool', op: 'run', tool: 'WebFetch', text: 'https://support.google.com/analytics/answer/9234069' },
+        { ts: '14:06:58', by: 'user', t: 'issue', op: 'set', text: 'i2 → approved' },
+        { ts: '14:06:02', by: 'hook', t: 'tool', op: 'run', tool: 'mcp__claude_ai_Google_Drive__search_files', text: '' },
+        { ts: '14:05:30', by: 'claude', t: 'fact', op: 'add', text: 'f1 ✓ ga4_hits holds 41.2M rows for September' },
+        { ts: '14:05:12', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: '' }, // a Bash call without a description
+        { ts: '14:04:50', by: 'hook', t: 'tool', op: 'run', tool: 'Skill', text: 'mem' },
+      ],
+      // Your page/terminal events since the last turn mark (what the next prompt delivers).
+      pending: [
+        { t: 'note', op: 'add', text: 'check Dealer Inspire after this', label: 'note: check Dealer Inspire after this' },
+      ],
+      inboxText: 'ernie inbox · turn 15\n- note: check Dealer Inspire after this',
+      warnings: 0,
+    },
+
+    'glue/CDIT-2627-gsc-backfill': {
+      turn: 9,
+      plan: [
+        { id: 'p1', text: 'Probe GSC lambda on stage (G0)', status: 'done' },
+        { id: 'p2', text: 'Pick backfill strategy', status: 'active' },
+        { id: 'p3', text: 'Backfill 16 months', status: 'todo' },
+        { id: 'p4', text: 'Add row-count alarm', status: 'todo' },
+      ],
+      decisions: [
+        { id: 'd1', text: 'Backfill one property at a time', why: 'GSC quota is per property; parallel runs hit 429s' },
+      ],
+      questions: [
+        {
+          id: 'q1', text: 'Backfill by day or by month?', choices: ['by day', 'by month'], recommended: 'by day',
+          context: 'GSC caps 50k rows per request; busy properties exceed it in a month.',
+          impact: 'By month silently truncates the 6 busiest properties.',
+          example: 'e1',
+        },
+        { id: 'q2', text: 'OK to run the backfill on prod tonight?', choices: ['yes', 'no, stage first'] },
+      ],
+      issues: [
+        {
+          id: 'i1', title: 'Retry drops 429s after 3 attempts', status: 'explained', owner: 'us',
+          cause: 'Retry gives up after 3 attempts with no backoff jitter.', fix: 'Exponential backoff with jitter, 8 attempts.',
+          impact: '~4% of days missing for busy properties.', confidence: 'verified', method: 'CloudWatch: 312 "429 giving up" lines on 10-06',
+        },
+      ],
+      examples: [
+        {
+          name: 'e1', title: 'One busy property, by day vs by month',
+          columns: ['request', 'rows returned', 'rows that exist'],
+          rows: [['2026-09 (by month)', '50,000', '61,204'], ['2026-09-14 (by day)', '2,031', '2,031']],
+          caption: 'By month hits the 50k cap and drops 11,204 rows.',
+        },
+      ],
+      facts: [
+        { id: 'f1', kind: 'term', term: 'G0', text: 'throwaway probe script against the stage GSC lambda' },
+        { id: 'f2', text: 'GSC keeps 16 months of data', confidence: 'verified', method: 'GSC API docs' },
+      ],
+      notes: [],
+      diagrams: [],
+      activity: [
+        { ts: '14:15:40', by: 'claude', t: 'question', op: 'add', text: 'q2 OK to run the backfill on prod tonight?' },
+        { ts: '14:15:22', by: 'claude', t: 'question', op: 'add', text: 'q1 Backfill by day or by month?' },
+        { ts: '14:15:01', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Invoke G0 for one property, by month' },
+        { ts: '14:14:30', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Tail GSC lambda logs for 429s' },
+        { ts: '14:13:55', by: 'hook', t: 'file', op: 'touch', tool: 'Write', text: 'scripts/g0_probe.py' },
+        { ts: '14:13:10', by: 'hook', t: 'turn', op: 'mark', text: 'turn 9' },
+      ],
+      pending: [],
+      inboxText: '',
+      warnings: 0,
+    },
+
+    'glue/main': {
+      turn: 3,
+      plan: [], decisions: [], questions: [], issues: [], examples: [], facts: [], notes: [], diagrams: [],
+      activity: [
+        { ts: 'yesterday 17:02', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Pull latest main' },
+      ],
+      pending: [], inboxText: '', warnings: 0,
+    },
+
+    'ernie/main': {
+      turn: 31,
+      plan: [
+        { id: 'p1', text: 'Spec + build plan', status: 'done' },
+        { id: 'p2', text: 'Scratch flow test', status: 'done' },
+        { id: 'p3', text: 'UI view variations', status: 'active' },
+        { id: 'p4', text: 'Phase 1: core (append, fold, dump)', status: 'todo' },
+      ],
+      decisions: [
+        { id: 'd1', text: 'Tool activity shows Bash descriptions only', why: 'no command text → no redactor in v1 (A114)' },
+      ],
+      questions: [],
+      issues: [],
+      examples: [],
+      facts: [
+        { id: 'f1', text: 'Hooks must exit 0 on any error', confidence: 'verified', method: 'flow test F4' },
+      ],
+      notes: [],
+      diagrams: [],
+      activity: [
+        { ts: '12:40:10', by: 'hook', t: 'file', op: 'touch', tool: 'Edit', text: '.mem/artifacts/spec_ernie.md' },
+        { ts: '12:39:55', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Fold A114 into the spec and memory pointer' },
+      ],
+      pending: [], inboxText: '', warnings: 0,
+    },
+  },
+};
+// ---- View-only state (not in spec_ernie.md; see the header comment) ----
+// Synthesized per-item history. `kind: explain|ask|quote` renders the item's card; `tools: [from, to]` pulls the
+// tool/file rows whose ts falls in that window (tool runs linked to the item by timing); `rows` = rows older than `activity`.
+const HISTORY = {
+  'glue/CDIT-2631-ga4-dedupe': {
+    i5: [{ ts: '13:20:14', by: 'claude', turn: 10, kind: 'explain' },
+      { ts: '13:24:02', by: 'user', text: 'dropped: not related to this ticket' },
+      { ts: '13:26:40', by: 'hook', text: 'delivered to Claude on turn 11' }],
+    i4: [{ ts: '13:31:05', by: 'claude', turn: 11, kind: 'explain' },
+      { ts: '13:35:12', by: 'user', text: 'approved' },
+      { ts: '13:36:01', by: 'hook', text: 'delivered to Claude on turn 12' },
+      { ts: '13:41:20', by: 'claude', turn: 12, rows: [['13:37:10', 'tool', 'Read', 'loader/run.go'], ['13:38:02', 'file', 'Edit', 'loader/run.go'],
+        ['13:38:40', 'file', 'Edit', 'loader/run_test.go'], ['13:39:15', 'tool', 'Bash', 'Run loader tests'], ['13:40:30', 'tool', 'Bash', 'Stage run for 10-06'],
+        ['13:41:05', 'tool', 'Bash', 'Check rows_written on stage']].map(([ts, t, tool, text]) => ({ ts, t, tool, text })) },
+      { ts: '13:41:30', by: 'claude', turn: 12, text: 'marked i4 fixed', fixed: true }],
+    i2: [{ ts: '13:48:30', by: 'claude', turn: 12, kind: 'explain' },
+      { ts: '13:49:02', by: 'claude', turn: 12, text: 'drew the late-hit timeline', dia: 'late-hits' },
+      { ts: '14:06:58', by: 'claude', turn: 13, kind: 'quote', quote: 'approved, fix it' },
+      { ts: '14:21:09', by: 'claude', turn: 14, tools: ['14:21:09', '~'], working: true }],
+    i1: [{ ts: '14:09:20', by: 'claude', turn: 13, tools: ['14:08:00', '14:09:29'] },
+      { ts: '14:09:47', by: 'claude', turn: 13, kind: 'explain' },
+      { ts: '14:09:52', by: 'claude', turn: 13, text: 'defined a label it used earlier', term: 'H1' },
+      { ts: '14:10:20', by: 'claude', turn: 13, text: 'drew where the key splits', dia: 'flow' },
+      { ts: '14:12:40', by: 'claude', turn: 13, text: 'asked where the fix should live', link: 'q2' }],
+    i3: [{ ts: '14:10:02', by: 'claude', turn: 13, kind: 'explain' },
+      { ts: '14:14:10', by: 'user', text: 'note: platform contact is #glue-platform, ask for GTM read access' },
+      { ts: '14:20:12', by: 'hook', text: 'delivered to Claude on turn 14' }],
+    q2: [{ ts: '14:12:10', by: 'claude', turn: 13, tools: ['14:12:00', '14:12:30'] },
+      { ts: '14:12:40', by: 'claude', turn: 13, kind: 'ask' }],
+    q1: [{ ts: '14:12:50', by: 'claude', turn: 13, kind: 'ask' }],
+    q4: [{ ts: '14:13:30', by: 'claude', turn: 13, kind: 'ask' },
+      { ts: '14:19:40', by: 'user', text: 'need more context' },
+      { ts: '14:20:12', by: 'hook', text: 'delivered to Claude on turn 14 · Claude owes you context' }],
+    q3: [{ ts: '14:15:00', by: 'claude', turn: 13, kind: 'ask' },
+      { ts: '14:19:58', by: 'user', text: 'answered → 90 days' },
+      { ts: '14:20:12', by: 'hook', text: 'delivered to Claude on turn 14' }],
+  },
+  'glue/CDIT-2627-gsc-backfill': {
+    i1: [{ ts: '14:14:31', by: 'claude', turn: 9, tools: ['14:13:00', '14:14:45'] },
+      { ts: '14:14:50', by: 'claude', turn: 9, kind: 'explain' }],
+    q1: [{ ts: '14:15:05', by: 'claude', turn: 9, tools: ['14:14:50', '14:15:20'] },
+      { ts: '14:15:22', by: 'claude', turn: 9, kind: 'ask' }],
+    q2: [{ ts: '14:15:40', by: 'claude', turn: 9, kind: 'ask' }],
+  },
+};
+const LAST_SEEN = { 'glue/CDIT-2631-ga4-dedupe': '14:12:00', 'glue/CDIT-2627-gsc-backfill': '14:13:00' };
+// Live simulation: the working session keeps running tools on its approved issue (i2).
+const LIVE_LOG = 'glue/CDIT-2631-ga4-dedupe';
+const LIVE_ROWS = [['Read', 'loader/backfill.py'], ['Grep', 'load_date'], ['Edit', 'loader/backfill.py'], ['Bash', 'Run backfill tests'],
+  ['Agent', 'Find other jobs that filter on load_date'], ['Grep', 'load_date', 'Explore'], ['Read', 'jobs/rollup.py', 'Explore'],
+  ['Bash', 'Backfill 2026-10-07 on stage'], ['Bash', ''], ['Bash', 'Count late hits recovered for 10-07'],
+].map(([tool, text, agent]) => tool === 'Edit' ? { t: 'file', op: 'touch', tool, text } : { t: 'tool', op: 'run', tool, text, ...(agent ? { agent } : {}) });
+const CHANNELS = [['needs-you', 'needs you'], ['issues-ours', 'ours'], ['issues-theirs', 'theirs'], ['plan', ''], ['facts-and-terms', ''], ['tool-log', '']];
+const ui = {
+  log: LIVE_LOG, chan: 'home', active: 'browse', sideOpen: false, outboxOpen: false,
+  tabs: ['glue/CDIT-2631-ga4-dedupe|i1', 'glue/CDIT-2631-ga4-dedupe|i2', 'glue/CDIT-2627-gsc-backfill|q1'],
+  seen: {}, methods: new Set(), openTools: new Set(), drafts: {},
+  filter: { tool: 'all', noAgents: false, files: false },
+};
+let simTs = '14:21:08', liveIndex = 0;
+// ---- Helpers ----
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const $ = id => document.getElementById(id);
+const st = log => ERNIE_SAMPLE.states[log];
+const meta = log => ERNIE_SAMPLE.logs.find(l => l.key === log);
+const tag = log => { const m = meta(log); return (m.branch.match(/CDIT-\d+/) || [`${m.repo}·${m.branch}`])[0]; };
+const findItem = (log, id) => (id[0] === 'q' ? st(log).questions : st(log).issues).find(x => x.id === id);
+const keyOf = (log, id) => `${log}|${id}`;
+const splitKey = key => key.split('|');
+const GLYPH = { verified: '✓', inferred: '~', unchecked: '✗' };
+const STATE_CLASS = { working: 'working', 'waiting on you': 'waiting', idle: 'idle', off: 'off' };
+const addSec = (ts, n) => { const [h, m, s] = ts.split(':').map(Number); const t = h * 3600 + m * 60 + s + n;
+  return [t / 3600 | 0, (t % 3600) / 60 | 0, t % 60].map(v => String(v).padStart(2, '0')).join(':'); };
+
+function events(log, id) {
+  HISTORY[log] ??= {};
+  return (HISTORY[log][id] ??= [{ ts: '00:00:00', by: 'claude', kind: id[0] === 'q' ? 'ask' : 'explain' }]);
+}
+function toolRows(log, ev) {
+  if (ev.rows) return ev.rows;
+  return st(log).activity.filter(a => (a.t === 'tool' || a.t === 'file') && a.ts > ev.tools[0] && a.ts <= ev.tools[1]);
+}
+function lastTs(log, id) {
+  return events(log, id).reduce((max, ev) => {
+    const ts = ev.tools ? (toolRows(log, ev)[0]?.ts ?? ev.ts) : ev.ts;
+    return ts > max ? ts : max;
+  }, '');
+}
+const isUnread = key => { const [log, id] = splitKey(key); return lastTs(log, id) > (ui.seen[key] ?? LAST_SEEN[log] ?? '99'); };
+const threadIds = log => st(log) ? [...st(log).questions, ...st(log).issues].map(x => x.id) : [];
+function statusOf(log, id) {
+  const it = findItem(log, id);
+  if (id[0] === 'i') return it.status;
+  if (it.status === 'dropped') return 'dropped';
+  return it.answer && !it.more ? 'answered' : 'open';
+}
+const needsYou = (log, id) => {
+  const it = findItem(log, id);
+  return id[0] === 'q' ? statusOf(log, id) === 'open' && !it.more : it.status === 'explained';
+};
+function channelIds(log, chan) {
+  const ids = threadIds(log);
+  if (chan === 'needs-you') return ids.filter(id => needsYou(log, id));
+  if (chan === 'issues-ours') return ids.filter(id => id[0] === 'i' && findItem(log, id).owner === 'us');
+  if (chan === 'issues-theirs') return ids.filter(id => id[0] === 'i' && findItem(log, id).owner === 'other');
+  return [];
+}
+function position(log, id) {
+  const it = findItem(log, id);
+  if (id[0] === 'q') return `Q${st(log).questions.indexOf(it) + 1}/${st(log).questions.length}`;
+  const group = st(log).issues.filter(x => x.owner === it.owner);
+  return `${it.owner === 'us' ? 'ours' : 'theirs'} ${group.indexOf(it) + 1}/${group.length}`;
+}
+function toolSummary(rows) {
+  const files = rows.filter(r => r.t === 'file').length;
+  const byTool = {};
+  rows.filter(r => r.t !== 'file').forEach(r => { byTool[r.tool] = (byTool[r.tool] || 0) + 1; });
+  const parts = files ? [`${files} file${files > 1 ? 's' : ''} touched`] : [];
+  Object.entries(byTool).forEach(([tool, n]) => parts.push(`${n} ${tool} run${n > 1 ? 's' : ''}`));
+  return parts.join(', ');
+}
+function eventLine(log, id, ev) {
+  const it = findItem(log, id);
+  if (ev.tools || ev.rows) { const rows = toolRows(log, ev); return rows.length ? `Claude: ${toolSummary(rows)}` : 'Claude started on the fix'; }
+  if (ev.kind === 'explain') return `Claude explained ${id}${ev.turn ? ` (turn ${ev.turn})` : ''}${it.example ? ` with ${it.example}` : ''} · ${GLYPH[it.confidence]} ${it.confidence}`;
+  if (ev.kind === 'ask') return `Claude asked ${position(log, id)}${it.kind === 'assume' ? ' (assumption check)' : ''}${it.example ? ` with ${it.example}` : ''}`;
+  if (ev.kind === 'quote') return `approved in chat: '${ev.quote}'`;
+  return `${ev.by === 'user' ? 'you' : ev.by === 'hook' ? 'ernie' : 'Claude'}: ${ev.text}`;
+}
+// ---- Page actions (spec PostOps only); the real page POSTs these and the server returns pending + inboxText ----
+function queue(log, ev, label, ref, threadText) {
+  const s = st(log);
+  const collapseKey = ev.t === 'note' ? null : `${ev.t}:${ev.id}`;
+  if (collapseKey) s.pending = s.pending.filter(p => p.key !== collapseKey);
+  s.pending.push({ ...ev, label, key: collapseKey });
+  s.inboxText = [`ernie inbox · turn ${s.turn + 1}`, ...s.pending.map(p => `- ${p.label}`)].join('\n');
+  s.activity.unshift({ ts: simTs, by: 'user', t: ev.t, op: ev.op, text: label, fresh: true });
+  if (ref) {
+    events(log, ref).push({ ts: simTs, by: 'user', text: threadText || label, queued: s.turn + 1 });
+    ui.seen[keyOf(log, ref)] = simTs;
+  }
+  render();
+}
+function answerQuestion(log, id, value) {
+  const q = findItem(log, id), answer = value.trim();
+  if (!answer) return;
+  Object.assign(q, { answer, more: false }); delete q.followUp;
+  ui.drafts[`ans-${keyOf(log, id)}`] = '';
+  queue(log, { t: 'question', op: 'answer', id, text: answer }, `${id} → ${answer}`, id, `answered → ${answer}`);
+}
+function setIssue(log, id, status) {
+  const it = findItem(log, id);
+  it.status = status;
+  if (status === 'explained') delete it.quote;
+  const label = status === 'explained' ? `${id} → explained (undo approve)` : `${id} → ${status}`;
+  queue(log, { t: 'issue', op: 'set', id, status }, label, id, status === 'explained' ? 'undid the approval → back to explained' : status);
+}
+// ---- Rendering ----
+function badge(conf, method, key) {
+  if (!conf) return '';
+  return `<button class="badge b-${conf}" type="button" data-method="${esc(key)}" title="method: ${esc(method || 'none given')}">${GLYPH[conf]} ${conf}</button>`
+    + (ui.methods.has(key) ? `<div class="method">method: <code>${esc(method || 'none given')}</code></div>` : '');
+}
+function exampleBlock(log, name) {
+  const ex = st(log).examples.find(e => e.name === name);
+  if (!ex) return '';
+  return `<figure class="ex"><figcaption><span class="tid">${esc(ex.name)}</span> ${esc(ex.title)}</figcaption>
+    <div class="ex-scroll"><table><thead><tr>${ex.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
+    <tbody>${ex.rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+    ${ex.caption ? `<p class="cap">${esc(ex.caption)}</p>` : ''}
+    ${ex.run ? `<p class="run">see for yourself: <code>${esc(ex.run)}</code> · shown, never run</p>` : ''}</figure>`;
+}
+function feedRows(rows) {
+  return `<ul class="feed">${rows.map(a => {
+    const isTool = a.t === 'tool' || a.t === 'file';
+    const label = isTool ? a.tool.replace(/^mcp__\w+?__/, 'mcp·') : a.by;
+    const text = isTool ? (a.text || a.tool) : `${a.t} ${a.op} · ${a.text}`;
+    return `<li class="${isTool ? '' : 'ev'} ${a.fresh ? 'fresh' : ''}"><span class="t">${esc(a.ts)}</span><span class="tool" title="${esc(a.tool || a.by)}">${esc(label)}</span>`
+      + `<span class="tx">${a.t === 'file' ? '✎ ' : ''}${esc(text)}${a.agent ? `<span class="ag">⑂ ${esc(a.agent)}</span>` : ''}</span></li>`;
+  }).join('')}</ul>`;
+}
+function itemCard(log, id, ev) {
+  const it = findItem(log, id), k = keyOf(log, id);
+  if (ev.kind === 'quote') return `<div class="body">recorded your chat approval: <b>'${esc(ev.quote)}'</b> <span class="hint">· --quote, checked against your last prompt</span></div>`;
+  if (ev.kind === 'explain') return `<div class="card"><div><b>${esc(it.title)}</b></div>
+    ${it.example ? exampleBlock(log, it.example) : ''}
+    <p class="kv"><b>Cause</b> ${esc(it.cause)}</p><p class="kv"><b>Fix</b> ${esc(it.fix)}</p>
+    <p class="kv"><b>Impact if skipped</b> ${esc(it.impact)}</p>
+    <div class="kv">${badge(it.confidence, it.method, `${k}|conf`)}</div></div>`;
+  const ask = it.kind === 'assume' ? `I assumed: ${it.text}. True?` : it.text;
+  return `<div class="card"><div class="tid">${position(log, id)}</div><div><b>${esc(ask)}</b></div>
+    ${it.context ? `<p class="kv"><b>Context</b> ${esc(it.context)}</p>` : ''}
+    ${it.impact ? `<p class="kv"><b>Impact</b> ${esc(it.impact)}</p>` : ''}
+    ${it.recommended ? `<p class="kv"><b>Recommended</b> <code>${esc(it.recommended)}</code></p>` : ''}
+    ${it.example ? exampleBlock(log, it.example) : ''}
+    ${it.choices?.length && it.kind !== 'assume' ? `<p class="kv hint">choices: ${it.choices.map(c => esc(c) + (c === it.recommended ? ' ★' : '')).join(' · ')}</p>` : ''}</div>`;
+}
+function message(log, id, ev, index) {
+  const who = { claude: ['C', 'Claude'], user: ['you', 'you'], hook: ['◷', 'ernie'] }[ev.by];
+  let body;
+  if (ev.kind === 'quote') body = itemCard(log, id, ev);
+  else if (ev.kind) body = `<div class="body">${esc(eventLine(log, id, ev).replace(/^Claude /, ''))}</div>${itemCard(log, id, ev)}`;
+  else if (ev.tools || ev.rows) {
+    const rows = toolRows(log, ev), tk = `${keyOf(log, id)}|${index}`;
+    body = rows.length
+      ? `<details class="tools card" data-tools="${esc(tk)}" ${ui.openTools.has(tk) ? 'open' : ''}><summary>⚙ ${esc(toolSummary(rows))} · linked by time</summary>${feedRows(rows)}</details>`
+      : `<div class="body hint">working on the fix · tool runs land here as they happen</div>`;
+  } else {
+    body = `<div class="body">${esc(ev.text)}${ev.queued ? `<span class="queued">queued · delivered on your next prompt (turn ${ev.queued})</span>` : ''}</div>`;
+    if (ev.fixed) body += `<div class="kv">${badge(findItem(log, id).confidence, findItem(log, id).method, `${keyOf(log, id)}|fix`)}</div>`;
+    if (ev.term) { const f = st(log).facts.find(x => x.term === ev.term); body += f ? `<div class="card"><b class="mono">${esc(f.term)}</b> = ${esc(f.text)}</div>` : ''; }
+    if (ev.dia) body += `<div class="card mmd" data-mmd="${esc(log)}|${esc(ev.dia)}"></div>`;
+    if (ev.link) body += `<div class="kv"><button class="link" type="button" data-open="${esc(keyOf(log, ev.link))}">open ${esc(ev.link)} thread →</button></div>`;
+  }
+  return `<div class="msg"><div class="av ${ev.by}">${who[0]}</div><div><div class="who"><b>${who[1]}</b>${esc(ev.ts)}${ev.turn ? ` · turn ${ev.turn}` : ''}${ev.tools || ev.rows ? ' · via hook' : ''}</div>${body}</div></div>`;
+}
+function gate(status) {
+  if (status === 'dropped') return '<span class="gate"><span class="step drop">dropped</span></span>';
+  const steps = ['explained', 'approved', 'fixed'], at = steps.indexOf(status);
+  return `<span class="gate">${steps.map((s, i) => `<span class="step ${i < at ? 'done' : i === at ? 'cur' : ''}">${s}</span>`).join('<i>→</i>')}</span>`;
+}
+function waitingLine(log, id) {
+  const it = findItem(log, id), s = statusOf(log, id);
+  if (id[0] === 'q') return s === 'answered' ? '' : it.more ? 'waiting on Claude: you asked for more context' : 'waiting on you: answer below';
+  return { explained: it.owner === 'us' ? 'waiting on you: approve before Claude may fix' : 'waiting on you: approve the triage, or drop it',
+    approved: 'Claude may fix now; it marks fixed only after approval', fixed: '', dropped: '' }[s];
+}
+function threadView(key) {
+  const [log, id] = splitKey(key), it = findItem(log, id);
+  const title = id[0] === 'q' ? (it.kind === 'assume' ? `I assumed: ${it.text}. True?` : it.text) : it.title;
+  const chan = id[0] === 'q' ? 'questions' : it.owner === 'us' ? '#issues-ours' : '#issues-theirs';
+  const wait = waitingLine(log, id);
+  return `<div class="wrap"><div class="th-head"><div class="crumb">${esc(meta(log).repo)} / ${esc(meta(log).branch)} · ${chan} · ${position(log, id)}</div>
+    <h2><span class="tid">${id}</span> ${esc(title)}</h2>
+    <div class="th-meta">${id[0] === 'i' ? gate(it.status) + badge(it.confidence, it.method, `${key}|head`) : `<span class="pill ${statusOf(log, id)}">${statusOf(log, id)}</span>`}</div></div>
+    ${events(log, id).map((ev, i) => message(log, id, ev, i)).join('')}
+    ${wait ? `<div class="wait">… ${esc(wait)}</div>` : ''}</div>`;
+}
+function composerView(key) {
+  const [log, id] = splitKey(key), it = findItem(log, id), s = st(log), k = esc(key);
+  let actions = '';
+  if (id[0] === 'q') {
+    const choices = it.kind === 'assume' ? ['yes', 'no'] : it.choices || [];
+    actions = `<div class="row">${it.kind === 'assume' ? '<span class="hint">True?</span>' : ''}${choices.map(c =>
+      `<button class="btn ${c === it.recommended ? 'rec' : ''} ${it.answer === c ? 'primary' : ''}" type="button" data-answer="${k}" data-value="${esc(c)}">${esc(c)}${c === it.recommended ? ' ★ recommended' : ''}</button>`).join('')}
+      <button class="btn" type="button" data-more="${k}">need more context</button></div>
+      ${it.kind === 'assume' ? '' : `<div class="row"><input class="inp" id="ans-${k}" data-draft="ans-${k}" data-answer-input="${k}" value="${esc(ui.drafts[`ans-${key}`])}" placeholder="or type an answer + enter"></div>`}`;
+  } else {
+    const gateBtns = {
+      explained: `<button class="btn primary" type="button" data-issue="${k}" data-status="approved">approve</button><button class="btn danger" type="button" data-issue="${k}" data-status="dropped">drop</button>`,
+      approved: `${it.quote ? `<span class="hint">approved in chat: '${esc(it.quote)}'</span>` : ''}<button class="btn" type="button" data-issue="${k}" data-status="explained">undo approve</button><button class="btn danger" type="button" data-issue="${k}" data-status="dropped">drop</button>`,
+      fixed: '<span class="hint">fixed · Claude closed it after approval</span>',
+      dropped: `<span class="hint">dropped</span><button class="btn" type="button" data-issue="${k}" data-status="explained">reopen as explained</button>`,
+    }[it.status];
+    actions = `<div class="row">${gateBtns}</div>`;
+  }
+  return `<div class="wrap">${actions}<div class="row"><input class="inp" id="note-${k}" data-draft="note-${k}" data-note="${k}" value="${esc(ui.drafts[`note-${key}`])}" placeholder="note on ${id} + enter"></div>
+    <div class="deliver">→ delivered to Claude on your next prompt in ${esc(tag(log))} (turn ${s.turn + 1}) · the page can't start a turn</div></div>`;
+}
+function threadRow(log, id) {
+  const it = findItem(log, id), evs = events(log, id), key = keyOf(log, id);
+  const title = id[0] === 'q' ? (it.kind === 'assume' ? `I assumed: ${it.text}. True?` : it.text) : it.title;
+  return `<button class="trow" type="button" data-open="${esc(key)}">${isUnread(key) ? '<i class="udot"></i>' : '<i></i>'}<span class="tid">${id}</span>
+    <span class="tt">${esc(title)}</span><span class="pill ${statusOf(log, id)}">${statusOf(log, id)}</span>
+    <span class="last">${esc(eventLine(log, id, evs[evs.length - 1]))} · ${esc(lastTs(log, id))} · ${evs.length} event${evs.length > 1 ? 's' : ''}</span></button>`;
+}
+function homeView() {
+  const cards = ERNIE_SAMPLE.logs.map(m => {
+    const head = `<div class="wt-head"><i class="sdot s-${STATE_CLASS[m.session.state]}"></i><b>${esc(m.key)}</b><span class="hint">${esc(m.session.state)} · ${esc(m.session.lastEventAgo)}</span>`;
+    if (!m.on) return `<div class="wt-card">${head}</div><div class="empty">off · run <code>ernie init</code> yourself in this worktree to turn it on</div></div>`;
+    const ids = threadIds(m.key), changed = ids.filter(id => isUnread(keyOf(m.key, id))), needs = ids.filter(id => needsYou(m.key, id)).length;
+    return `<div class="wt-card">${head}${needs ? `<span class="n hot">${needs} need you</span>` : ''}${changed.length ? `<button class="link" type="button" data-markseen="${esc(m.key)}">mark seen</button>` : ''}</div>
+      ${changed.length ? changed.sort((a, b) => lastTs(m.key, b).localeCompare(lastTs(m.key, a))).map(id => threadRow(m.key, id)).join('') : '<div class="empty">nothing new since you last looked</div>'}</div>`;
+  }).join('');
+  return `<div class="wrap"><h2>Since you last looked</h2><div class="crumb">threads that changed across worktrees · open one to mark it seen</div><h3>worktrees</h3>${cards}</div>`;
+}
+function channelView(log, chan) {
+  const s = st(log), m = meta(log);
+  const head = `<div class="crumb">${esc(m.repo)} / ${esc(m.branch)} · turn ${s?.turn ?? '–'}</div><h2>#${chan}</h2>`;
+  if (!s) return `<div class="wrap">${head}<div class="empty">ernie is off for this branch (main.off marker). Run <code>ernie init</code> yourself to turn it on.</div></div>`;
+  if (['needs-you', 'issues-ours', 'issues-theirs'].includes(chan)) {
+    const ids = channelIds(log, chan);
+    const intro = { 'needs-you': 'open questions and explained issues, in order', 'issues-ours': 'we own the fix', 'issues-theirs': 'another team owns the fix' }[chan];
+    return `<div class="wrap">${head}<div class="crumb">${intro} · ${ids.length} thread${ids.length === 1 ? '' : 's'}</div><h3>threads</h3>${ids.map(id => threadRow(log, id)).join('') || '<div class="empty">nothing here</div>'}</div>`;
+  }
+  if (chan === 'plan') {
+    const done = s.plan.filter(p => p.status === 'done').length;
+    return `<div class="wrap">${head}<h3>plan ${done}/${s.plan.length} · tap the box to change status</h3><ul class="plan">${s.plan.map(p =>
+      `<li class="${p.status}"><button class="box" type="button" data-plan="${p.id}" title="${p.status}">${{ todo: '', active: '▶', done: '✓', dropped: '–' }[p.status]}</button><span><span class="tid">${p.id}</span> ${esc(p.text)}</span></li>`).join('') || '<li class="empty">no plan yet</li>'}</ul>
+      <h3>decisions</h3>${s.decisions.map(d => `<div class="dec"><span class="tid">${d.id}</span> <b>${esc(d.text)}</b><span class="why">${esc(d.why)}</span></div>`).join('') || '<div class="empty">none</div>'}
+      <h3>diagrams</h3>${s.diagrams.map(d => `<div class="card"><span class="tid">${esc(d.name)}</span><div class="mmd" data-mmd="${esc(log)}|${esc(d.name)}"></div></div>`).join('') || '<div class="empty">none</div>'}</div>`;
+  }
+  if (chan === 'facts-and-terms') {
+    const facts = s.facts.filter(f => f.kind !== 'term'), terms = s.facts.filter(f => f.kind === 'term');
+    return `<div class="wrap">${head}<h3>facts · tap a badge for its method</h3>${facts.map(f => `<div class="fact"><span class="tid">${f.id}</span><span class="ft">${esc(f.text)}</span>
+      ${badge(f.confidence || 'unchecked', f.method, `${log}|${f.id}`)}<button class="btn danger" type="button" data-dismiss="${f.id}">dismiss</button></div>`).join('') || '<div class="empty">none</div>'}
+      <h3>glossary</h3><dl class="gloss">${terms.map(t => `<dt>${esc(t.term)}</dt><dd>${esc(t.text)}</dd>`).join('') || '<dd class="empty">no terms</dd>'}</dl>
+      <h3>your notes</h3>${s.notes.map(n => `<div class="fact"><span class="tid">${n.id}</span><span class="ft">${esc(n.text)}</span>${n.ref ? `<button class="link" type="button" data-open="${esc(keyOf(log, n.ref))}">on ${esc(n.ref)}</button>` : ''}</div>`).join('') || '<div class="empty">none</div>'}</div>`;
+  }
+  const f = ui.filter, tools = [...new Set(s.activity.filter(a => a.tool).map(a => a.tool))];
+  const rows = s.activity.filter(a => (f.tool === 'all' || a.tool === f.tool) && !(f.noAgents && a.agent) && (!f.files || a.t === 'file'));
+  return `<div class="wrap">${head}<div class="filters"><select id="f-tool" aria-label="Tool"><option value="all">all tools + events</option>${tools.map(t => `<option ${f.tool === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+    <label><input type="checkbox" id="f-agents" ${f.noAgents ? 'checked' : ''}> hide subagents</label><label><input type="checkbox" id="f-files" ${f.files ? 'checked' : ''}> files only</label>
+    <span class="hint">${rows.length} rows · newest first · Bash shows its description, never the command</span></div>${feedRows(rows)}</div>`;
+}
+function renderSide() {
+  const repos = [...new Set(ERNIE_SAMPLE.logs.map(l => l.repo))];
+  const unreadIn = log => threadIds(log).filter(id => isUnread(keyOf(log, id))).length;
+  const homeUnread = ERNIE_SAMPLE.logs.reduce((n, l) => n + unreadIn(l.key), 0);
+  const s = st(ui.log);
+  $('side').className = `side ${ui.sideOpen ? 'open' : ''}`;
+  $('side').innerHTML = `<div class="side-head"><div class="brand">ernie<span>.</span></div><button class="icon-btn" id="theme-toggle" type="button">◐ theme</button></div>
+    <button class="nav ${ui.chan === 'home' ? 'sel' : ''} ${homeUnread ? 'unread' : ''}" type="button" data-chan="home"><span class="lbl">⌂ Home</span>${homeUnread ? `<span class="n">${homeUnread}</span>` : ''}</button>
+    <div class="sec">worktrees</div>${repos.map(r => `<div class="repo">${esc(r)}/</div>${ERNIE_SAMPLE.logs.filter(l => l.repo === r).map(l => {
+      const n = unreadIn(l.key);
+      return `<button class="nav ${l.key === ui.log ? 'sel' : ''} ${l.on ? '' : 'off'} ${n ? 'unread' : ''}" type="button" data-log="${esc(l.key)}"><i class="sdot s-${STATE_CLASS[l.session.state]}"></i>
+        <span class="lbl">${esc(l.branch)}<small>${l.on ? esc(l.session.state) : 'off'} · ${esc(l.key === LIVE_LOG ? 'now' : l.session.lastEventAgo)}</small></span>${n ? `<span class="n">${n}</span>` : ''}</button>`;
+    }).join('')}`).join('')}
+    <div class="sec">channels · ${esc(tag(ui.log))}</div>${CHANNELS.map(([c]) => {
+      const ids = channelIds(ui.log, c), n = c === 'plan' && s ? `${s.plan.filter(p => p.status === 'done').length}/${s.plan.length}` : ids.length || '';
+      const unread = ids.some(id => isUnread(keyOf(ui.log, id)));
+      return `<button class="nav ${ui.chan === c ? 'sel' : ''} ${unread ? 'unread' : ''}" type="button" data-chan="${c}"><span class="lbl"># ${c}</span>${n !== '' && s ? `<span class="n ${c === 'needs-you' && n ? 'hot' : ''}">${n}</span>` : ''}</button>`;
+    }).join('')}`;
+}
+function renderTabs() {
+  const browseLabel = ui.chan === 'home' ? '⌂ Home' : `<span class="tw">${esc(tag(ui.log))}</span> #${ui.chan}`;
+  $('tabbar').innerHTML = `<button class="icon-btn menu-btn" type="button" data-side>☰</button>
+    <div class="tab ${ui.active === 'browse' ? 'sel' : ''}" data-tab="browse"><span class="tl">${browseLabel}</span></div>`
+    + ui.tabs.map(key => {
+      const [log, id] = splitKey(key), it = findItem(log, id);
+      const title = id[0] === 'q' ? it.text : it.title;
+      return `<div class="tab ${ui.active === key ? 'sel' : ''}" data-tab="${esc(key)}" title="${esc(title)}">${isUnread(key) && ui.active !== key ? '<i class="udot" title="new activity"></i>' : ''}
+        <span class="tl"><span class="tw">${esc(tag(log))}</span> ${id} ${esc(title)}</span><button class="x" type="button" data-close="${esc(key)}" aria-label="Close">×</button></div>`;
+    }).join('');
+}
+function renderOutbox() {
+  const log = ui.active === 'browse' ? ui.log : splitKey(ui.active)[0], s = st(log);
+  if (!s) { $('outbox').innerHTML = '<div class="row hint">ernie off · nothing is delivered</div>'; return; }
+  const n = s.pending.length;
+  $('outbox').innerHTML = `<div class="row"><span class="hint">→ ${esc(tag(log))} next prompt:</span><b class="mono" style="color:var(--${n ? 'warning' : 'success'})">${n ? `${n} queued` : 'up to date'}</b>
+    ${ui.active === 'browse' ? `<input class="inp" id="out-note" data-draft="out-note" data-note="${esc(log)}|" value="${esc(ui.drafts['out-note'])}" placeholder="note to Claude + enter">` : '<span style="flex:1"></span>'}
+    <button class="btn" type="button" data-outbox>${ui.outboxOpen ? 'hide' : 'preview'}</button></div>
+    ${ui.outboxOpen ? `<pre>${esc(s.inboxText || 'Nothing queued. The next prompt carries no ernie inbox.')}</pre>` : ''}`;
+}
+function render() {
+  const focused = document.activeElement, focusId = focused?.id, caret = focused?.selectionStart;
+  const scroll = $('pane').scrollTop;
+  if (ui.active !== 'browse') ui.seen[ui.active] = lastTs(...splitKey(ui.active));
+  renderSide(); renderTabs(); renderOutbox();
+  const inThread = ui.active !== 'browse';
+  $('pane').innerHTML = inThread ? threadView(ui.active) : ui.chan === 'home' ? homeView() : channelView(ui.log, ui.chan);
+  $('composer').hidden = !inThread;
+  $('composer').innerHTML = inThread ? composerView(ui.active) : '';
+  $('pane').scrollTop = scroll;
+  Object.values(ERNIE_SAMPLE.states).forEach(s => s.activity.forEach(a => { a.fresh = false; }));
+  if (focusId && $(focusId)) { $(focusId).focus(); try { $(focusId).setSelectionRange(caret, caret); } catch { /* checkbox/select */ } }
+  window.dispatchEvent(new Event('rendered'));
+}
+function openThread(key) {
+  if (!ui.tabs.includes(key)) ui.tabs.push(key);
+  ui.active = key; ui.sideOpen = false;
+  $('pane').scrollTop = 0; render();
+}
+// ---- Events ----
+document.addEventListener('click', e => {
+  const t = e.target.closest('button, [data-tab]');
+  if (!t) return;
+  const d = t.dataset, [log, id] = splitKey(d.answer || d.more || d.issue || '');
+  if (t.id === 'theme-toggle') {
+    const root = document.documentElement;
+    root.dataset.theme = window.currentTheme() === 'dark' ? 'light' : 'dark';
+    return window.dispatchEvent(new Event('themechange'));
+  }
+  if (d.close) { e.stopPropagation(); ui.tabs = ui.tabs.filter(k => k !== d.close); if (ui.active === d.close) ui.active = 'browse'; return render(); }
+  if (d.tab) { ui.active = d.tab; $('pane').scrollTop = 0; return render(); }
+  if (d.open) return openThread(d.open);
+  if (d.chan) { ui.chan = d.chan; ui.active = 'browse'; ui.sideOpen = false; return render(); }
+  if (d.log) { ui.log = d.log; if (ui.chan === 'home') ui.chan = 'needs-you'; ui.active = 'browse'; ui.sideOpen = false; return render(); }
+  if ('side' in d) { ui.sideOpen = !ui.sideOpen; return render(); }
+  if ('outbox' in d) { ui.outboxOpen = !ui.outboxOpen; return render(); }
+  if (d.markseen) { threadIds(d.markseen).forEach(i => { ui.seen[keyOf(d.markseen, i)] = lastTs(d.markseen, i); }); return render(); }
+  if (d.method) { ui.methods.has(d.method) ? ui.methods.delete(d.method) : ui.methods.add(d.method); return render(); }
+  if (d.answer) return answerQuestion(log, id, d.value);
+  if (d.more) {
+    Object.assign(findItem(log, id), { more: true, followUp: 'need more context' });
+    return queue(log, { t: 'question', op: 'answer', id, more: true, text: 'need more context' }, `${id}: need more context`, id, 'need more context');
+  }
+  if (d.issue) return setIssue(log, id, d.status);
+  if (d.plan) {
+    const p = st(ui.log).plan.find(x => x.id === d.plan);
+    p.status = { todo: 'active', active: 'done', done: 'todo', dropped: 'todo' }[p.status];
+    return queue(ui.log, { t: 'plan', op: 'set', id: p.id, status: p.status }, `${p.id} → ${p.status}`);
+  }
+  if (d.dismiss) {
+    const s = st(ui.log), f = s.facts.find(x => x.id === d.dismiss);
+    s.facts = s.facts.filter(x => x !== f);
+    return queue(ui.log, { t: 'fact', op: 'dismiss', id: f.id }, `${f.id} dismissed: ${f.text}`);
+  }
+});
+document.addEventListener('toggle', e => {
+  const k = e.target.dataset?.tools;
+  if (k) e.target.open ? ui.openTools.add(k) : ui.openTools.delete(k);
+}, true);
+document.addEventListener('input', e => { if (e.target.dataset.draft) ui.drafts[e.target.dataset.draft] = e.target.value; });
+document.addEventListener('change', e => {
+  if (e.target.id === 'f-tool') ui.filter.tool = e.target.value;
+  else if (e.target.id === 'f-agents') ui.filter.noAgents = e.target.checked;
+  else if (e.target.id === 'f-files') ui.filter.files = e.target.checked;
+  else return;
+  render();
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const d = e.target.dataset;
+  if (d.answerInput) { const [log, id] = splitKey(d.answerInput); return answerQuestion(log, id, e.target.value); }
+  if (!d.note || !e.target.value.trim()) return;
+  const [log, ref] = splitKey(d.note), text = e.target.value.trim();
+  ui.drafts[d.draft] = '';
+  queue(log, { t: 'note', op: 'add', text, ...(ref ? { ref } : {}) }, ref ? `note (${ref}): ${text}` : `note: ${text}`, ref || null, `note: ${text}`);
+});
+// ---- Liveness: a new tool run lands on the working log every ~4 s ----
+setInterval(() => {
+  simTs = addSec(simTs, 4);
+  const s = st(LIVE_LOG);
+  s.activity.unshift({ ts: simTs, by: 'hook', ...LIVE_ROWS[liveIndex++ % LIVE_ROWS.length], fresh: true });
+  if (s.activity.length > 350) s.activity.pop();
+  if (document.activeElement?.tagName !== 'SELECT') render();
+}, 4000);
+
+window.currentTheme = () => document.documentElement.dataset.theme
+  || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+window.mermaidSource = key => { const [log, name] = splitKey(key); return st(log).diagrams.find(d => d.name === name)?.mermaid; };
+render();
+</script>
+
+<!-- Mermaid: renders every .mmd box; SVGs are cached per diagram + theme so the 4 s re-render never re-runs mermaid -->
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+const palettes = {
+  dark: { primaryColor: '#0c2f48', primaryTextColor: '#d8e6f2', primaryBorderColor: '#38bdf8', lineColor: '#5f7d96',
+    secondaryColor: '#0f1e2c', tertiaryColor: '#0c1925', background: '#0f1e2c', mainBkg: '#0c2f48', edgeLabelBackground: '#0f1e2c',
+    actorBkg: '#0c2f48', actorBorder: '#38bdf8', actorTextColor: '#d8e6f2', actorLineColor: '#1f5a82', signalColor: '#8299ae', signalTextColor: '#d8e6f2' },
+  light: { primaryColor: '#e0f2fe', primaryTextColor: '#0d1f2e', primaryBorderColor: '#0284c7', lineColor: '#7b93a8',
+    secondaryColor: '#ffffff', tertiaryColor: '#f3f7fb', background: '#ffffff', mainBkg: '#e0f2fe', edgeLabelBackground: '#ffffff',
+    actorBkg: '#e0f2fe', actorBorder: '#0284c7', actorTextColor: '#0d1f2e', actorLineColor: '#7cc4ee', signalColor: '#557087', signalTextColor: '#0d1f2e' },
+};
+const cache = new Map();
+let pass = 0, busy = false, again = false;
+async function fill() {
+  if (busy) { again = true; return; }
+  busy = true;
+  const theme = window.currentTheme();
+  for (const el of document.querySelectorAll('.mmd')) {
+    const key = `${el.dataset.mmd}|${theme}`;
+    if (cache.has(key)) { el.innerHTML = cache.get(key); continue; }
+    el.innerHTML = '<span class="hint">rendering…</span>';
+    mermaid.initialize({ startOnLoad: false, theme: 'base', securityLevel: 'strict', fontFamily: "'Fragment Mono', ui-monospace, monospace",
+      themeVariables: { ...palettes[theme], fontFamily: "'Fragment Mono', ui-monospace, monospace", fontSize: '13px' },
+      flowchart: { curve: 'basis' }, sequence: { mirrorActors: false } });
+    try {
+      const { svg } = await mermaid.render(`dgm-${++pass}`, window.mermaidSource(el.dataset.mmd));
+      cache.set(key, svg);
+    } catch (err) { cache.set(key, `<span class="hint">Diagram failed to render: ${String(err.message || err).replace(/</g, '&lt;')}</span>`); }
+    document.querySelectorAll('.mmd').forEach(x => { if (`${x.dataset.mmd}|${theme}` === key) x.innerHTML = cache.get(key); });
+  }
+  busy = false;
+  if (again) { again = false; fill(); }
+}
+await document.fonts.ready;
+window.addEventListener('rendered', fill);
+window.addEventListener('themechange', fill);
+fill();
+</script>
+</body>
+</html>

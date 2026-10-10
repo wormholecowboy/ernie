@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<!--
+  VARIATION 05 · Turn Timeline
+  For: keeping an eye on what Claude did between your prompts, and catching up after being away.
+  Key idea: the page is a vertical timeline cut at turn marks. Each turn reads top to bottom as
+    you sent → Claude did (tool runs folded into "4 Bash · 1 Agent (3 subagent calls)…") → Claude logged (cards you can act on).
+    The next prompt (your queued outbox) sits at the very top as a ghost turn; the current turn under it streams live.
+    A right rail keeps the persistent "open now" state: questions N/M one at a time, issues awaiting approval (ours / theirs), plan, terms, decisions.
+  MUST items:
+    1. Selector: header dropdown, grouped by repo, each worktree with on/off and session state (working / waiting on you / idle / off). Picking one opens it as a tab.
+    2. Tool log: per-turn "Claude did" lane (summary, expandable rows) + a separate "Tool log" sub-tab with the flat table and filters
+       (tool, hide subagents, files only). A new tool run is appended to the working session every ~4 s and highlighted.
+    3. Tabs (meaning a): worktree tabs across the top, each with a needs-you badge. Issues (meaning b) are focused one at a time in the rail with I n/M.
+  Phone: the rail drops below the timeline; an "open now" strip at the top links down to it.
+    4. Home tab: one compact "last turn" card per worktree, side by side.
+  Turn 13 is synthesized: rows older than the turn-14 mark are grouped as turn 13 (no mark for it in the sample window).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ernie · Turn Timeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; }
+img, svg, pre { max-width: 100%; }
+:root {
+  --sans: 'Bricolage Grotesque', system-ui, sans-serif;
+  --mono: 'Fragment Mono', ui-monospace, SFMono-Regular, monospace;
+  --bg: #0a1520; --bg-card: #0f1e2c; --bg-recessed: #0c1925; --bg-raised: #132638;
+  --text: #d8e6f2; --text-dim: #8299ae; --text-accent: #7dd3fc;
+  --accent: #38bdf8; --accent-soft: #0c2f48;
+  --border: #1c3246; --border-accent: #1f5a82;
+  --grid: rgba(56,189,248,.04);
+  --success: #34d399; --warning: #fbbf24; --error: #f87171;
+  --pass-bg: #064e3b; --pass-fg: #a7f3d0; --warn-bg: #78350f; --warn-fg: #fde68a; --info-bg: #1e3a8a; --info-fg: #dbeafe;
+  --shadow: rgba(0,0,0,.5);
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f3f7fb; --bg-card: #ffffff; --bg-recessed: #eef3f8; --bg-raised: #ffffff;
+    --text: #0d1f2e; --text-dim: #557087; --text-accent: #0369a1;
+    --accent: #0284c7; --accent-soft: #e0f2fe; --border: #d3dfea; --border-accent: #7cc4ee;
+    --grid: rgba(2,132,199,.05);
+    --success: #059669; --warning: #b45309; --error: #dc2626;
+    --pass-bg: #d1fae5; --pass-fg: #065f46; --warn-bg: #fef3c7; --warn-fg: #92400e; --info-bg: #dbeafe; --info-fg: #1e40af;
+    --shadow: rgba(13,31,46,.16); color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f3f7fb; --bg-card: #ffffff; --bg-recessed: #eef3f8; --bg-raised: #ffffff;
+  --text: #0d1f2e; --text-dim: #557087; --text-accent: #0369a1;
+  --accent: #0284c7; --accent-soft: #e0f2fe; --border: #d3dfea; --border-accent: #7cc4ee;
+  --grid: rgba(2,132,199,.05);
+  --success: #059669; --warning: #b45309; --error: #dc2626;
+  --pass-bg: #d1fae5; --pass-fg: #065f46; --warn-bg: #fef3c7; --warn-fg: #92400e; --info-bg: #dbeafe; --info-fg: #1e40af;
+  --shadow: rgba(13,31,46,.16); color-scheme: light;
+}
+body { margin: 0; font-family: var(--sans); font-size: 14px; line-height: 1.5; color: var(--text); background-color: var(--bg);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px; background-attachment: fixed; overflow-x: hidden; }
+code, .mono { font-family: var(--mono); font-size: .92em; }
+button, input, select { font: inherit; color: inherit; }
+.mock-banner { font: 11px var(--mono); text-align: center; padding: 5px 16px; background: var(--warn-bg); color: var(--warn-fg); letter-spacing: .05em; }
+.mock-banner button { background: none; border: 1px dashed currentColor; border-radius: 4px; padding: 0 6px; margin-left: 8px; cursor: pointer; font: 11px var(--mono); }
+
+/* Header + selector */
+.topbar { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 20px;
+  border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(8px); }
+.brand { font-weight: 800; font-size: 19px; letter-spacing: -.02em; } .brand span { color: var(--accent); }
+.picker { position: relative; min-width: 0; max-width: 100%; }
+.picker-btn { display: flex; align-items: center; gap: 8px; max-width: 100%; font: 12.5px var(--mono); background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+.picker-btn span.name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker-menu { position: absolute; top: calc(100% + 6px); left: 0; width: min(420px, calc(100vw - 32px)); background: var(--bg-raised);
+  border: 1px solid var(--border-accent); border-radius: 10px; box-shadow: 0 20px 50px -20px var(--shadow); padding: 6px; display: none; z-index: 70; }
+.picker-menu.open { display: block; }
+.picker-repo { font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); padding: 8px 8px 4px; }
+.picker-item { display: grid; grid-template-columns: 12px minmax(0,1fr) auto; gap: 8px; align-items: center; width: 100%; text-align: left;
+  background: none; border: 1px solid transparent; border-radius: 6px; padding: 6px 8px; cursor: pointer; font: 12.5px var(--mono); }
+.picker-item:hover { border-color: var(--border); background: var(--bg-card); }
+.picker-item.off { opacity: .55; }
+.picker-item small { color: var(--text-dim); font-size: 11px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; background: var(--text-dim); }
+.dot.working { background: var(--success); animation: pulse 1.6s ease-in-out infinite; }
+.dot.waiting { background: var(--warning); } .dot.idle { background: var(--text-dim); } .dot.off { background: transparent; border: 1.5px solid var(--text-dim); }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+.state { font: 11px var(--mono); color: var(--text-dim); white-space: nowrap; }
+.state.working { color: var(--success); } .state.waiting { color: var(--warning); }
+.status { margin-left: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font: 11.5px var(--mono); color: var(--text-dim); }
+.icon-btn { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; font: 11.5px var(--mono); }
+.icon-btn:hover, .btn:hover, .chip:hover { border-color: var(--accent); }
+
+/* Tabs */
+.tabbar { display: flex; gap: 4px; padding: 8px 20px 0; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: thin; }
+.wtab { display: flex; align-items: center; gap: 7px; flex: none; padding: 7px 12px; border: 1px solid var(--border); border-bottom: none;
+  border-radius: 8px 8px 0 0; background: var(--bg-recessed); cursor: pointer; font: 12px var(--mono); color: var(--text-dim); }
+.wtab.sel { background: var(--bg-card); color: var(--text); border-color: var(--border-accent); }
+.wtab .repo { opacity: .6; }
+.badge { font: 10.5px var(--mono); background: var(--warn-bg); color: var(--warn-fg); border-radius: 9px; padding: 0 6px; }
+.badge.live { background: var(--pass-bg); color: var(--pass-fg); }
+.wtab .x { border: none; background: none; cursor: pointer; color: var(--text-dim); padding: 0 2px; }
+.wtab.bump { animation: flash 1.4s ease-out; }
+
+/* Shell */
+.shell { max-width: 1440px; margin: 0 auto; padding: 16px 20px 60px; display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr) 360px; align-items: start; }
+.shell.home { grid-template-columns: minmax(0, 1fr); }
+.open-strip { display: none; }
+@media (max-width: 980px) { .shell { grid-template-columns: minmax(0, 1fr); }
+  .open-strip { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; } .open-strip a { text-decoration: none; color: inherit; } }
+@media (max-width: 720px) { .topbar, .tabbar { padding-left: 16px; padding-right: 16px; } .shell { padding: 12px 16px 60px; } .status { margin-left: 0; } }
+.subbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+.seg button { border: none; background: var(--bg-card); padding: 5px 12px; cursor: pointer; font: 12px var(--mono); color: var(--text-dim); }
+.seg button.sel { background: var(--accent-soft); color: var(--text-accent); }
+.where { font: 11.5px var(--mono); color: var(--text-dim); overflow-wrap: anywhere; min-width: 0; }
+
+/* Timeline */
+.tl { position: relative; }
+.tl::before { content: ''; position: absolute; left: 17px; top: 18px; bottom: 0; width: 2px; background: var(--border); }
+.turn { position: relative; padding-left: 50px; margin-bottom: 22px; }
+.node { position: absolute; left: 0; top: 0; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--bg-card); border: 2px solid var(--border-accent); font: 800 13px var(--sans); color: var(--text-accent); }
+.turn.next .node { border-style: dashed; color: var(--text-dim); border-color: var(--text-dim); }
+.turn.live .node { border-color: var(--success); color: var(--success); box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 18%, transparent); }
+.turn-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-height: 36px; padding-top: 6px; }
+.turn-head h2 { margin: 0; font-size: 17px; letter-spacing: -.01em; }
+.turn-head .meta { font: 11.5px var(--mono); color: var(--text-dim); }
+.turn-body { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.turn.next .turn-body { border-style: dashed; background: var(--bg-recessed); }
+.lane { padding: 10px 14px; border-top: 1px solid var(--border); min-width: 0; }
+.lane:first-child { border-top: none; }
+.lane-label { font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); margin-bottom: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.lane-label b { font-weight: 400; } .l-you b { color: var(--success); } .l-did b { color: var(--accent); } .l-log b { color: var(--warning); }
+.sent { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill { font: 12px var(--mono); padding: 3px 9px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-recessed); overflow-wrap: anywhere; }
+.pill.you { border-color: color-mix(in srgb, var(--success) 45%, var(--border)); }
+.summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font: 12.5px var(--mono); }
+.summary .n { color: var(--text-accent); }
+.link-btn { background: none; border: none; padding: 0; cursor: pointer; font: 11px var(--mono); color: var(--text-dim); text-decoration: underline; }
+.link-btn:hover { color: var(--accent); }
+.rows { list-style: none; margin: 8px 0 0; padding: 0; font: 12px var(--mono); }
+.trow { display: grid; grid-template-columns: 70px 92px minmax(0, 1fr) auto; gap: 8px; padding: 4px 6px; border-radius: 5px; color: var(--text-dim); align-items: baseline; }
+.trow .txt { color: var(--text); overflow-wrap: anywhere; }
+.trow .tool { color: var(--text-accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trow.subagent { padding-left: 22px; } .trow.subagent .tool { color: var(--text-dim); }
+.trow .turnno { color: var(--text-dim); }
+.sub { font: 10.5px var(--mono); padding: 0 6px; border-radius: 8px; background: var(--info-bg); color: var(--info-fg); white-space: nowrap; }
+.fresh { animation: flash 1.6s ease-out; }
+@keyframes flash { from { background: var(--accent-soft); } to { background: transparent; } }
+@media (max-width: 560px) { .trow { grid-template-columns: 62px minmax(0, 1fr) auto; } .trow .txt { grid-column: 1 / -1; padding-left: 8px; } }
+.now { font: 12px var(--mono); color: var(--success); margin-top: 6px; }
+
+/* Cards */
+.cards { display: grid; gap: 8px; }
+.card { border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; background: var(--bg-recessed); min-width: 0; overflow-wrap: break-word; }
+.card.needs { border-color: var(--border-accent); background: var(--accent-soft); }
+.card-top { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font: 11px var(--mono); color: var(--text-dim); margin-bottom: 2px; }
+.card-top .kind { text-transform: uppercase; letter-spacing: .08em; }
+.card-title { font-weight: 600; }
+.kv { font-size: 13px; margin-top: 3px; } .kv i { font-style: normal; font: 11px var(--mono); color: var(--text-dim); margin-right: 4px; }
+.tag { font: 10.5px var(--mono); padding: 0 6px; border-radius: 8px; border: 1px solid var(--border); }
+.tag.us { color: var(--text-accent); border-color: var(--border-accent); } .tag.other { color: var(--warning); }
+.st { font: 10.5px var(--mono); padding: 0 6px; border-radius: 8px; }
+.st.explained { background: var(--warn-bg); color: var(--warn-fg); } .st.approved { background: var(--info-bg); color: var(--info-fg); }
+.st.fixed { background: var(--pass-bg); color: var(--pass-fg); } .st.dropped { color: var(--text-dim); text-decoration: line-through; }
+.conf { font: 11px var(--mono); border: 1px solid var(--border); border-radius: 8px; padding: 0 6px; cursor: help; background: var(--bg-card); }
+.conf.verified { color: var(--success); } .conf.inferred { color: var(--warning); } .conf.unchecked { color: var(--error); }
+.method { display: none; font: 11.5px var(--mono); color: var(--text-dim); margin-top: 4px; padding: 4px 8px; border-left: 2px solid var(--border-accent); overflow-wrap: anywhere; }
+.method.show { display: block; }
+.quote { font: 12px var(--mono); color: var(--text-accent); margin-top: 4px; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+.btn { font: 12px var(--mono); padding: 5px 11px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border); background: var(--bg-card); }
+.btn--primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.chip { font: 12px var(--mono); padding: 4px 11px; border-radius: 14px; border: 1px solid var(--border); background: var(--bg-card); cursor: pointer; }
+.chip.rec { border-color: var(--accent); color: var(--text-accent); }
+.ans { font: 12.5px var(--mono); color: var(--success); }
+.waiting-more { font: 12px var(--mono); color: var(--warning); }
+input.txt-in { width: 100%; font: 12.5px var(--mono); padding: 7px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); margin-top: 6px; }
+input.txt-in:focus { outline: none; border-color: var(--accent); }
+.ex { margin-top: 6px; }
+.ex-title { font: 11.5px var(--mono); color: var(--text-dim); margin-bottom: 4px; }
+.ex-wrap { overflow-x: auto; }
+.ex table { border-collapse: collapse; font: 12px var(--mono); width: 100%; }
+.ex th, .ex td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; vertical-align: top; }
+.ex th { color: var(--text-dim); font-weight: 400; background: var(--bg-card); }
+.ex td:first-child { color: var(--text-dim); }
+.ex .cap { font-size: 13px; margin-top: 4px; } .ex .run { font: 11.5px var(--mono); color: var(--text-dim); }
+.plain-line { font-size: 13px; padding: 3px 0; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.id { font: 10.5px var(--mono); color: var(--text-dim); }
+.mmd { padding: 8px; min-height: 120px; display: flex; justify-content: center; overflow-x: auto; }
+.mmd .nodeLabel { color: var(--text) !important; }
+.mmd .edgeLabel, .mmd .edgeLabel p { color: var(--text-dim) !important; background-color: var(--bg-recessed) !important; }
+.mmd .edgeLabel rect { fill: var(--bg-recessed) !important; }
+pre.inbox { margin: 6px 0 0; padding: 10px 12px; border-radius: 8px; background: var(--bg-card); border: 1px solid var(--border); font: 12px/1.6 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.dim { color: var(--text-dim); } .flashme { animation: flash 1.6s ease-out; }
+
+/* Rail */
+.rail { position: sticky; top: 64px; display: grid; gap: 12px; max-height: calc(100dvh - 80px); overflow-y: auto; min-width: 0; }
+@media (max-width: 980px) { .rail { position: static; max-height: none; } }
+.panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; min-width: 0; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--border);
+  font: 11px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); }
+.panel-head .count { color: var(--text-accent); text-transform: none; letter-spacing: 0; }
+.panel-body { padding: 10px 12px; }
+.qnav { display: flex; gap: 4px; } .qnav button { padding: 1px 8px; }
+.grp { font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); margin: 8px 0 4px; }
+.grp:first-child { margin-top: 0; }
+.closed { font: 12px var(--mono); color: var(--text-dim); padding: 2px 0; overflow-wrap: anywhere; }
+.progress { height: 4px; background: var(--bg-recessed); } .progress > i { display: block; height: 100%; background: var(--success); transition: width .3s; }
+.plan { list-style: none; margin: 0; padding: 0; }
+.plan li { position: relative; padding: 6px 0 6px 30px; border-bottom: 1px dashed var(--border); font-size: 13px; }
+.plan li:last-child { border-bottom: none; }
+.sbox { position: absolute; left: 0; top: 6px; width: 20px; height: 20px; border-radius: 5px; border: 1.5px solid var(--text-dim); background: transparent;
+  cursor: pointer; padding: 0; font: 800 12px var(--sans); line-height: 17px; text-align: center; }
+.plan li.done { color: var(--text-dim); } .plan li.done .t { text-decoration: line-through; }
+.plan li.done .sbox { background: var(--success); border-color: var(--success); color: var(--bg); }
+.plan li.active .sbox { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.plan li.active .t { color: var(--text-accent); } .plan li.dropped { opacity: .5; }
+.gloss dt { font: 12px var(--mono); color: var(--text-accent); } .gloss dd { margin: 0 0 6px; font-size: 13px; }
+.dec { border-left: 2px solid var(--accent); padding: 2px 0 2px 10px; margin-bottom: 8px; font-size: 13px; }
+.dec .why { color: var(--text-dim); display: block; }
+
+/* Home */
+.home-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
+.hcard { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.hcard.off { opacity: .6; border-style: dashed; }
+.hcard h3 { margin: 0; font: 600 14px var(--mono); overflow-wrap: anywhere; } .hcard h3 .repo { color: var(--text-dim); font-weight: 400; }
+.hrow { font-size: 13px; overflow-wrap: anywhere; } .hrow i { font: 10.5px var(--mono); font-style: normal; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); display: block; }
+.home-intro { font-size: 13px; color: var(--text-dim); margin: 0 0 14px; }
+
+/* Tool log */
+.filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font: 12px var(--mono); margin-bottom: 10px; }
+.filters select { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 3px 6px; }
+.logtable .trow { grid-template-columns: 70px 34px 100px minmax(0, 1fr) auto; border-bottom: 1px solid var(--border); border-radius: 0; }
+@media (max-width: 560px) { .logtable .trow { grid-template-columns: 62px 30px minmax(0, 1fr) auto; } }
+</style>
+</head>
+<body>
+<div class="mock-banner">MOCK · Turn Timeline · sample data, no server <button type="button" id="sim-prompt" title="Mock only: stands in for you pressing enter in the terminal">simulate your next prompt</button></div>
+
+<header class="topbar">
+  <div class="brand">ernie<span>.</span></div>
+  <div class="picker" id="picker"></div>
+  <div class="status">
+    <span id="server-line"></span>
+    <button class="icon-btn" id="theme-toggle" type="button">◐ theme</button>
+  </div>
+</header>
+<nav class="tabbar" id="tabbar" aria-label="Worktree tabs"></nav>
+<main class="shell" id="shell"></main>
+
+<script>
+// Shared sample data for the ernie view variations (ref_ernie_views/*.html).
+// Every mock inlines a copy of ERNIE_SAMPLE so all ten show the same data and differ only in layout.
+// Shapes follow spec_ernie.md (event types, fold output) plus A114 `tool run` activity rows.
+// Fields marked "view-only" are not in the spec yet; mocks that use them should say so.
+
+const ERNIE_SAMPLE = {
+  server: { port: 7477, version: 'v0.1.0-12-g3c9e1a7', connected: true },
+
+  // One entry per log file (~/.local/state/ernie/<repo>/<branch>.jsonl). Worktrees of one repo share the repo slug.
+  logs: [
+    {
+      key: 'glue/CDIT-2631-ga4-dedupe', repo: 'glue', branch: 'CDIT-2631-ga4-dedupe', on: true,
+      worktree: '~/things/myc/glue/CDIT-2631-ga4-dedupe', // view-only: spec stores the repo root, not the worktree path
+      session: { id: '4995d496', state: 'working', lastEventAgo: '3s' }, // view-only: derived from hook timestamps
+    },
+    {
+      key: 'glue/CDIT-2627-gsc-backfill', repo: 'glue', branch: 'CDIT-2627-gsc-backfill', on: true,
+      worktree: '~/things/myc/glue/CDIT-2627-gsc-backfill',
+      session: { id: '3fb7e802', state: 'waiting on you', lastEventAgo: '6m' },
+    },
+    {
+      key: 'glue/main', repo: 'glue', branch: 'main', on: true,
+      worktree: '~/things/myc/glue/main',
+      session: { id: null, state: 'idle', lastEventAgo: '1d' },
+    },
+    {
+      key: 'ernie/main', repo: 'ernie', branch: 'main', on: true,
+      worktree: '~/things/myc/ernie/main',
+      session: { id: '715abde2', state: 'idle', lastEventAgo: '2h' },
+    },
+    {
+      key: 'dotfiles/main', repo: 'dotfiles', branch: 'main', on: false, // has a main.off marker
+      worktree: '~/.dotfiles',
+      session: { id: null, state: 'off', lastEventAgo: '5d' },
+    },
+  ],
+
+  // Folded state per log key, as `GET /stream` would push it.
+  states: {
+    'glue/CDIT-2631-ga4-dedupe': {
+      turn: 14,
+      plan: [
+        { id: 'p1', text: 'Reproduce double count on one Dealer Spike host', status: 'done' },
+        { id: 'p2', text: 'Find the dedupe gap', status: 'done' },
+        { id: 'p3', text: 'Normalize page_location before hashing', status: 'active' },
+        { id: 'p4', text: 'Backfill 90 days', status: 'todo' },
+        { id: 'p5', text: 'Verify session counts on stage', status: 'todo' },
+        { id: 'p6', text: 'Open PR', status: 'todo' },
+      ],
+      decisions: [
+        { id: 'd1', text: 'dedupe_key = sha1(session_id, normalized page_location, event_ts)', why: 'event_ts alone collides across tabs; session_id alone merges real repeat views' },
+        { id: 'd2', text: 'Platform-side bugs go to the platform team, not fixed in glue', why: 'we only own the loader and views' },
+      ],
+      questions: [
+        {
+          id: 'q1', kind: 'assume', text: 'publicDigmsDB.clients = Glue\'s client list', choices: ['yes', 'no'],
+          context: 'The 212-site count below comes from joining ga4_hits to publicDigmsDB.clients.',
+          impact: 'If clients is missing sites, the double-count rate is understated.',
+        },
+        {
+          id: 'q2', text: 'Normalize page_location in the SQL view or in the loader?', choices: ['view', 'loader'], recommended: 'view',
+          context: 'Both fix new rows. Only the view also fixes old rows without a backfill.',
+          impact: 'Loader means a 90-day backfill (~40 min on stage) before counts are right.',
+          example: 'e2',
+        },
+        { id: 'q3', text: 'Backfill window?', choices: ['30 days', '90 days'], answer: '90 days' },
+        {
+          id: 'q4', text: 'Should the dedupe also cover Dealer Inspire hosts?', choices: ['yes', 'no'],
+          more: true, followUp: 'need more context', // answered "need more context" → stays open (A88)
+        },
+      ],
+      issues: [
+        {
+          id: 'i1', title: 'Dedupe key ignores the trailing "i" on listing ids', status: 'explained', owner: 'us',
+          cause: 'page_location for the same listing arrives as …-14615315i and …-14615315, so one session hashes to two keys.',
+          fix: 'Strip a trailing "i" from the listing id segment before hashing.',
+          impact: '~3.1% of sessions double-counted on 212 Dealer Spike sites.',
+          confidence: 'verified', method: 'SELECT page_location, dedupe_key FROM ga4_hits WHERE host = \'ds-4471.dealerspike.com\' LIMIT 5',
+          example: 'e1',
+        },
+        {
+          id: 'i2', title: 'Backfill job skips days with late-arriving hits', status: 'approved', owner: 'us',
+          cause: 'The job filters on load_date, but late hits land under the next day\'s partition.',
+          fix: 'Filter on event_date with a 2-day lookback.',
+          impact: 'Up to 0.8% of hits missing from any backfilled day.',
+          confidence: 'inferred', method: 'read backfill.py:88; not run',
+          quote: 'approved, fix it',
+        },
+        {
+          id: 'i3', title: 'SPA route changes send page_view twice', status: 'explained', owner: 'other',
+          cause: 'The platform GTM container fires page_view on history change and on load.',
+          fix: 'Platform team removes the history-change trigger.',
+          impact: 'Inflates page_views ~1.4%; sessions are unaffected after i1.',
+          confidence: 'unchecked', method: 'needs GTM access (SSO wall)',
+        },
+        {
+          id: 'i4', title: 'Stage run reports success with 0 rows', status: 'fixed', owner: 'us',
+          cause: 'Empty result set was treated as success.', fix: 'Fail the run when rows_written = 0.',
+          impact: 'Silent empty loads on stage.', confidence: 'verified', method: 'go test ./loader/... and a stage run',
+        },
+        {
+          id: 'i5', title: 'GTM container v41 missing consent tag', status: 'dropped', owner: 'other',
+          cause: 'Consent tag removed in v41.', fix: 'Platform re-adds it.', impact: 'Not related to this ticket.',
+          confidence: 'inferred', method: 'GTM changelog',
+        },
+      ],
+      examples: [
+        {
+          name: 'e1', title: 'Same listing, two page_location values',
+          columns: ['ga4_hits field', 'Row A', 'Row B'],
+          rows: [
+            ['site_platform', 'Dealer Spike', 'Dealer Spike'],
+            ['session_id', '1728…441', '1728…441'],
+            ['page_location', '…/2019-ford-f150-14615315i', '…/2019-ford-f150-14615315'],
+            ['dedupe_key', 'a91f…', 'c03e…'],
+          ],
+          caption: 'Same session, same listing, two keys → counted twice.',
+          run: 'sql/probe_dedupe.sql',
+        },
+        {
+          name: 'e2', title: 'Where to normalize: options run on e1',
+          columns: ['option', 'Row A key', 'Row B key', 'result'],
+          rows: [
+            ['view', 'a91f…', 'a91f…', '✓ one row, old data fixed too'],
+            ['loader', 'a91f…', 'a91f…', '✓ one row, needs backfill'],
+            ['none (today)', 'a91f…', 'c03e…', '✗ counted twice'],
+          ],
+          caption: 'Both options fix e1; only the view fixes rows already loaded.',
+        },
+      ],
+      facts: [
+        { id: 'f1', text: 'ga4_hits holds 41.2M rows for September', confidence: 'verified', method: 'SELECT count(*) FROM ga4_hits WHERE event_date BETWEEN …' },
+        { id: 'f2', text: 'Duplicates appear only on Dealer Spike hosts', confidence: 'inferred', method: 'grouped by site_platform on a 1-day sample' },
+        { id: 'f3', text: 'Consent mode drops ~2% of hits', confidence: 'unchecked' },
+        { id: 'f4', kind: 'term', term: 'DS', text: 'Dealer Spike, the site platform behind 212 client sites' },
+        { id: 'f5', kind: 'term', term: 'H1', text: 'hypothesis that trailing-"i" listing ids split one session into two keys (now i1)' },
+      ],
+      notes: [
+        { id: 'n1', text: 'platform contact is #glue-platform, ask for GTM read access', ref: 'i3' },
+      ],
+      diagrams: [
+        {
+          name: 'flow', mermaid: `flowchart LR
+  GTM["GTM / gtag"] -->|hits| L["loader"]
+  L -->|"dedupe_key"| H[("ga4_hits")]
+  H --> V["sessions view"]
+  V --> D["dashboard"]
+  L -. "i1: key split here" .-> H`,
+        },
+        {
+          name: 'late-hits', mermaid: `sequenceDiagram
+  participant GTM
+  participant Loader
+  participant Backfill
+  GTM->>Loader: hit (event_date 10-07, arrives 10-08 02:10)
+  Loader->>Loader: partition load_date = 10-08
+  Backfill->>Loader: reload load_date = 10-07
+  Note over Backfill: late hit missed (i2)`,
+        },
+      ],
+      // Newest first. by: claude (CLI writes), hook (file touch, tool run, turn mark), user (page or your terminal).
+      // `tool run` text is the tool's one-line summary; Bash shows its description, never the command (A114).
+      activity: [
+        { ts: '14:21:08', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Run dedupe probe on stage' },
+        { ts: '14:21:02', by: 'hook', t: 'file', op: 'touch', tool: 'Edit', text: 'sql/views/sessions.sql' },
+        { ts: '14:20:51', by: 'hook', t: 'tool', op: 'run', tool: 'Read', text: 'sql/views/sessions.sql' },
+        { ts: '14:20:44', by: 'hook', t: 'tool', op: 'run', tool: 'Grep', text: 'dedupe_key' },
+        { ts: '14:20:30', by: 'claude', t: 'plan', op: 'set', text: 'p3 → active' },
+        { ts: '14:20:12', by: 'hook', t: 'turn', op: 'mark', text: 'turn 14 · delivered 1 event' },
+        { ts: '14:19:58', by: 'user', t: 'question', op: 'answer', text: 'q3 → 90 days' },
+        { ts: '14:12:40', by: 'claude', t: 'question', op: 'add', text: 'q2 Normalize in the view or the loader?' },
+        { ts: '14:12:31', by: 'claude', t: 'example', op: 'put', text: 'e2 Where to normalize: options run on e1' },
+        { ts: '14:12:05', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Compare keys for both options on e1 rows' },
+        { ts: '14:11:20', by: 'hook', t: 'tool', op: 'run', tool: 'Agent', text: 'Find every reader of dedupe_key', agent: null },
+        { ts: '14:11:18', by: 'hook', t: 'tool', op: 'run', tool: 'Grep', text: 'dedupe_key', agent: 'Explore' },
+        { ts: '14:11:16', by: 'hook', t: 'tool', op: 'run', tool: 'Glob', text: '**/*.sql', agent: 'Explore' },
+        { ts: '14:11:14', by: 'hook', t: 'tool', op: 'run', tool: 'Read', text: 'loader/hash.py', agent: 'Explore' },
+        { ts: '14:10:02', by: 'claude', t: 'issue', op: 'add', text: 'i3 [other] SPA route changes send page_view twice' },
+        { ts: '14:09:47', by: 'claude', t: 'issue', op: 'add', text: 'i1 [us] Dedupe key ignores the trailing "i"' },
+        { ts: '14:09:30', by: 'claude', t: 'example', op: 'put', text: 'e1 Same listing, two page_location values' },
+        { ts: '14:09:02', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Pull 5 hits for one Dealer Spike host' },
+        { ts: '14:08:40', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Count rows per dedupe_key for Sept' },
+        { ts: '14:07:15', by: 'hook', t: 'tool', op: 'run', tool: 'WebFetch', text: 'https://support.google.com/analytics/answer/9234069' },
+        { ts: '14:06:58', by: 'user', t: 'issue', op: 'set', text: 'i2 → approved' },
+        { ts: '14:06:02', by: 'hook', t: 'tool', op: 'run', tool: 'mcp__claude_ai_Google_Drive__search_files', text: '' },
+        { ts: '14:05:30', by: 'claude', t: 'fact', op: 'add', text: 'f1 ✓ ga4_hits holds 41.2M rows for September' },
+        { ts: '14:05:12', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: '' }, // a Bash call without a description
+        { ts: '14:04:50', by: 'hook', t: 'tool', op: 'run', tool: 'Skill', text: 'mem' },
+      ],
+      // Your page/terminal events since the last turn mark (what the next prompt delivers).
+      pending: [
+        { t: 'note', op: 'add', text: 'check Dealer Inspire after this', label: 'note: check Dealer Inspire after this' },
+      ],
+      inboxText: 'ernie inbox · turn 15\n- note: check Dealer Inspire after this',
+      warnings: 0,
+    },
+
+    'glue/CDIT-2627-gsc-backfill': {
+      turn: 9,
+      plan: [
+        { id: 'p1', text: 'Probe GSC lambda on stage (G0)', status: 'done' },
+        { id: 'p2', text: 'Pick backfill strategy', status: 'active' },
+        { id: 'p3', text: 'Backfill 16 months', status: 'todo' },
+        { id: 'p4', text: 'Add row-count alarm', status: 'todo' },
+      ],
+      decisions: [
+        { id: 'd1', text: 'Backfill one property at a time', why: 'GSC quota is per property; parallel runs hit 429s' },
+      ],
+      questions: [
+        {
+          id: 'q1', text: 'Backfill by day or by month?', choices: ['by day', 'by month'], recommended: 'by day',
+          context: 'GSC caps 50k rows per request; busy properties exceed it in a month.',
+          impact: 'By month silently truncates the 6 busiest properties.',
+          example: 'e1',
+        },
+        { id: 'q2', text: 'OK to run the backfill on prod tonight?', choices: ['yes', 'no, stage first'] },
+      ],
+      issues: [
+        {
+          id: 'i1', title: 'Retry drops 429s after 3 attempts', status: 'explained', owner: 'us',
+          cause: 'Retry gives up after 3 attempts with no backoff jitter.', fix: 'Exponential backoff with jitter, 8 attempts.',
+          impact: '~4% of days missing for busy properties.', confidence: 'verified', method: 'CloudWatch: 312 "429 giving up" lines on 10-06',
+        },
+      ],
+      examples: [
+        {
+          name: 'e1', title: 'One busy property, by day vs by month',
+          columns: ['request', 'rows returned', 'rows that exist'],
+          rows: [['2026-09 (by month)', '50,000', '61,204'], ['2026-09-14 (by day)', '2,031', '2,031']],
+          caption: 'By month hits the 50k cap and drops 11,204 rows.',
+        },
+      ],
+      facts: [
+        { id: 'f1', kind: 'term', term: 'G0', text: 'throwaway probe script against the stage GSC lambda' },
+        { id: 'f2', text: 'GSC keeps 16 months of data', confidence: 'verified', method: 'GSC API docs' },
+      ],
+      notes: [],
+      diagrams: [],
+      activity: [
+        { ts: '14:15:40', by: 'claude', t: 'question', op: 'add', text: 'q2 OK to run the backfill on prod tonight?' },
+        { ts: '14:15:22', by: 'claude', t: 'question', op: 'add', text: 'q1 Backfill by day or by month?' },
+        { ts: '14:15:01', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Invoke G0 for one property, by month' },
+        { ts: '14:14:30', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Tail GSC lambda logs for 429s' },
+        { ts: '14:13:55', by: 'hook', t: 'file', op: 'touch', tool: 'Write', text: 'scripts/g0_probe.py' },
+        { ts: '14:13:10', by: 'hook', t: 'turn', op: 'mark', text: 'turn 9' },
+      ],
+      pending: [],
+      inboxText: '',
+      warnings: 0,
+    },
+
+    'glue/main': {
+      turn: 3,
+      plan: [], decisions: [], questions: [], issues: [], examples: [], facts: [], notes: [], diagrams: [],
+      activity: [
+        { ts: 'yesterday 17:02', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Pull latest main' },
+      ],
+      pending: [], inboxText: '', warnings: 0,
+    },
+
+    'ernie/main': {
+      turn: 31,
+      plan: [
+        { id: 'p1', text: 'Spec + build plan', status: 'done' },
+        { id: 'p2', text: 'Scratch flow test', status: 'done' },
+        { id: 'p3', text: 'UI view variations', status: 'active' },
+        { id: 'p4', text: 'Phase 1: core (append, fold, dump)', status: 'todo' },
+      ],
+      decisions: [
+        { id: 'd1', text: 'Tool activity shows Bash descriptions only', why: 'no command text → no redactor in v1 (A114)' },
+      ],
+      questions: [],
+      issues: [],
+      examples: [],
+      facts: [
+        { id: 'f1', text: 'Hooks must exit 0 on any error', confidence: 'verified', method: 'flow test F4' },
+      ],
+      notes: [],
+      diagrams: [],
+      activity: [
+        { ts: '12:40:10', by: 'hook', t: 'file', op: 'touch', tool: 'Edit', text: '.mem/artifacts/spec_ernie.md' },
+        { ts: '12:39:55', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Fold A114 into the spec and memory pointer' },
+      ],
+      pending: [], inboxText: '', warnings: 0,
+    },
+  },
+};
+</script>
+<script>
+const S = ERNIE_SAMPLE;
+// View-only state (not in the spec): open tabs, sub-view, expanded rows, rail focus, drafts
+const view = {
+  tabs: ['glue/CDIT-2631-ga4-dedupe', 'glue/CDIT-2627-gsc-backfill'], active: 'home', sub: {}, expanded: new Set(), exOpen: new Set(),
+  qIndex: {}, methodOpen: new Set(), pickerOpen: false, filters: { tool: 'all', hideSub: false, filesOnly: false }, drafts: {}, bumped: new Set(),
+};
+const svgCache = new Map();
+const LIVE_ROWS = [
+  { tool: 'Bash', text: 'Re-run dedupe probe after the view change' },
+  { tool: 'Read', text: 'sql/views/sessions.sql' },
+  { tool: 'Agent', text: 'Check stage session counts per host' },
+  { tool: 'Bash', text: 'Count sessions per host on stage', agent: 'Explore' },
+  { tool: 'Grep', text: 'page_location', agent: 'Explore' },
+  { tool: 'Edit', text: 'sql/views/sessions.sql', t: 'file', op: 'touch' },
+  { tool: 'WebSearch', text: 'GA4 page_location normalize listing ids' },
+  { tool: 'Bash', text: '' },
+];
+let liveStep = 0;
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const clock = () => new Date().toTimeString().slice(0, 8);
+const logOf = key => S.logs.find(l => l.key === key);
+const stOf = key => S.states[key];
+const stateClass = s => ({ 'working': 'working', 'waiting on you': 'waiting', 'idle': 'idle', 'off': 'off' }[s]);
+const CONF = { verified: '✓', inferred: '~', unchecked: '✗' };
+const NEXT_STATUS = { todo: 'active', active: 'done', done: 'todo', dropped: 'todo' };
+const GLYPH = { todo: '', active: '▶', done: '✓', dropped: '–' };
+const isToolRow = r => (r.t === 'tool' && r.op === 'run') || (r.t === 'file' && r.op === 'touch');
+const shortTool = name => name.startsWith('mcp__') ? name.split('__').slice(1).join(' · ').replace('claude_ai_', '') : name;
+const refId = r => (r.text.match(/^([pqifden]\d+)\b/) || [])[1];
+
+// ---------- turn grouping: activity is newest first; turn marks split it ----------
+function turnGroups(key) {
+  const st = stOf(key);
+  const rows = [...st.activity].reverse();
+  const firstMark = rows.find(r => r.t === 'turn');
+  const markNum = r => Number((r.text.match(/turn (\d+)/) || [])[1]);
+  let current = { n: firstMark ? markNum(firstMark) - 1 : st.turn, mark: null, rows: [], synthetic: true };
+  const groups = [];
+  rows.forEach(r => {
+    if (r.t !== 'turn') return current.rows.push(r);
+    if (current.rows.length) groups.push(current);
+    current = { n: markNum(r), mark: r, rows: [] };
+  });
+  groups.push(current);
+  // Reason: your page/terminal events since a mark are delivered by the NEXT mark, so they belong to that turn's "you sent"
+  groups.forEach((g, i) => {
+    g.sent = g.mark?.delivered ? g.mark.delivered : (i > 0 ? groups[i - 1].rows.filter(r => r.by === 'user').map(r => r.text) : null);
+  });
+  return groups.reverse();
+}
+
+function toolSummary(rows) {
+  const tools = rows.filter(isToolRow);
+  const counts = new Map();
+  tools.filter(r => !r.agent).forEach(r => counts.set(r.tool, (counts.get(r.tool) || 0) + 1));
+  const subCalls = tools.filter(r => r.agent).length;
+  const parts = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([tool, n]) =>
+    `<span><span class="n">${n}</span> ${esc(shortTool(tool))}${tool === 'Agent' && subCalls ? ` <span class="dim">(${subCalls} subagent calls)</span>` : ''}</span>`);
+  return { html: parts.join('<span class="dim">·</span>'), count: tools.length };
+}
+
+function toolRow(r, opts = {}) {
+  const sub = r.agent ? `<span class="sub">↳ ${esc(r.agent)}</span>` : '';
+  const text = r.t === 'file' ? `✎ ${esc(r.text)}` : esc(r.text);
+  const turnCol = opts.turn != null ? `<span class="turnno">T${opts.turn}</span>` : '';
+  return `<li class="trow ${r.agent ? 'subagent' : ''} ${r.fresh ? 'fresh' : ''}"><span>${esc(r.ts)}</span>${turnCol}<span class="tool" title="${esc(r.tool)}">${esc(shortTool(r.tool))}</span><span class="txt">${text}</span>${sub}</li>`;
+}
+
+// ---------- shared cards ----------
+function confBadge(item, key) {
+  if (!item.confidence) return '';
+  const mid = `m-${key}-${item.id}`;
+  return `<button type="button" class="conf ${item.confidence}" title="${esc(item.method || 'no method given')}" data-method="${mid}">${CONF[item.confidence]} ${item.confidence}</button>`;
+}
+const methodLine = (item, key) => item.confidence ? `<div class="method ${view.methodOpen.has(`m-${key}-${item.id}`) ? 'show' : ''}">how: ${esc(item.method || 'no method given')}</div>` : '';
+
+function exampleBlock(st, name) {
+  const e = st.examples.find(x => x.name === name);
+  if (!e) return '';
+  return `<div class="ex"><div class="ex-title">${esc(e.name)} · ${esc(e.title)}</div><div class="ex-wrap"><table>
+    <tr>${e.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr>
+    ${e.rows.map(row => `<tr>${row.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</table></div>
+    ${e.caption ? `<div class="cap">${esc(e.caption)}</div>` : ''}${e.run ? `<div class="run">see for yourself: <code>${esc(e.run)}</code></div>` : ''}</div>`;
+}
+function exampleToggle(key, st, owner, name) {
+  if (!name) return '';
+  const k = `${key}:${owner}:${name}`;
+  const open = view.exOpen.has(k);
+  return `<div><button type="button" class="link-btn" data-ex="${esc(k)}">${open ? 'hide' : 'show'} example ${esc(name)}</button>${open ? exampleBlock(st, name) : ''}</div>`;
+}
+
+function questionCard(key, q, where) {
+  const st = stOf(key);
+  const pos = `Q${st.questions.indexOf(q) + 1}/${st.questions.length}`;
+  const top = `<div class="card-top"><span class="kind">question</span><span>${pos} · ${q.id}</span></div>`;
+  if (q.status === 'dropped') return `<div class="card">${top}<div class="dim">${esc(q.text)} (dropped)</div></div>`;
+  if (q.answer && !q.more) return `<div class="card">${top}<div class="card-title">${esc(q.text)}</div><div class="ans">→ ${esc(q.answer)}</div></div>`;
+  const title = q.kind === 'assume' ? `I assumed: ${esc(q.text)}. True?` : esc(q.text);
+  const choices = q.kind === 'assume' ? ['yes', 'no'] : (q.choices || []);
+  const chips = choices.map(c => `<button type="button" class="chip ${c === q.recommended ? 'rec' : ''}" data-answer="${q.id}" data-key="${esc(key)}" data-value="${esc(c)}">${esc(c)}${c === q.recommended ? ' ★ recommended' : ''}</button>`).join('');
+  return `<div class="card needs" id="${where}-${q.id}">${top}<div class="card-title">${title}</div>
+    ${q.context ? `<div class="kv"><i>context</i>${esc(q.context)}</div>` : ''}${q.impact ? `<div class="kv"><i>impact</i>${esc(q.impact)}</div>` : ''}
+    ${exampleToggle(key, st, `${where}-${q.id}`, q.example)}
+    ${q.more ? `<div class="waiting-more">you asked for more context · Claude answers on your next prompt</div>` : ''}
+    <div class="actions">${chips}${q.more ? '' : `<button type="button" class="link-btn" data-more="${q.id}" data-key="${esc(key)}">need more context</button>`}</div>
+    ${q.kind === 'assume' ? '' : `<input class="txt-in" data-keep="${where}-ans-${esc(key)}-${q.id}" data-answer-input="${q.id}" data-key="${esc(key)}" placeholder="or type an answer + enter">`}</div>`;
+}
+
+function issueCard(key, i, where) {
+  const st = stOf(key);
+  const pos = `I${st.issues.indexOf(i) + 1}/${st.issues.length}`;
+  let actions = '';
+  if (i.status === 'explained') actions = `<button type="button" class="btn btn--primary" data-issue="${i.id}" data-key="${esc(key)}" data-to="approved">Approve</button><button type="button" class="btn" data-issue="${i.id}" data-key="${esc(key)}" data-to="dropped">Drop</button><span class="dim mono">Claude can't fix until you approve</span>`;
+  if (i.status === 'approved') actions = `${i.quote ? `<span class="quote">approved in chat: '${esc(i.quote)}'</span>` : '<span class="quote">approved on the page</span>'}<button type="button" class="link-btn" data-issue="${i.id}" data-key="${esc(key)}" data-to="explained">undo</button>`;
+  return `<div class="card ${i.status === 'explained' ? 'needs' : ''}" id="${where}-${i.id}">
+    <div class="card-top"><span class="kind">issue</span><span>${pos} · ${i.id}</span><span class="tag ${i.owner}">${i.owner === 'us' ? 'ours' : 'theirs'}</span><span class="st ${i.status}">${i.status}</span>${confBadge(i, key)}</div>
+    <div class="card-title">${esc(i.title)}</div>
+    <div class="kv"><i>cause</i>${esc(i.cause)}</div><div class="kv"><i>fix</i>${esc(i.fix)}</div><div class="kv"><i>impact</i>${esc(i.impact)}</div>
+    ${methodLine(i, key)}${exampleToggle(key, st, `${where}-${i.id}`, i.example)}${actions ? `<div class="actions">${actions}</div>` : ''}</div>`;
+}
+
+function factCard(key, id) {
+  const f = stOf(key).facts.find(x => x.id === id);
+  if (!f) return `<div class="plain-line dim"><span class="id">${id}</span> dismissed</div>`;
+  if (f.kind === 'term') return `<div class="card"><div class="card-top"><span class="kind">term</span><span>${f.id}</span></div><b class="mono">${esc(f.term)}</b> — ${esc(f.text)}</div>`;
+  return `<div class="card"><div class="card-top"><span class="kind">fact</span><span>${f.id}</span>${confBadge(f, key)}
+    <button type="button" class="link-btn" data-dismiss="${f.id}" data-key="${esc(key)}" style="margin-left:auto">dismiss</button></div>${esc(f.text)}${methodLine(f, key)}</div>`;
+}
+
+function diagramBlock(key, d) {
+  const cacheKey = `${currentTheme()}|${d.mermaid}`;
+  const cached = svgCache.get(cacheKey);
+  return `<div class="card"><div class="card-top"><span class="kind">diagram</span><span>${esc(d.name)}</span></div>
+    <div class="mmd" data-src="${esc(d.mermaid)}" data-cache="${esc(cacheKey)}">${cached || '<span class="dim mono">rendering…</span>'}</div></div>`;
+}
+
+// A logged row → the card for the item it touched, rendered from current state
+function loggedCard(key, r) {
+  const st = stOf(key), id = refId(r);
+  if (r.t === 'plan') {
+    const p = st.plan.find(x => x.id === id);
+    return `<div class="plain-line"><span class="id">plan</span>${esc(r.text)}${p ? ` <span class="dim">· ${esc(p.text)} (now ${p.status})</span>` : ''}</div>`;
+  }
+  if (r.t === 'question') { const q = st.questions.find(x => x.id === id); return q ? questionCard(key, q, 'tl') : ''; }
+  if (r.t === 'issue') { const i = st.issues.find(x => x.id === id); return i ? issueCard(key, i, 'tl') : ''; }
+  if (r.t === 'example') return `<div class="card"><div class="card-top"><span class="kind">example</span></div>${exampleBlock(st, id)}</div>`;
+  if (r.t === 'fact') return factCard(key, id);
+  if (r.t === 'decision') { const d = st.decisions.find(x => x.id === id); return d ? `<div class="dec"><span class="id">${d.id}</span> <b>${esc(d.text)}</b><span class="why">${esc(d.why)}</span></div>` : ''; }
+  if (r.t === 'diagram') { const d = st.diagrams.find(x => r.text.startsWith(x.name)); return d ? diagramBlock(key, d) : ''; }
+  return `<div class="plain-line"><span class="id">${esc(r.t)}</span>${esc(r.text)}</div>`;
+}
+
+// ---------- timeline ----------
+function nextPromptBlock(key) {
+  const st = stOf(key);
+  const items = st.pending.length
+    ? `<div class="sent">${st.pending.map(p => `<span class="pill you">${esc(p.label)}</span>`).join('')}</div>`
+    : '<div class="dim">Nothing queued. Claude is up to date.</div>';
+  return `<section class="turn next"><div class="node">${st.turn + 1}</div>
+    <div class="turn-head"><h2>Next prompt</h2><span class="meta">turn ${st.turn + 1} · goes to Claude when you next press enter in the terminal</span></div>
+    <div class="turn-body"><div class="lane l-you"><div class="lane-label"><b>queued</b> ${st.pending.length} event${st.pending.length === 1 ? '' : 's'}</div>${items}
+      ${st.inboxText ? `<pre class="inbox">${esc(st.inboxText)}</pre>` : ''}
+      <input class="txt-in" id="note-input" data-keep="note-${esc(key)}" data-note="${esc(key)}" placeholder="Note to Claude… (enter to queue)"></div></div></section>`;
+}
+
+function turnBlock(key, g, isLatest) {
+  const log = logOf(key);
+  const live = isLatest && log.session.state === 'working';
+  const expKey = `${key}:${g.n}`;
+  const tools = g.rows.filter(isToolRow);
+  const logged = g.rows.filter(r => r.by === 'claude');
+  const sum = toolSummary(g.rows);
+  const expanded = view.expanded.has(expKey);
+  const shown = expanded ? tools : (live ? tools.slice(-3) : []);
+  const started = g.mark ? g.mark.ts : (g.rows[0]?.ts || '');
+  const sent = g.sent === null
+    ? '<div class="dim">your prompt (before the sample window)</div>'
+    : g.sent.length ? `<div class="sent">${g.sent.map(t => `<span class="pill you">${esc(t)}</span>`).join('')}</div>` : '<div class="dim">your prompt only, no page events</div>';
+  return `<section class="turn ${live ? 'live' : ''}"><div class="node">${g.n}</div>
+    <div class="turn-head"><h2>Turn ${g.n}</h2><span class="meta">${live ? '<span class="state working">● live</span> · ' : ''}started ${esc(started)}${g.synthetic ? ' · grouped from rows before the next mark' : ''}</span></div>
+    <div class="turn-body">
+      <div class="lane l-you"><div class="lane-label"><b>you sent</b></div>${sent}</div>
+      <div class="lane l-did"><div class="lane-label"><b>claude did</b> ${sum.count} tool call${sum.count === 1 ? '' : 's'}
+        ${sum.count ? `<button type="button" class="link-btn" data-expand="${esc(expKey)}">${expanded ? 'collapse' : 'show all rows'}</button>` : ''}</div>
+        ${sum.count ? `<div class="summary">${sum.html}</div>` : '<div class="dim">no tool calls</div>'}
+        ${shown.length ? `<ul class="rows">${shown.slice().reverse().map(r => toolRow(r)).join('')}</ul>` : ''}
+        ${live && !expanded && tools.length > 3 ? `<div class="now">latest 3 of ${tools.length} · newest on top</div>` : ''}</div>
+      <div class="lane l-log"><div class="lane-label"><b>claude logged</b> ${logged.length}</div>
+        ${logged.length ? `<div class="cards">${logged.map(r => loggedCard(key, r)).join('')}</div>` : '<div class="dim">nothing logged this turn</div>'}</div>
+    </div></section>`;
+}
+
+// Items whose add/put is older than the activity window, so no turn owns them
+function earlierBlock(key, oldestTurn) {
+  const st = stOf(key);
+  const added = new Set(st.activity.filter(r => r.by === 'claude' && ['add', 'put'].includes(r.op)).map(refId));
+  const qs = st.questions.filter(q => !added.has(q.id));
+  const is = st.issues.filter(i => !added.has(i.id));
+  const fs = st.facts.filter(f => !added.has(f.id) && f.kind !== 'term');
+  const ex = st.examples.filter(e => !added.has(e.name));
+  const parts = [];
+  if (qs.length || is.length) parts.push(`<div class="lane-label"><b>questions · issues</b> live in the rail</div>` +
+    [...qs.map(q => `<div class="plain-line"><span class="id">${q.id}</span>${esc(q.kind === 'assume' ? `I assumed: ${q.text}` : q.text)} <span class="dim">${q.answer ? `→ ${esc(q.answer)}` : q.more ? '· asked for more context' : '· open'}</span></div>`),
+     ...is.map(i => `<div class="plain-line"><span class="id">${i.id}</span>${esc(i.title)} <span class="st ${i.status}">${i.status}</span></div>`)].join(''));
+  if (fs.length) parts.push(`<div class="lane-label" style="margin-top:8px"><b>facts</b></div><div class="cards">${fs.map(f => factCard(key, f.id)).join('')}</div>`);
+  if (ex.length) parts.push(`<div class="cards">${ex.map(e => `<div class="card">${exampleBlock(st, e.name)}</div>`).join('')}</div>`);
+  if (st.notes.length) parts.push(`<div class="lane-label" style="margin-top:8px"><b>your notes</b></div>${st.notes.map(n => `<div class="plain-line"><span class="id">${n.id}</span>${esc(n.text)}${n.ref ? ` <span class="dim">→ ${esc(n.ref)}</span>` : ''}</div>`).join('')}`);
+  if (st.diagrams.length) parts.push(`<div class="lane-label" style="margin-top:8px"><b>diagrams</b></div><div class="cards">${st.diagrams.map(d => diagramBlock(key, d)).join('')}</div>`);
+  if (!parts.length) return '';
+  return `<section class="turn"><div class="node">…</div><div class="turn-head"><h2>Before turn ${oldestTurn}</h2><span class="meta">logged earlier, outside the activity window</span></div>
+    <div class="turn-body"><div class="lane l-log">${parts.join('')}</div></div></section>`;
+}
+
+function renderTimeline(key) {
+  const groups = turnGroups(key);
+  return `<div class="tl">${nextPromptBlock(key)}${groups.map((g, i) => turnBlock(key, g, i === 0)).join('')}${earlierBlock(key, groups[groups.length - 1].n)}</div>`;
+}
+
+function renderToolLog(key) {
+  const st = stOf(key), f = view.filters;
+  const turnOf = new Map();
+  turnGroups(key).forEach(g => g.rows.forEach(r => turnOf.set(r, g.n)));
+  const all = st.activity.filter(isToolRow);
+  const tools = [...new Set(all.map(r => r.tool))];
+  const rows = all.filter(r => (f.tool === 'all' || r.tool === f.tool) && !(f.hideSub && r.agent) && !(f.filesOnly && r.t !== 'file'));
+  return `<div class="panel"><div class="panel-head"><span>Tool log · newest first</span><span class="count">${rows.length}/${all.length}</span></div><div class="panel-body">
+    <div class="filters"><label>tool <select id="f-tool"><option value="all">all</option>${tools.map(t => `<option value="${esc(t)}" ${f.tool === t ? 'selected' : ''}>${esc(shortTool(t))}</option>`).join('')}</select></label>
+      <label><input type="checkbox" id="f-sub" ${f.hideSub ? 'checked' : ''}> hide subagents</label>
+      <label><input type="checkbox" id="f-files" ${f.filesOnly ? 'checked' : ''}> files only</label></div>
+    <ul class="rows logtable">${rows.map(r => toolRow(r, { turn: turnOf.get(r) })).join('') || '<li class="dim">no rows match</li>'}</ul></div></div>`;
+}
+
+// ---------- rail ----------
+function needsYou(key) {
+  const st = stOf(key);
+  if (!st) return 0;
+  return st.questions.filter(q => !q.answer && !q.more && q.status !== 'dropped').length + st.issues.filter(i => i.status === 'explained').length;
+}
+
+function renderRail(key) {
+  const st = stOf(key);
+  const open = st.questions.filter(q => (!q.answer || q.more) && q.status !== 'dropped');
+  const idx = Math.min(view.qIndex[key] || 0, Math.max(open.length - 1, 0));
+  const qPanel = open.length
+    ? `<div class="panel-head"><span>Open questions</span><span class="qnav"><span class="count">${idx + 1}/${open.length}</span>
+        <button type="button" class="icon-btn" data-qnav="-1" ${idx === 0 ? 'disabled' : ''}>‹</button><button type="button" class="icon-btn" data-qnav="1" ${idx >= open.length - 1 ? 'disabled' : ''}>›</button></span></div>
+       <div class="panel-body">${questionCard(key, open[idx], 'rail')}</div>`
+    : `<div class="panel-head"><span>Open questions</span><span class="count">0</span></div><div class="panel-body dim">None open.</div>`;
+  const live = st.issues.filter(i => i.status === 'explained' || i.status === 'approved');
+  const closed = st.issues.filter(i => i.status === 'fixed' || i.status === 'dropped');
+  const group = owner => live.filter(i => i.owner === owner).map(i => issueCard(key, i, 'rail')).join('');
+  const awaiting = live.filter(i => i.status === 'explained').length;
+  const issues = `<div class="panel-head"><span>Issues</span><span class="count">${awaiting} awaiting approval</span></div><div class="panel-body">
+    ${live.some(i => i.owner === 'us') ? `<div class="grp">Ours (${live.filter(i => i.owner === 'us').length})</div><div class="cards">${group('us')}</div>` : ''}
+    ${live.some(i => i.owner === 'other') ? `<div class="grp">Theirs (${live.filter(i => i.owner === 'other').length})</div><div class="cards">${group('other')}</div>` : ''}
+    ${closed.map(i => `<div class="closed">${i.id} <span class="st ${i.status}">${i.status}</span> ${esc(i.title)}</div>`).join('')}
+    ${st.issues.length ? '' : '<div class="dim">No issues.</div>'}</div>`;
+  const done = st.plan.filter(p => p.status === 'done').length;
+  const plan = `<div class="panel-head"><span>Plan</span><span class="count">${done}/${st.plan.length}</span></div>
+    <div class="progress"><i style="width:${st.plan.length ? done / st.plan.length * 100 : 0}%"></i></div><div class="panel-body">
+    ${st.plan.length ? `<ul class="plan">${st.plan.map(p => `<li class="${p.status}"><button type="button" class="sbox" data-plan="${p.id}" data-key="${esc(key)}" title="${p.status}: click to change">${GLYPH[p.status]}</button><span class="id">${p.id}</span> <span class="t">${esc(p.text)}</span></li>`).join('')}</ul>` : '<div class="dim">No plan yet.</div>'}</div>`;
+  const terms = st.facts.filter(f => f.kind === 'term');
+  const ref = (terms.length || st.decisions.length) ? `<div class="panel-head"><span>Terms · decisions</span></div><div class="panel-body">
+    ${terms.length ? `<dl class="gloss">${terms.map(t => `<dt>${esc(t.term)}</dt><dd>${esc(t.text)}</dd>`).join('')}</dl>` : ''}
+    ${st.decisions.map(d => `<div class="dec"><span class="id">${d.id}</span> ${esc(d.text)}<span class="why">${esc(d.why)}</span></div>`).join('')}</div>` : '';
+  return `<aside class="rail" id="rail"><section class="panel">${qPanel}</section><section class="panel">${issues}</section><section class="panel">${plan}</section>${ref ? `<section class="panel">${ref}</section>` : ''}</aside>`;
+}
+
+// Narrow screens: the rail drops below the timeline, so this strip links down to it
+function openStrip(key) {
+  const st = stOf(key);
+  const nq = st.questions.filter(q => !q.answer && !q.more).length, ni = st.issues.filter(i => i.status === 'explained').length;
+  const done = st.plan.filter(p => p.status === 'done').length;
+  return `<div class="open-strip"><a class="pill" href="#rail">open now ↓</a><a class="pill ${nq ? 'you' : ''}" href="#rail">${nq} question${nq === 1 ? '' : 's'}</a>
+    <a class="pill ${ni ? 'you' : ''}" href="#rail">${ni} to approve</a><a class="pill" href="#rail">plan ${done}/${st.plan.length}</a></div>`;
+}
+
+// ---------- home ----------
+function homeCard(log) {
+  const sc = stateClass(log.session.state);
+  const head = `<h3><span class="repo">${esc(log.repo)} /</span> ${esc(log.branch)}</h3>
+    <div class="state ${sc}"><span class="dot ${sc}"></span> ${esc(log.session.state)} · last event ${esc(log.session.lastEventAgo)} ago</div>`;
+  if (!log.on || !stOf(log.key)) return `<div class="hcard off">${head}<div class="hrow dim">ernie is off for this branch (<code>${esc(log.branch)}.off</code>). Run <code>ernie init</code> in your own shell to turn it back on.</div></div>`;
+  const st = stOf(log.key), g = turnGroups(log.key)[0];
+  const sum = toolSummary(g.rows);
+  const logged = g.rows.filter(r => r.by === 'claude').map(r => r.text);
+  const nq = st.questions.filter(q => !q.answer && !q.more).length, ni = st.issues.filter(i => i.status === 'explained').length;
+  return `<div class="hcard">${head}
+    <div class="hrow"><i>last turn · ${g.n}</i>${g.sent?.length ? `you sent ${g.sent.map(esc).join(', ')}` : '<span class="dim">no page events sent</span>'}</div>
+    <div class="hrow"><i>claude did</i><span class="summary">${sum.count ? sum.html : '<span class="dim">no tool calls</span>'}</span></div>
+    <div class="hrow"><i>claude logged</i>${logged.length ? logged.map(esc).join(' · ') : '<span class="dim">nothing</span>'}</div>
+    <div class="hrow"><i>needs you</i>${nq} question${nq === 1 ? '' : 's'} · ${ni} issue${ni === 1 ? '' : 's'} to approve · ${st.pending.length} queued for next prompt</div>
+    <div class="actions"><button type="button" class="btn ${nq + ni ? 'btn--primary' : ''}" data-open="${esc(log.key)}">open tab</button></div></div>`;
+}
+
+// ---------- chrome ----------
+function renderPicker() {
+  const cur = logOf(view.active);
+  const repos = [...new Set(S.logs.map(l => l.repo))];
+  document.getElementById('picker').innerHTML = `<button type="button" class="picker-btn" id="picker-btn">
+      ${cur ? `<span class="dot ${stateClass(cur.session.state)}"></span><span class="name">${esc(cur.key)}</span>` : '<span class="name">pick a worktree</span>'} ▾</button>
+    <div class="picker-menu ${view.pickerOpen ? 'open' : ''}">${repos.map(repo => `<div class="picker-repo">${esc(repo)}</div>` + S.logs.filter(l => l.repo === repo).map(l => {
+      const sc = stateClass(l.session.state);
+      return `<button type="button" class="picker-item ${l.on ? '' : 'off'}" data-open="${esc(l.key)}"><span class="dot ${sc}"></span>
+        <span>${esc(l.branch)}<br><small>${esc(l.worktree)}</small></span><span class="state ${sc}">${l.on ? esc(l.session.state) : 'off'}</span></button>`;
+    }).join('')).join('')}</div>`;
+}
+
+function renderTabs() {
+  const tabs = view.tabs.map(key => {
+    const log = logOf(key), sc = stateClass(log.session.state), n = needsYou(key);
+    return `<div class="wtab ${view.active === key ? 'sel' : ''} ${view.bumped.has(key) ? 'bump' : ''}" data-tab="${esc(key)}" role="tab">
+      <span class="dot ${sc}"></span><span><span class="repo">${esc(log.repo)}/</span>${esc(log.branch)}</span>
+      ${sc === 'working' ? '<span class="badge live">live</span>' : ''}${n ? `<span class="badge" title="needs you">${n}</span>` : ''}
+      <button type="button" class="x" data-close="${esc(key)}" title="close tab">×</button></div>`;
+  }).join('');
+  document.getElementById('tabbar').innerHTML = `<div class="wtab ${view.active === 'home' ? 'sel' : ''}" data-tab="home" role="tab">⌂ Home</div>${tabs}`;
+  view.bumped.clear();
+}
+
+function render() {
+  // Reason: keep focus + unsent text across full redraws (the real page redraws on every SSE frame)
+  const focused = document.activeElement?.dataset?.keep;
+  const caret = document.activeElement?.selectionStart;
+  document.querySelectorAll('[data-keep]').forEach(el => { view.drafts[el.dataset.keep] = el.value; });
+  const railScroll = document.querySelector('.rail')?.scrollTop || 0;
+
+  renderPicker();
+  renderTabs();
+  const shell = document.getElementById('shell');
+  document.getElementById('server-line').innerHTML = `<span class="state working">● live</span> 127.0.0.1:${S.server.port} · ${esc(S.server.version)}`;
+  if (view.active === 'home') {
+    shell.className = 'shell home';
+    shell.innerHTML = `<div><p class="home-intro">What each session did in its last turn. Open one to see its full timeline.</p><div class="home-grid">${S.logs.map(homeCard).join('')}</div></div>`;
+  } else {
+    const key = view.active, log = logOf(key), sub = view.sub[key] || 'timeline';
+    shell.className = 'shell';
+    shell.innerHTML = `<div style="min-width:0"><div class="subbar"><div class="seg"><button type="button" class="${sub === 'timeline' ? 'sel' : ''}" data-sub="timeline">Timeline</button><button type="button" class="${sub === 'log' ? 'sel' : ''}" data-sub="log">Tool log</button></div>
+      <span class="where">${esc(log.worktree)} · session ${esc(log.session.id || '—')} · <span class="state ${stateClass(log.session.state)}">${esc(log.session.state)}</span></span></div>
+      ${openStrip(key)}${sub === 'timeline' ? renderTimeline(key) : renderToolLog(key)}</div>${renderRail(key)}`;
+  }
+  document.querySelectorAll('[data-keep]').forEach(el => {
+    el.value = view.drafts[el.dataset.keep] || '';
+    if (el.dataset.keep === focused) { el.focus(); if (caret != null) el.setSelectionRange(caret, caret); }
+  });
+  const rail = document.querySelector('.rail');
+  if (rail) rail.scrollTop = railScroll;
+  Object.values(S.states).forEach(st => st.activity.forEach(r => { r.fresh = false; }));
+  window.dispatchEvent(new Event('diagrams'));
+}
+
+// ---------- actions: allowed page ops only; each one updates state + the pending outbox ----------
+function queue(key, event, label) {
+  const st = stOf(key);
+  st.pending.push({ ...event, label });
+  st.inboxText = `ernie inbox · turn ${st.turn + 1}\n` + st.pending.map(p => `- ${p.label}`).join('\n');
+  render();
+}
+function answer(key, id, value, more = false) {
+  const q = stOf(key).questions.find(x => x.id === id);
+  const text = more ? 'need more context' : String(value).trim();
+  if (!q || !text) return;
+  q.answer = text; q.more = more;
+  if (more) q.followUp = 'need more context';
+  delete view.drafts[`rail-ans-${key}-${id}`]; delete view.drafts[`tl-ans-${key}-${id}`];
+  queue(key, { t: 'question', op: 'answer', id, text, ...(more ? { more: true } : {}) }, `${id} → ${text}`);
+}
+
+document.addEventListener('click', e => {
+  const t = sel => e.target.closest(sel);
+  let el;
+  if ((el = t('#picker-btn'))) { view.pickerOpen = !view.pickerOpen; return renderPicker(); }
+  if (view.pickerOpen && !t('.picker-menu')) { view.pickerOpen = false; renderPicker(); }
+  if ((el = t('[data-close]'))) { view.tabs = view.tabs.filter(k => k !== el.dataset.close); if (view.active === el.dataset.close) view.active = 'home'; return render(); }
+  if ((el = t('[data-open]'))) {
+    const key = el.dataset.open;
+    view.pickerOpen = false;
+    if (!stOf(key) || !logOf(key).on) { view.active = 'home'; return render(); }
+    if (!view.tabs.includes(key)) view.tabs.push(key);
+    view.active = key; return render();
+  }
+  if ((el = t('[data-tab]'))) { view.active = el.dataset.tab; return render(); }
+  if ((el = t('[data-sub]'))) { view.sub[view.active] = el.dataset.sub; return render(); }
+  if ((el = t('[data-expand]'))) { const k = el.dataset.expand; view.expanded.has(k) ? view.expanded.delete(k) : view.expanded.add(k); return render(); }
+  if ((el = t('[data-ex]'))) { const k = el.dataset.ex; view.exOpen.has(k) ? view.exOpen.delete(k) : view.exOpen.add(k); return render(); }
+  if ((el = t('[data-method]'))) { const k = el.dataset.method; view.methodOpen.has(k) ? view.methodOpen.delete(k) : view.methodOpen.add(k); return render(); }
+  if ((el = t('[data-qnav]'))) { view.qIndex[view.active] = (view.qIndex[view.active] || 0) + Number(el.dataset.qnav); return render(); }
+  if ((el = t('[data-answer]'))) return answer(el.dataset.key, el.dataset.answer, el.dataset.value);
+  if ((el = t('[data-more]'))) return answer(el.dataset.key, el.dataset.more, '', true);
+  if ((el = t('[data-plan]'))) {
+    const p = stOf(el.dataset.key).plan.find(x => x.id === el.dataset.plan);
+    p.status = NEXT_STATUS[p.status];
+    return queue(el.dataset.key, { t: 'plan', op: 'set', id: p.id, status: p.status }, `${p.id} → ${p.status}`);
+  }
+  if ((el = t('[data-issue]'))) {
+    const i = stOf(el.dataset.key).issues.find(x => x.id === el.dataset.issue);
+    i.status = el.dataset.to;
+    if (i.status === 'explained') delete i.quote;
+    return queue(el.dataset.key, { t: 'issue', op: 'set', id: i.id, status: i.status }, `${i.id} → ${i.status === 'explained' ? 'explained (undo approval)' : i.status}`);
+  }
+  if ((el = t('[data-dismiss]'))) {
+    const st = stOf(el.dataset.key);
+    const f = st.facts.find(x => x.id === el.dataset.dismiss);
+    st.facts = st.facts.filter(x => x !== f);
+    return queue(el.dataset.key, { t: 'fact', op: 'dismiss', id: f.id }, `dismissed ${f.id} "${f.text}"`);
+  }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const el = e.target;
+  if (el.dataset.answerInput) return answer(el.dataset.key, el.dataset.answerInput, el.value);
+  if (el.dataset.note && el.value.trim()) {
+    const text = el.value.trim();
+    el.value = ''; delete view.drafts[el.dataset.keep];
+    queue(el.dataset.note, { t: 'note', op: 'add', text }, `note: ${text}`);
+  }
+});
+document.addEventListener('change', e => {
+  if (e.target.id === 'f-tool') view.filters.tool = e.target.value;
+  else if (e.target.id === 'f-sub') view.filters.hideSub = e.target.checked;
+  else if (e.target.id === 'f-files') view.filters.filesOnly = e.target.checked;
+  else return;
+  render();
+});
+
+// Mock only: stands in for you sending a prompt; the UserPromptSubmit hook delivers the inbox and writes a turn mark
+document.getElementById('sim-prompt').addEventListener('click', () => {
+  const key = view.active === 'home' ? S.logs.find(l => l.session.state === 'working').key : view.active;
+  const st = stOf(key);
+  st.turn += 1;
+  st.activity.unshift({ ts: clock(), by: 'hook', t: 'turn', op: 'mark', text: `turn ${st.turn} · delivered ${st.pending.length} event${st.pending.length === 1 ? '' : 's'}`, delivered: st.pending.map(p => p.label) });
+  st.pending = []; st.inboxText = '';
+  render();
+});
+
+// Simulated liveness: the working session gets a new tool run every ~4 s
+setInterval(() => {
+  const log = S.logs.find(l => l.session.state === 'working');
+  const spec = LIVE_ROWS[liveStep++ % LIVE_ROWS.length];
+  stOf(log.key).activity.unshift({ ts: clock(), by: 'hook', t: spec.t || 'tool', op: spec.op || 'run', tool: spec.tool, text: spec.text, ...(spec.agent ? { agent: spec.agent } : {}), fresh: true });
+  log.session.lastEventAgo = '0s';
+  if (view.active !== log.key) view.bumped.add(log.key);
+  render();
+}, 4000);
+
+// Theme
+const root = document.documentElement;
+window.currentTheme = () => root.dataset.theme || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+document.getElementById('theme-toggle').addEventListener('click', () => { root.dataset.theme = currentTheme() === 'dark' ? 'light' : 'dark'; render(); });
+window.svgCache = svgCache;
+render();
+</script>
+
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+const palettes = {
+  dark: { primaryColor: '#0c2f48', primaryTextColor: '#d8e6f2', primaryBorderColor: '#38bdf8', lineColor: '#5f7d96', secondaryColor: '#0f1e2c', tertiaryColor: '#0c1925',
+    background: '#0c1925', mainBkg: '#0c2f48', edgeLabelBackground: '#0c1925', actorBkg: '#0c2f48', actorBorder: '#38bdf8', actorTextColor: '#d8e6f2', actorLineColor: '#1f5a82',
+    signalColor: '#8299ae', signalTextColor: '#d8e6f2', noteBkgColor: '#78350f', noteTextColor: '#fde68a' },
+  light: { primaryColor: '#e0f2fe', primaryTextColor: '#0d1f2e', primaryBorderColor: '#0284c7', lineColor: '#7b93a8', secondaryColor: '#ffffff', tertiaryColor: '#f3f7fb',
+    background: '#eef3f8', mainBkg: '#e0f2fe', edgeLabelBackground: '#eef3f8', actorBkg: '#e0f2fe', actorBorder: '#0284c7', actorTextColor: '#0d1f2e', actorLineColor: '#7cc4ee',
+    signalColor: '#557087', signalTextColor: '#0d1f2e', noteBkgColor: '#fef3c7', noteTextColor: '#92400e' },
+};
+let pass = 0;
+// Reason: only render diagrams missing from the cache; Mermaid is the expensive part of a redraw
+async function renderDiagrams() {
+  const targets = [...document.querySelectorAll('.mmd')].filter(el => !window.svgCache.has(el.dataset.cache));
+  if (!targets.length) return;
+  const theme = window.currentTheme();
+  mermaid.initialize({ startOnLoad: false, theme: 'base', securityLevel: 'strict', fontFamily: "'Fragment Mono', ui-monospace, monospace",
+    themeVariables: { ...palettes[theme], fontFamily: "'Fragment Mono', ui-monospace, monospace", fontSize: '13px' }, flowchart: { curve: 'basis' }, sequence: { mirrorActors: false } });
+  for (const el of targets) {
+    try {
+      const { svg } = await mermaid.render(`dgm-${++pass}`, el.dataset.src);
+      window.svgCache.set(el.dataset.cache, svg);
+    } catch (err) {
+      window.svgCache.set(el.dataset.cache, `<span class="dim mono">Diagram failed to render: ${String(err.message || err).replace(/</g, '&lt;')}</span>`);
+    }
+    document.querySelectorAll('.mmd').forEach(node => { if (node.dataset.cache === el.dataset.cache) node.innerHTML = window.svgCache.get(el.dataset.cache); });
+  }
+}
+await document.fonts.ready;
+renderDiagrams();
+window.addEventListener('diagrams', renderDiagrams);
+</script>
+</body>
+</html>

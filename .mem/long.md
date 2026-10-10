@@ -33,3 +33,4 @@
 - [ernie] design walkthrough → .mem/artifacts/ref_ernie_proposal.html
 - [ernie] response formats for explaining issues (transcript study, all decided: A88–A92 accepted, A93 v2, A94 → A112/A113) → .mem/artifacts/ref_ernie_formats.md
 - [ernie] scratch flow test report (works/fails, spike results, A95–A111 folded) → .mem/artifacts/ref_ernie_flow_test.md
+- [ernie] 10 page view variation mocks (shared sample data, index.html) → .mem/artifacts/ref_ernie_views/

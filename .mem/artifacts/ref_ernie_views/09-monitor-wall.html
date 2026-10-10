@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<!--
+  VARIATION 09 · Monitor Wall
+  For: keeping an eye on what several Claude sessions (one per git worktree) are doing right now, CI-wall style.
+  Key idea: home is a tiled wall where every on-log worktree is a live tile, all visible at once (2 columns on a
+  laptop, stacked on a phone). Each tile is dominated by its own live tool stream, with a header (repo/branch,
+  session state, turn, time since last event), the active plan step and a loud "NEEDS YOU · N" banner. Idle tiles
+  shrink and sink to the bottom; off logs are greyed chips on a shelf. "focus ↗" opens a worktree as a tab.
+  MUST items:
+    1. Selector: the wall bar lists every log grouped by repo as checkboxes (state dot, session state, needs count);
+       ticking picks which worktrees are on the wall. dotfiles/main is disabled (off) and also sits on the shelf.
+    2. Tool log: every tile streams its own tool/file rows (Bash shows description only; empty text shows the tool
+       name; subagent tag). The bar's tool filter / hide subagents / tools only / pause apply to all tiles and to the
+       focused tab's wide log column. Every on-wall session with a live session simulates rows on its own cadence.
+    3. Tabs: meaning (a), each focused worktree is a closable tab; several can be open. Meaning (b) is supported inside a
+       focus tab: issues are their own pill tabs (ours | theirs) walked one at a time with N/M and prev/next.
+    4. Home: the wall itself.
+  View-only (not in spec): session state, last-event time, worktree path, a multi-log stream feeding the wall.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ernie Monitor Wall</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Fragment+Mono&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    img, svg, pre { max-width: 100%; }
+    [hidden] { display: none !important; }
+
+    :root {
+      --sans: 'Bricolage Grotesque', system-ui, sans-serif;
+      --mono: 'Fragment Mono', ui-monospace, SFMono-Regular, monospace;
+      --bg: #0a1520; --bg-card: #0f1e2c; --bg-recessed: #0c1925; --bg-raised: #132638;
+      --text: #d8e6f2; --text-dim: #8299ae; --text-accent: #7dd3fc;
+      --accent: #38bdf8; --accent-soft: #0c2f48;
+      --border: #1c3246; --border-accent: #1f5a82;
+      --grid: rgba(56,189,248,.04);
+      --success: #34d399; --warning: #fbbf24; --error: #f87171;
+      --pass-bg: #064e3b; --pass-fg: #a7f3d0; --warn-bg: #78350f; --warn-fg: #fde68a; --info-bg: #1e3a8a; --info-fg: #dbeafe;
+      --shadow: rgba(0,0,0,.5);
+      --t-bash: #fbbf24; --t-read: #7dd3fc; --t-edit: #34d399; --t-search: #c4b5fd; --t-agent: #f9a8d4; --t-web: #93c5fd; --t-mcp: #a5b4c8;
+      color-scheme: dark;
+    }
+    @media (prefers-color-scheme: light) {
+      :root:not([data-theme="dark"]) {
+        --bg: #f3f7fb; --bg-card: #ffffff; --bg-recessed: #eef3f8; --bg-raised: #ffffff;
+        --text: #0d1f2e; --text-dim: #557087; --text-accent: #0369a1;
+        --accent: #0284c7; --accent-soft: #e0f2fe;
+        --border: #d3dfea; --border-accent: #7cc4ee;
+        --grid: rgba(2,132,199,.05);
+        --success: #059669; --warning: #b45309; --error: #dc2626;
+        --pass-bg: #d1fae5; --pass-fg: #065f46; --warn-bg: #fef3c7; --warn-fg: #92400e; --info-bg: #dbeafe; --info-fg: #1e40af;
+        --shadow: rgba(13,31,46,.16);
+        --t-bash: #b45309; --t-read: #0369a1; --t-edit: #047857; --t-search: #6d28d9; --t-agent: #be185d; --t-web: #1d4ed8; --t-mcp: #557087;
+        color-scheme: light;
+      }
+    }
+    :root[data-theme="light"] {
+      --bg: #f3f7fb; --bg-card: #ffffff; --bg-recessed: #eef3f8; --bg-raised: #ffffff;
+      --text: #0d1f2e; --text-dim: #557087; --text-accent: #0369a1;
+      --accent: #0284c7; --accent-soft: #e0f2fe;
+      --border: #d3dfea; --border-accent: #7cc4ee;
+      --grid: rgba(2,132,199,.05);
+      --success: #059669; --warning: #b45309; --error: #dc2626;
+      --pass-bg: #d1fae5; --pass-fg: #065f46; --warn-bg: #fef3c7; --warn-fg: #92400e; --info-bg: #dbeafe; --info-fg: #1e40af;
+      --shadow: rgba(13,31,46,.16);
+      --t-bash: #b45309; --t-read: #0369a1; --t-edit: #047857; --t-search: #6d28d9; --t-agent: #be185d; --t-web: #1d4ed8; --t-mcp: #557087;
+      color-scheme: light;
+    }
+
+    body { margin: 0; font-family: var(--sans); font-size: 14px; line-height: 1.5; color: var(--text); background-color: var(--bg);
+      background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 24px 24px; background-attachment: fixed; overflow-x: hidden; }
+    code, .mono { font-family: var(--mono); font-size: .92em; }
+    button, select { font: inherit; color: inherit; }
+    .wrap { max-width: 1600px; margin: 0 auto; padding-left: 20px; padding-right: 20px; }
+    @media (max-width: 720px) { .wrap { padding-left: 16px; padding-right: 16px; } }
+
+    .mock-banner { font: 11px var(--mono); text-align: center; padding: 6px 16px; background: var(--warn-bg); color: var(--warn-fg); letter-spacing: .05em; }
+
+    /* Top bar: brand · tabs · status */
+    .topbar { position: sticky; top: 0; z-index: 50; border-bottom: 1px solid var(--border);
+      background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); }
+    .topbar-inner { display: flex; align-items: center; gap: 14px; padding-top: 9px; padding-bottom: 9px; }
+    .brand { font-weight: 800; font-size: 19px; letter-spacing: -.02em; flex: none; }
+    .brand span { color: var(--accent); }
+    .tabs-strip { display: flex; gap: 5px; overflow-x: auto; min-width: 0; flex: 1; scrollbar-width: thin; }
+    .tabx { display: inline-flex; align-items: center; flex: none; font: 12px var(--mono); border: 1px solid var(--border);
+      border-radius: 7px; background: var(--bg-card); }
+    .tabx > button { background: none; border: 0; padding: 5px 10px; cursor: pointer; display: inline-flex; gap: 7px; align-items: center; }
+    .tabx.on { border-color: var(--accent); color: var(--text-accent); background: var(--accent-soft); }
+    .tabx .tab-close { padding: 5px 9px 5px 2px; color: var(--text-dim); }
+    .tabx .tab-close:hover { color: var(--error); }
+    .tab-n { color: var(--text-dim); }
+    .tab-need { background: var(--warning); color: var(--bg); border-radius: 8px; padding: 0 6px; font-size: 10.5px; }
+    .status { display: flex; align-items: center; gap: 12px; flex: none; font: 11.5px var(--mono); color: var(--text-dim); }
+    .live { color: var(--success); display: inline-flex; align-items: center; gap: 6px; }
+    .live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--success); animation: breathe 2.4s ease-in-out infinite; }
+    @keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+    .icon-btn { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; font: 11.5px var(--mono); white-space: nowrap; }
+    .icon-btn:hover { border-color: var(--accent); }
+    @media (max-width: 720px) {
+      .topbar-inner { flex-wrap: wrap; gap: 8px 12px; }
+      .tabs-strip { order: 3; flex-basis: 100%; }
+      .status { margin-left: auto; } .status .ver { display: none; }
+    }
+
+    /* Wall control bar */
+    .controls { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; padding-top: 12px; padding-bottom: 12px; border-bottom: 1px dashed var(--border); }
+    .ctl { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; min-width: 0; }
+    .ctl-label { font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); }
+    .repo-group { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-right: 8px; }
+    .wt { display: inline-flex; gap: 6px; align-items: center; font: 12px var(--mono); padding: 4px 10px 4px 7px; border: 1px solid var(--border);
+      border-radius: 14px; background: var(--bg-card); cursor: pointer; max-width: 100%; }
+    .wt input, .tog input { margin: 0; accent-color: var(--accent); }
+    .wt--off { opacity: .45; cursor: not-allowed; filter: grayscale(1); }
+    .wt-state { color: var(--text-dim); font-size: 11px; }
+    .wt-state b { color: var(--warning); font-weight: 400; }
+    .sel { font: 12px var(--mono); background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; }
+    .tog { display: inline-flex; gap: 6px; align-items: center; font: 12px var(--mono); color: var(--text-dim); cursor: pointer; }
+    .wall-summary { font: 11.5px var(--mono); color: var(--text-dim); }
+    .focus-mode .ctl--wt { display: none; }
+
+    /* State dots + pills */
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--text-dim); display: inline-block; }
+    .st-working .dot { background: var(--success); animation: breathe 2.4s ease-in-out infinite; }
+    .st-waiting .dot { background: var(--warning); }
+    .st-idle .dot { background: transparent; border: 1.5px solid var(--text-dim); }
+    .st-off .dot { background: var(--border); }
+    .pill { font: 10.5px var(--mono); padding: 1px 8px; border-radius: 10px; border: 1px solid currentColor; color: var(--text-dim); white-space: nowrap; }
+    .st-working .pill { color: var(--success); } .st-waiting .pill { color: var(--warning); }
+
+    /* Wall */
+    .wall { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; padding-top: 14px; }
+    @media (max-width: 900px) { .wall { grid-template-columns: minmax(0, 1fr); } }
+    .tile { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; display: flex; flex-direction: column; min-width: 0; overflow: hidden;
+      box-shadow: 0 18px 40px -32px var(--shadow); }
+    .tile.st-waiting { border-color: color-mix(in srgb, var(--warning) 45%, var(--border)); }
+    .tile--idle { background: var(--bg-recessed); box-shadow: none; }
+    .tile-head { display: flex; align-items: center; gap: 8px 10px; padding: 10px 12px; flex-wrap: wrap; border-bottom: 1px solid var(--border); }
+    .tile-name { background: none; border: 0; padding: 0; cursor: pointer; font-weight: 700; font-size: 15px; min-width: 0; overflow-wrap: anywhere; text-align: left; }
+    .tile-name:hover { color: var(--text-accent); }
+    .repo { color: var(--text-dim); font-weight: 400; }
+    .meta { font: 11px var(--mono); color: var(--text-dim); margin-left: auto; white-space: nowrap; }
+    .tile--idle .tile-name { font-size: 13.5px; }
+    .needs { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; width: 100%; text-align: left; border: 0; cursor: pointer;
+      background: var(--warn-bg); color: var(--warn-fg); padding: 9px 12px; border-left: 4px solid var(--warning); }
+    .needs b { font: 800 13.5px var(--sans); letter-spacing: .08em; }
+    .needs span { font: 12px var(--mono); }
+    .needs .go { margin-left: auto; }
+    .needs:hover .go { text-decoration: underline; }
+    .step { padding: 8px 12px; font-size: 13.5px; border-bottom: 1px dashed var(--border); color: var(--text-accent); overflow-wrap: anywhere; }
+    .step-n { font: 11px var(--mono); color: var(--text-dim); margin-right: 4px; }
+    .tile--idle .step { font-size: 12.5px; color: var(--text-dim); }
+    .stream-head { display: flex; justify-content: space-between; gap: 8px; padding: 7px 12px 0; font: 10px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); }
+    .stream-head .held { color: var(--warning); }
+    .stream { list-style: none; margin: 0; padding: 4px 6px 8px; font: 12px var(--mono); height: 268px; overflow: hidden; position: relative;
+      -webkit-mask-image: linear-gradient(#000 78%, transparent); mask-image: linear-gradient(#000 78%, transparent); }
+    .tile--idle .stream { height: auto; -webkit-mask-image: none; mask-image: none; opacity: .75; }
+    @media (max-width: 720px) { .stream { height: 210px; } }
+    .row { display: grid; grid-template-columns: 9.4ch 7.4ch minmax(0, 1fr) auto; gap: 8px; padding: 3px 6px; border-radius: 4px; align-items: baseline; }
+    .row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .row .ts { color: var(--text-dim); }
+    .row .tl { font-weight: 600; }
+    .row .ag { font-size: 10px; padding: 0 7px; border-radius: 8px; background: var(--accent-soft); color: var(--text-accent); }
+    .g-bash .tl { color: var(--t-bash); } .g-read .tl { color: var(--t-read); } .g-edit .tl { color: var(--t-edit); }
+    .g-search .tl { color: var(--t-search); } .g-agent .tl { color: var(--t-agent); } .g-web .tl { color: var(--t-web); }
+    .g-mcp .tl, .g-other .tl { color: var(--t-mcp); }
+    .g-ernie .tl, .g-ernie .tx { color: var(--text-dim); font-weight: 400; }
+    .row.fresh { animation: arrive 2.8s ease-out; }
+    @keyframes arrive { 0% { opacity: 0; transform: translateY(-5px); background: var(--accent-soft); } 15% { opacity: 1; transform: none; background: var(--accent-soft); } 100% { background: transparent; } }
+    .row-empty { color: var(--text-dim); padding: 6px; }
+    .tile-foot { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 7px 12px; border-top: 1px solid var(--border); font: 11px var(--mono); color: var(--text-dim); }
+    .tile-foot b { color: var(--warning); font-weight: 400; }
+    .tile--idle .tile-foot { display: none; }
+    .shelf { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 14px; padding-bottom: 60px; font: 11.5px var(--mono); color: var(--text-dim); }
+    .shelf-chip { border: 1px dashed var(--border); border-radius: 14px; padding: 4px 11px; overflow-wrap: anywhere; }
+    .shelf-chip--off { opacity: .6; filter: grayscale(1); }
+    @media (prefers-reduced-motion: reduce) { .row.fresh, .dot, .live::before { animation: none !important; } }
+
+    /* Focus tab */
+    .f-head { display: grid; gap: 6px; padding-top: 14px; padding-bottom: 12px; }
+    .f-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 22px; font-weight: 800; letter-spacing: -.02em; overflow-wrap: anywhere; min-width: 0; }
+    .f-meta { font: 11.5px var(--mono); color: var(--text-dim); overflow-wrap: anywhere; }
+    .needs--static { cursor: default; border-radius: 6px; }
+    .focus-grid { display: grid; gap: 14px; padding-bottom: 170px;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr);
+      grid-template-areas: "q q log" "iss iss log" "plan facts log" "ex ex log" "dia dia log" "dec notes log"; }
+    .f-q { grid-area: q; } .f-iss { grid-area: iss; } .f-plan { grid-area: plan; } .f-facts { grid-area: facts; }
+    .f-ex { grid-area: ex; } .f-dia { grid-area: dia; } .f-dec { grid-area: dec; } .f-notes { grid-area: notes; }
+    .f-log { grid-area: log; align-self: start; position: sticky; top: 64px; }
+    .f-log .stream { height: auto; max-height: calc(100dvh - 190px); overflow-y: auto; -webkit-mask-image: none; mask-image: none; }
+    @media (max-width: 1100px) {
+      .focus-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-areas: "q q" "iss iss" "log log" "plan facts" "ex ex" "dia dia" "dec notes"; }
+      .f-log { position: static; } .f-log .stream { max-height: 380px; }
+    }
+    @media (max-width: 720px) {
+      .focus-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "q" "iss" "log" "plan" "facts" "ex" "dia" "dec" "notes"; }
+      .row { grid-template-columns: 9.4ch 6ch minmax(0, 1fr) auto; gap: 6px; }
+    }
+
+    .panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; min-width: 0; display: flex; flex-direction: column; }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid var(--border);
+      font: 11px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); }
+    .panel-head .count { color: var(--text-accent); text-transform: none; letter-spacing: 0; }
+    .panel-body { padding: 10px 14px 14px; min-width: 0; }
+    .empty { color: var(--text-dim); font-size: 13px; margin: 4px 0; }
+    .hint { font: 11px var(--mono); color: var(--text-dim); }
+    .sub-head { font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); margin: 14px 0 6px; }
+    .flash { animation: hl 2.4s ease-out; }
+    @keyframes hl { from { box-shadow: 0 0 0 3px var(--border-accent); } to { box-shadow: 0 0 0 3px transparent; } }
+
+    /* Plan */
+    .progress { height: 4px; background: var(--bg-recessed); margin: -10px -14px 8px; }
+    .progress > i { display: block; height: 100%; background: var(--success); transition: width .3s; }
+    .plan { list-style: none; margin: 0; padding: 0; }
+    .plan li { position: relative; padding: 8px 0 8px 32px; border-bottom: 1px dashed var(--border); overflow-wrap: anywhere; }
+    .plan li:last-child { border-bottom: none; }
+    .status-box { position: absolute; left: 0; top: 8px; width: 20px; height: 20px; border-radius: 5px; border: 1.5px solid var(--text-dim);
+      background: transparent; cursor: pointer; padding: 0; font: 800 12px var(--sans); line-height: 17px; text-align: center; }
+    .plan li.done { color: var(--text-dim); } .plan li.done .text { text-decoration: line-through; text-decoration-color: var(--border-accent); }
+    .plan li.done .status-box { background: var(--success); border-color: var(--success); color: var(--bg); }
+    .plan li.active .status-box { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); color: var(--accent); }
+    .plan li.active .text { color: var(--text-accent); } .plan li.dropped { opacity: .5; }
+    .item-id { font: 10.5px var(--mono); color: var(--text-dim); margin-right: 6px; }
+
+    /* Questions + issues */
+    .q, .icard { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; background: var(--bg-recessed); }
+    .q:last-child, .icard { margin-bottom: 0; }
+    .q.open { border-color: var(--border-accent); background: var(--accent-soft); }
+    .q--more { border-style: dashed; }
+    .q-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .q-num { font: 11px var(--mono); color: var(--accent); }
+    .q-text { font-size: 15px; font-weight: 600; margin: 3px 0 8px; overflow-wrap: break-word; }
+    .lab { margin: 4px 0; font-size: 13.5px; overflow-wrap: break-word; }
+    .lab b { font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); margin-right: 8px; }
+    .more-note { font: 12px var(--mono); color: var(--warning); margin: 6px 0; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 8px; }
+    .chip { font: 12px var(--mono); padding: 5px 11px; border-radius: 14px; border: 1px solid var(--border); background: var(--bg-card); cursor: pointer; }
+    .chip:hover { border-color: var(--accent); }
+    .chip--rec { border-color: var(--success); color: var(--success); }
+    .chip--more { border-style: dashed; color: var(--text-dim); }
+    .q input, .note-input { width: 100%; font: 12.5px var(--mono); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); }
+    .q input:focus, .note-input:focus { outline: none; border-color: var(--accent); }
+    .q.answered .q-text { margin-bottom: 4px; font-weight: 400; color: var(--text-dim); font-size: 14px; }
+    .answer { font: 12.5px var(--mono); color: var(--success); overflow-wrap: anywhere; }
+    .link-btn { background: none; border: none; padding: 0; cursor: pointer; font: 11.5px var(--mono); color: var(--text-dim); text-decoration: underline; }
+    .link-btn:hover { color: var(--accent); }
+    .itabs { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 10px; }
+    .itabs-group { display: inline-flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+    .itab { font: 11.5px var(--mono); padding: 3px 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-recessed); cursor: pointer; }
+    .itab.on { border-color: var(--accent); color: var(--text-accent); background: var(--accent-soft); }
+    .itab.s-explained::after { content: ' •'; color: var(--warning); }
+    .itab.s-fixed { opacity: .6; } .itab.s-dropped { opacity: .5; text-decoration: line-through; }
+    .icard.s-dropped, .icard.s-fixed { opacity: .8; }
+    .gate { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font: 11px var(--mono); color: var(--text-dim); margin: 0 0 8px; }
+    .gate .on { color: var(--success); } .gate .cur { color: var(--text); border-bottom: 2px solid var(--accent); }
+    .quote { font: 12px var(--mono); color: var(--success); margin: 4px 0 8px; }
+    .badge { font: 11px var(--mono); padding: 1px 8px; border-radius: 10px; border: 1px solid transparent; cursor: pointer; white-space: nowrap; }
+    .b-ok { background: var(--pass-bg); color: var(--pass-fg); } .b-mid { background: var(--warn-bg); color: var(--warn-fg); }
+    .b-no { background: transparent; color: var(--error); border-color: var(--error); }
+    .method { font: 11.5px var(--mono); color: var(--text-dim); background: var(--bg-card); border: 1px solid var(--border); padding: 4px 8px; border-radius: 5px; margin: 6px 0; overflow-wrap: anywhere; }
+    .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+    .inav { margin-left: auto; display: inline-flex; gap: 6px; }
+    .btn { font: 12px var(--mono); padding: 6px 12px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border); background: var(--bg-card); }
+    .btn:hover { border-color: var(--accent); }
+    .btn--primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+    .btn--ghost { background: transparent; }
+
+    /* Facts, examples, decisions, notes, diagrams */
+    .facts { list-style: none; margin: 0; padding: 0; }
+    .facts li { position: relative; padding: 7px 28px 7px 0; border-bottom: 1px dashed var(--border); overflow-wrap: break-word; }
+    .facts li:last-child { border-bottom: none; }
+    .dismiss { position: absolute; right: 0; top: 6px; width: 22px; height: 22px; border-radius: 5px; border: 1px solid transparent; background: none; cursor: pointer; color: var(--text-dim); }
+    .dismiss:hover { border-color: var(--border); color: var(--error); }
+    .gloss { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 0; }
+    .gloss dt { font: 12px var(--mono); color: var(--text-accent); } .gloss dd { margin: 0; font-size: 13.5px; }
+    .ex { margin: 0 0 16px; border-radius: 8px; } .ex:last-child { margin-bottom: 0; }
+    .ex-title { font-weight: 600; margin-bottom: 6px; }
+    .ex-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; }
+    .ex table { border-collapse: collapse; font: 12px var(--mono); width: 100%; }
+    .ex th, .ex td { text-align: left; padding: 5px 9px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    .ex thead th { color: var(--text-dim); font-weight: 400; background: var(--bg-recessed); }
+    .ex tbody th { color: var(--text-dim); font-weight: 400; } .ex tbody tr:last-child > * { border-bottom: 0; }
+    .ex-cap { font-size: 13px; margin: 6px 0 0; } .ex-run { font: 11.5px var(--mono); color: var(--text-accent); margin: 3px 0 0; overflow-wrap: anywhere; }
+    .dec { padding: 6px 0 6px 12px; border-left: 2px solid var(--accent); margin: 4px 0 10px; }
+    .dec b { font-weight: 600; display: block; overflow-wrap: break-word; } .dec .why { font-size: 13px; color: var(--text-dim); overflow-wrap: break-word; }
+    .notes { margin: 0; padding-left: 18px; } .notes li { margin: 4px 0; overflow-wrap: break-word; }
+    .dtabs { display: flex; gap: 4px; flex-wrap: wrap; }
+    .dtab { font: 11px var(--mono); padding: 3px 10px; border-radius: 5px; border: 1px solid var(--border); background: var(--bg-recessed); cursor: pointer; text-transform: none; letter-spacing: 0; }
+    .dtab.on { border-color: var(--accent); color: var(--text-accent); }
+    .diagram { overflow: auto; padding: 16px; min-height: 200px; display: flex; justify-content: center; }
+    .diagram .loading { font: 12px var(--mono); color: var(--text-dim); align-self: center; }
+    .diagram .nodeLabel { color: var(--text) !important; }
+    .diagram .edgeLabel { color: var(--text-dim) !important; background-color: var(--bg-card) !important; }
+    .diagram .edgeLabel rect { fill: var(--bg-card) !important; } .diagram .edgeLabel p { background-color: var(--bg-card) !important; }
+
+    /* Outbox (focus tabs only: one per worktree) */
+    .outbox { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; background: var(--bg-raised); border-top: 1px solid var(--border-accent); box-shadow: 0 -20px 50px -30px var(--shadow); }
+    .outbox-inner { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding-top: 10px; padding-bottom: 10px; }
+    @media (max-width: 720px) { .outbox-inner { grid-template-columns: minmax(0, 1fr) auto; } .outbox-state { grid-column: 1 / -1; } }
+    .outbox-state { font: 12px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .outbox-state b { color: var(--warning); font-weight: 400; } .outbox-state.clear b { color: var(--success); }
+    .outbox-hint { font: 10.5px var(--mono); color: var(--text-dim); grid-column: 1 / -1; margin-top: -6px; }
+    .preview { display: none; padding-top: 10px; } .preview.open { display: block; }
+    .preview pre { margin: 0; padding: 12px 14px; border-radius: 8px; background: var(--bg-recessed); border: 1px solid var(--border); font: 12px/1.7 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <div class="mock-banner">MOCK · Monitor Wall · sample data, no server</div>
+
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <div class="brand">ernie<span>.</span></div>
+      <nav class="tabs-strip" id="tabs" aria-label="Wall and focused worktrees"></nav>
+      <div class="status">
+        <span class="live">live</span>
+        <span class="ver">127.0.0.1:7477 · v0.1.0</span>
+        <button class="icon-btn" id="theme-toggle" type="button">◐ theme</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="wrap controls" id="controls" aria-label="Wall controls">
+    <div class="ctl ctl--wt"><span class="ctl-label">on the wall</span><span id="wt-select" class="ctl"></span></div>
+    <div class="ctl">
+      <label class="ctl-label" for="tool-filter">tool</label>
+      <select class="sel" id="tool-filter">
+        <option value="all">all</option><option value="bash">Bash</option><option value="read">Read</option>
+        <option value="edit">files (Edit/Write)</option><option value="search">Grep/Glob</option><option value="agent">Agent</option>
+        <option value="web">Web</option><option value="mcp">MCP</option><option value="other">Skill/other</option>
+      </select>
+      <label class="tog"><input type="checkbox" id="hide-agents"> hide subagents</label>
+      <label class="tog"><input type="checkbox" id="tools-only"> tools only</label>
+      <button class="icon-btn" id="pause-btn" type="button">❚❚ pause</button>
+      <span class="wall-summary" id="wall-summary"></span>
+    </div>
+  </section>
+
+  <main>
+    <div id="wall-view" class="wrap">
+      <div class="wall" id="wall"></div>
+      <div class="shelf" id="shelf"></div>
+    </div>
+    <div id="focus" class="wrap" hidden></div>
+  </main>
+
+  <div class="outbox" id="outbox" hidden>
+    <div class="wrap">
+      <div class="preview" id="preview"><pre id="preview-text"></pre></div>
+      <div class="outbox-inner">
+        <div class="outbox-state" id="outbox-state"></div>
+        <input class="note-input" id="note-input" type="text" placeholder="Note to Claude in this worktree… (enter to queue)">
+        <button class="btn" id="preview-btn" type="button">preview</button>
+        <div class="outbox-hint">Delivered when you next prompt Claude in this worktree. The page can't start a turn.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sample state (verbatim copy of ref_ernie_views/_sample_state.js) -->
+  <script>
+// Shared sample data for the ernie view variations (ref_ernie_views/*.html).
+// Every mock inlines a copy of ERNIE_SAMPLE so all ten show the same data and differ only in layout.
+// Shapes follow spec_ernie.md (event types, fold output) plus A114 `tool run` activity rows.
+// Fields marked "view-only" are not in the spec yet; mocks that use them should say so.
+
+const ERNIE_SAMPLE = {
+  server: { port: 7477, version: 'v0.1.0-12-g3c9e1a7', connected: true },
+
+  // One entry per log file (~/.local/state/ernie/<repo>/<branch>.jsonl). Worktrees of one repo share the repo slug.
+  logs: [
+    {
+      key: 'glue/CDIT-2631-ga4-dedupe', repo: 'glue', branch: 'CDIT-2631-ga4-dedupe', on: true,
+      worktree: '~/things/myc/glue/CDIT-2631-ga4-dedupe', // view-only: spec stores the repo root, not the worktree path
+      session: { id: '4995d496', state: 'working', lastEventAgo: '3s' }, // view-only: derived from hook timestamps
+    },
+    {
+      key: 'glue/CDIT-2627-gsc-backfill', repo: 'glue', branch: 'CDIT-2627-gsc-backfill', on: true,
+      worktree: '~/things/myc/glue/CDIT-2627-gsc-backfill',
+      session: { id: '3fb7e802', state: 'waiting on you', lastEventAgo: '6m' },
+    },
+    {
+      key: 'glue/main', repo: 'glue', branch: 'main', on: true,
+      worktree: '~/things/myc/glue/main',
+      session: { id: null, state: 'idle', lastEventAgo: '1d' },
+    },
+    {
+      key: 'ernie/main', repo: 'ernie', branch: 'main', on: true,
+      worktree: '~/things/myc/ernie/main',
+      session: { id: '715abde2', state: 'idle', lastEventAgo: '2h' },
+    },
+    {
+      key: 'dotfiles/main', repo: 'dotfiles', branch: 'main', on: false, // has a main.off marker
+      worktree: '~/.dotfiles',
+      session: { id: null, state: 'off', lastEventAgo: '5d' },
+    },
+  ],
+
+  // Folded state per log key, as `GET /stream` would push it.
+  states: {
+    'glue/CDIT-2631-ga4-dedupe': {
+      turn: 14,
+      plan: [
+        { id: 'p1', text: 'Reproduce double count on one Dealer Spike host', status: 'done' },
+        { id: 'p2', text: 'Find the dedupe gap', status: 'done' },
+        { id: 'p3', text: 'Normalize page_location before hashing', status: 'active' },
+        { id: 'p4', text: 'Backfill 90 days', status: 'todo' },
+        { id: 'p5', text: 'Verify session counts on stage', status: 'todo' },
+        { id: 'p6', text: 'Open PR', status: 'todo' },
+      ],
+      decisions: [
+        { id: 'd1', text: 'dedupe_key = sha1(session_id, normalized page_location, event_ts)', why: 'event_ts alone collides across tabs; session_id alone merges real repeat views' },
+        { id: 'd2', text: 'Platform-side bugs go to the platform team, not fixed in glue', why: 'we only own the loader and views' },
+      ],
+      questions: [
+        {
+          id: 'q1', kind: 'assume', text: 'publicDigmsDB.clients = Glue\'s client list', choices: ['yes', 'no'],
+          context: 'The 212-site count below comes from joining ga4_hits to publicDigmsDB.clients.',
+          impact: 'If clients is missing sites, the double-count rate is understated.',
+        },
+        {
+          id: 'q2', text: 'Normalize page_location in the SQL view or in the loader?', choices: ['view', 'loader'], recommended: 'view',
+          context: 'Both fix new rows. Only the view also fixes old rows without a backfill.',
+          impact: 'Loader means a 90-day backfill (~40 min on stage) before counts are right.',
+          example: 'e2',
+        },
+        { id: 'q3', text: 'Backfill window?', choices: ['30 days', '90 days'], answer: '90 days' },
+        {
+          id: 'q4', text: 'Should the dedupe also cover Dealer Inspire hosts?', choices: ['yes', 'no'],
+          more: true, followUp: 'need more context', // answered "need more context" → stays open (A88)
+        },
+      ],
+      issues: [
+        {
+          id: 'i1', title: 'Dedupe key ignores the trailing "i" on listing ids', status: 'explained', owner: 'us',
+          cause: 'page_location for the same listing arrives as …-14615315i and …-14615315, so one session hashes to two keys.',
+          fix: 'Strip a trailing "i" from the listing id segment before hashing.',
+          impact: '~3.1% of sessions double-counted on 212 Dealer Spike sites.',
+          confidence: 'verified', method: 'SELECT page_location, dedupe_key FROM ga4_hits WHERE host = \'ds-4471.dealerspike.com\' LIMIT 5',
+          example: 'e1',
+        },
+        {
+          id: 'i2', title: 'Backfill job skips days with late-arriving hits', status: 'approved', owner: 'us',
+          cause: 'The job filters on load_date, but late hits land under the next day\'s partition.',
+          fix: 'Filter on event_date with a 2-day lookback.',
+          impact: 'Up to 0.8% of hits missing from any backfilled day.',
+          confidence: 'inferred', method: 'read backfill.py:88; not run',
+          quote: 'approved, fix it',
+        },
+        {
+          id: 'i3', title: 'SPA route changes send page_view twice', status: 'explained', owner: 'other',
+          cause: 'The platform GTM container fires page_view on history change and on load.',
+          fix: 'Platform team removes the history-change trigger.',
+          impact: 'Inflates page_views ~1.4%; sessions are unaffected after i1.',
+          confidence: 'unchecked', method: 'needs GTM access (SSO wall)',
+        },
+        {
+          id: 'i4', title: 'Stage run reports success with 0 rows', status: 'fixed', owner: 'us',
+          cause: 'Empty result set was treated as success.', fix: 'Fail the run when rows_written = 0.',
+          impact: 'Silent empty loads on stage.', confidence: 'verified', method: 'go test ./loader/... and a stage run',
+        },
+        {
+          id: 'i5', title: 'GTM container v41 missing consent tag', status: 'dropped', owner: 'other',
+          cause: 'Consent tag removed in v41.', fix: 'Platform re-adds it.', impact: 'Not related to this ticket.',
+          confidence: 'inferred', method: 'GTM changelog',
+        },
+      ],
+      examples: [
+        {
+          name: 'e1', title: 'Same listing, two page_location values',
+          columns: ['ga4_hits field', 'Row A', 'Row B'],
+          rows: [
+            ['site_platform', 'Dealer Spike', 'Dealer Spike'],
+            ['session_id', '1728…441', '1728…441'],
+            ['page_location', '…/2019-ford-f150-14615315i', '…/2019-ford-f150-14615315'],
+            ['dedupe_key', 'a91f…', 'c03e…'],
+          ],
+          caption: 'Same session, same listing, two keys → counted twice.',
+          run: 'sql/probe_dedupe.sql',
+        },
+        {
+          name: 'e2', title: 'Where to normalize: options run on e1',
+          columns: ['option', 'Row A key', 'Row B key', 'result'],
+          rows: [
+            ['view', 'a91f…', 'a91f…', '✓ one row, old data fixed too'],
+            ['loader', 'a91f…', 'a91f…', '✓ one row, needs backfill'],
+            ['none (today)', 'a91f…', 'c03e…', '✗ counted twice'],
+          ],
+          caption: 'Both options fix e1; only the view fixes rows already loaded.',
+        },
+      ],
+      facts: [
+        { id: 'f1', text: 'ga4_hits holds 41.2M rows for September', confidence: 'verified', method: 'SELECT count(*) FROM ga4_hits WHERE event_date BETWEEN …' },
+        { id: 'f2', text: 'Duplicates appear only on Dealer Spike hosts', confidence: 'inferred', method: 'grouped by site_platform on a 1-day sample' },
+        { id: 'f3', text: 'Consent mode drops ~2% of hits', confidence: 'unchecked' },
+        { id: 'f4', kind: 'term', term: 'DS', text: 'Dealer Spike, the site platform behind 212 client sites' },
+        { id: 'f5', kind: 'term', term: 'H1', text: 'hypothesis that trailing-"i" listing ids split one session into two keys (now i1)' },
+      ],
+      notes: [
+        { id: 'n1', text: 'platform contact is #glue-platform, ask for GTM read access', ref: 'i3' },
+      ],
+      diagrams: [
+        {
+          name: 'flow', mermaid: `flowchart LR
+  GTM["GTM / gtag"] -->|hits| L["loader"]
+  L -->|"dedupe_key"| H[("ga4_hits")]
+  H --> V["sessions view"]
+  V --> D["dashboard"]
+  L -. "i1: key split here" .-> H`,
+        },
+        {
+          name: 'late-hits', mermaid: `sequenceDiagram
+  participant GTM
+  participant Loader
+  participant Backfill
+  GTM->>Loader: hit (event_date 10-07, arrives 10-08 02:10)
+  Loader->>Loader: partition load_date = 10-08
+  Backfill->>Loader: reload load_date = 10-07
+  Note over Backfill: late hit missed (i2)`,
+        },
+      ],
+      // Newest first. by: claude (CLI writes), hook (file touch, tool run, turn mark), user (page or your terminal).
+      // `tool run` text is the tool's one-line summary; Bash shows its description, never the command (A114).
+      activity: [
+        { ts: '14:21:08', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Run dedupe probe on stage' },
+        { ts: '14:21:02', by: 'hook', t: 'file', op: 'touch', tool: 'Edit', text: 'sql/views/sessions.sql' },
+        { ts: '14:20:51', by: 'hook', t: 'tool', op: 'run', tool: 'Read', text: 'sql/views/sessions.sql' },
+        { ts: '14:20:44', by: 'hook', t: 'tool', op: 'run', tool: 'Grep', text: 'dedupe_key' },
+        { ts: '14:20:30', by: 'claude', t: 'plan', op: 'set', text: 'p3 → active' },
+        { ts: '14:20:12', by: 'hook', t: 'turn', op: 'mark', text: 'turn 14 · delivered 1 event' },
+        { ts: '14:19:58', by: 'user', t: 'question', op: 'answer', text: 'q3 → 90 days' },
+        { ts: '14:12:40', by: 'claude', t: 'question', op: 'add', text: 'q2 Normalize in the view or the loader?' },
+        { ts: '14:12:31', by: 'claude', t: 'example', op: 'put', text: 'e2 Where to normalize: options run on e1' },
+        { ts: '14:12:05', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Compare keys for both options on e1 rows' },
+        { ts: '14:11:20', by: 'hook', t: 'tool', op: 'run', tool: 'Agent', text: 'Find every reader of dedupe_key', agent: null },
+        { ts: '14:11:18', by: 'hook', t: 'tool', op: 'run', tool: 'Grep', text: 'dedupe_key', agent: 'Explore' },
+        { ts: '14:11:16', by: 'hook', t: 'tool', op: 'run', tool: 'Glob', text: '**/*.sql', agent: 'Explore' },
+        { ts: '14:11:14', by: 'hook', t: 'tool', op: 'run', tool: 'Read', text: 'loader/hash.py', agent: 'Explore' },
+        { ts: '14:10:02', by: 'claude', t: 'issue', op: 'add', text: 'i3 [other] SPA route changes send page_view twice' },
+        { ts: '14:09:47', by: 'claude', t: 'issue', op: 'add', text: 'i1 [us] Dedupe key ignores the trailing "i"' },
+        { ts: '14:09:30', by: 'claude', t: 'example', op: 'put', text: 'e1 Same listing, two page_location values' },
+        { ts: '14:09:02', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Pull 5 hits for one Dealer Spike host' },
+        { ts: '14:08:40', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Count rows per dedupe_key for Sept' },
+        { ts: '14:07:15', by: 'hook', t: 'tool', op: 'run', tool: 'WebFetch', text: 'https://support.google.com/analytics/answer/9234069' },
+        { ts: '14:06:58', by: 'user', t: 'issue', op: 'set', text: 'i2 → approved' },
+        { ts: '14:06:02', by: 'hook', t: 'tool', op: 'run', tool: 'mcp__claude_ai_Google_Drive__search_files', text: '' },
+        { ts: '14:05:30', by: 'claude', t: 'fact', op: 'add', text: 'f1 ✓ ga4_hits holds 41.2M rows for September' },
+        { ts: '14:05:12', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: '' }, // a Bash call without a description
+        { ts: '14:04:50', by: 'hook', t: 'tool', op: 'run', tool: 'Skill', text: 'mem' },
+      ],
+      // Your page/terminal events since the last turn mark (what the next prompt delivers).
+      pending: [
+        { t: 'note', op: 'add', text: 'check Dealer Inspire after this', label: 'note: check Dealer Inspire after this' },
+      ],
+      inboxText: 'ernie inbox · turn 15\n- note: check Dealer Inspire after this',
+      warnings: 0,
+    },
+
+    'glue/CDIT-2627-gsc-backfill': {
+      turn: 9,
+      plan: [
+        { id: 'p1', text: 'Probe GSC lambda on stage (G0)', status: 'done' },
+        { id: 'p2', text: 'Pick backfill strategy', status: 'active' },
+        { id: 'p3', text: 'Backfill 16 months', status: 'todo' },
+        { id: 'p4', text: 'Add row-count alarm', status: 'todo' },
+      ],
+      decisions: [
+        { id: 'd1', text: 'Backfill one property at a time', why: 'GSC quota is per property; parallel runs hit 429s' },
+      ],
+      questions: [
+        {
+          id: 'q1', text: 'Backfill by day or by month?', choices: ['by day', 'by month'], recommended: 'by day',
+          context: 'GSC caps 50k rows per request; busy properties exceed it in a month.',
+          impact: 'By month silently truncates the 6 busiest properties.',
+          example: 'e1',
+        },
+        { id: 'q2', text: 'OK to run the backfill on prod tonight?', choices: ['yes', 'no, stage first'] },
+      ],
+      issues: [
+        {
+          id: 'i1', title: 'Retry drops 429s after 3 attempts', status: 'explained', owner: 'us',
+          cause: 'Retry gives up after 3 attempts with no backoff jitter.', fix: 'Exponential backoff with jitter, 8 attempts.',
+          impact: '~4% of days missing for busy properties.', confidence: 'verified', method: 'CloudWatch: 312 "429 giving up" lines on 10-06',
+        },
+      ],
+      examples: [
+        {
+          name: 'e1', title: 'One busy property, by day vs by month',
+          columns: ['request', 'rows returned', 'rows that exist'],
+          rows: [['2026-09 (by month)', '50,000', '61,204'], ['2026-09-14 (by day)', '2,031', '2,031']],
+          caption: 'By month hits the 50k cap and drops 11,204 rows.',
+        },
+      ],
+      facts: [
+        { id: 'f1', kind: 'term', term: 'G0', text: 'throwaway probe script against the stage GSC lambda' },
+        { id: 'f2', text: 'GSC keeps 16 months of data', confidence: 'verified', method: 'GSC API docs' },
+      ],
+      notes: [],
+      diagrams: [],
+      activity: [
+        { ts: '14:15:40', by: 'claude', t: 'question', op: 'add', text: 'q2 OK to run the backfill on prod tonight?' },
+        { ts: '14:15:22', by: 'claude', t: 'question', op: 'add', text: 'q1 Backfill by day or by month?' },
+        { ts: '14:15:01', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Invoke G0 for one property, by month' },
+        { ts: '14:14:30', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Tail GSC lambda logs for 429s' },
+        { ts: '14:13:55', by: 'hook', t: 'file', op: 'touch', tool: 'Write', text: 'scripts/g0_probe.py' },
+        { ts: '14:13:10', by: 'hook', t: 'turn', op: 'mark', text: 'turn 9' },
+      ],
+      pending: [],
+      inboxText: '',
+      warnings: 0,
+    },
+
+    'glue/main': {
+      turn: 3,
+      plan: [], decisions: [], questions: [], issues: [], examples: [], facts: [], notes: [], diagrams: [],
+      activity: [
+        { ts: 'yesterday 17:02', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Pull latest main' },
+      ],
+      pending: [], inboxText: '', warnings: 0,
+    },
+
+    'ernie/main': {
+      turn: 31,
+      plan: [
+        { id: 'p1', text: 'Spec + build plan', status: 'done' },
+        { id: 'p2', text: 'Scratch flow test', status: 'done' },
+        { id: 'p3', text: 'UI view variations', status: 'active' },
+        { id: 'p4', text: 'Phase 1: core (append, fold, dump)', status: 'todo' },
+      ],
+      decisions: [
+        { id: 'd1', text: 'Tool activity shows Bash descriptions only', why: 'no command text → no redactor in v1 (A114)' },
+      ],
+      questions: [],
+      issues: [],
+      examples: [],
+      facts: [
+        { id: 'f1', text: 'Hooks must exit 0 on any error', confidence: 'verified', method: 'flow test F4' },
+      ],
+      notes: [],
+      diagrams: [],
+      activity: [
+        { ts: '12:40:10', by: 'hook', t: 'file', op: 'touch', tool: 'Edit', text: '.mem/artifacts/spec_ernie.md' },
+        { ts: '12:39:55', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Fold A114 into the spec and memory pointer' },
+      ],
+      pending: [], inboxText: '', warnings: 0,
+    },
+  },
+};
+  </script>
+
+  <!-- Wall + focus rendering (the real page gets each log's state over SSE and POSTs user events) -->
+  <script>
+    const S = structuredClone(ERNIE_SAMPLE);
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const $ = id => document.getElementById(id);
+    const clock = () => new Date().toTimeString().slice(0, 8);
+    const nextStatus = { todo: 'active', active: 'done', done: 'todo', dropped: 'todo' };
+    const statusGlyph = { todo: '', active: '▶', done: '✓', dropped: '–' };
+    const CONF = { verified: ['✓', 'verified', 'ok'], inferred: ['~', 'inferred', 'mid'], unchecked: ['✗', 'unchecked', 'no'] };
+    const GATE = ['explained', 'approved', 'fixed'];
+    const logOf = key => S.logs.find(l => l.key === key);
+    const byId = (items, id) => items.find(item => item.id === id);
+    const stateSlug = log => log.session.state.split(' ')[0]; // working | waiting | idle | off
+    const domId = key => key.replace(/[^a-z0-9]/gi, '-');
+
+    // View-only state: nothing here is sent to the server
+    const view = {
+      tab: 'wall', focused: [], onWall: new Set(S.logs.filter(l => l.on).map(l => l.key)),
+      tool: 'all', hideAgents: false, toolsOnly: false, paused: false, pauseSeq: 0,
+      issueSel: {}, diagramSel: {}, methodOpen: new Set(), previewOpen: false,
+    };
+    let seq = 0; // simulated rows get seq > 0 so pause can hold them back
+
+    const UNIT = { s: 1, m: 60, h: 3600, d: 86400 };
+    const bootAt = Date.now();
+    S.logs.forEach(l => {
+      const match = /^(\d+)([smhd])$/.exec(l.session.lastEventAgo) || [0, 0, 's'];
+      l.session.lastAt = bootAt - match[1] * UNIT[match[2]] * 1000;
+    });
+    function ago(at) {
+      const s = Math.max(0, Math.round((Date.now() - at) / 1000));
+      if (s < 60) return `${s}s ago`;
+      if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+      if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+      return `${Math.floor(s / 86400)}d ago`;
+    }
+
+    function toolGroup(row) {
+      if (row.t === 'file') return 'edit';
+      if (row.t !== 'tool') return 'ernie';
+      const tool = row.tool;
+      if (tool === 'Bash') return 'bash';
+      if (tool === 'Read') return 'read';
+      if (/^(Edit|Write|MultiEdit|NotebookEdit)$/.test(tool)) return 'edit';
+      if (tool === 'Grep' || tool === 'Glob') return 'search';
+      if (tool === 'Agent') return 'agent';
+      if (tool.startsWith('Web')) return 'web';
+      if (tool.startsWith('mcp__')) return 'mcp';
+      return 'other';
+    }
+
+    function visibleRows(key) {
+      return S.states[key].activity.filter(r => {
+        const group = toolGroup(r);
+        if (view.paused && r.seq > view.pauseSeq) return false;
+        if (view.toolsOnly && group === 'ernie') return false;
+        if (view.hideAgents && r.agent) return false;
+        return view.tool === 'all' || group === view.tool;
+      });
+    }
+    const heldBack = key => view.paused ? S.states[key].activity.filter(r => r.seq > view.pauseSeq).length : 0;
+
+    function needs(key) {
+      const st = S.states[key];
+      const questions = st.questions.filter(q => !q.answer && !q.more && q.status !== 'dropped').length;
+      const approvals = st.issues.filter(i => i.owner === 'us' && i.status === 'explained').length;
+      const parts = [
+        questions && `${questions} question${questions > 1 ? 's' : ''}`,
+        approvals && `${approvals} approval${approvals > 1 ? 's' : ''}`,
+      ].filter(Boolean).join(' · ');
+      return { total: questions + approvals, parts };
+    }
+
+    // Bash rows carry the call's description only, never the command; empty text shows the tool name
+    function rowHtml(r) {
+      const group = toolGroup(r);
+      const who = r.by === 'user' ? 'you' : r.by;
+      const isTool = group !== 'ernie';
+      const label = !isTool ? who : group === 'mcp' ? 'MCP' : r.tool;
+      const text = isTool ? (r.text || r.tool) : `${r.t} ${r.op} · ${r.text}`;
+      return `<li class="row g-${group}${r.fresh ? ' fresh' : ''}" title="${esc(`${r.tool || who} · ${text}`)}">`
+        + `<span class="ts">${esc(r.ts.replace('yesterday ', '−1d '))}</span><span class="tl">${esc(label)}</span>`
+        + `<span class="tx">${esc(text)}</span>${r.agent ? `<span class="ag">${esc(r.agent)}</span>` : ''}</li>`;
+    }
+    function streamHtml(key, limit) {
+      const rows = visibleRows(key).slice(0, limit);
+      const html = rows.map(rowHtml).join('');
+      rows.forEach(r => { r.fresh = false; });
+      return html || '<li class="row-empty">no rows match the filter</li>';
+    }
+
+    function tileHtml(log) {
+      const key = log.key, st = S.states[key], need = needs(key), state = stateSlug(log);
+      const idle = state === 'idle';
+      const step = st.plan.find(p => p.status === 'active');
+      const done = st.plan.filter(p => p.status === 'done').length;
+      const held = heldBack(key);
+      const streamNote = view.paused ? `<span class="held">paused${held ? ` · +${held} new` : ''}</span>` : idle ? '' : '<span>newest first</span>';
+      return `<article class="tile st-${state}${idle ? ' tile--idle' : ''}" id="tile-${domId(key)}">
+        <header class="tile-head"><span class="dot"></span>
+          <button class="tile-name" type="button" data-focus="${esc(key)}" title="${esc(log.worktree)}"><span class="repo">${esc(log.repo)}/</span>${esc(log.branch)}</button>
+          <span class="pill">${esc(log.session.state)}</span>
+          <span class="meta">turn ${st.turn} · <span data-ago="${esc(key)}">${ago(log.session.lastAt)}</span></span>
+          <button class="icon-btn" type="button" data-focus="${esc(key)}">focus ↗</button></header>
+        ${need.total ? `<button class="needs" type="button" data-focus="${esc(key)}" data-jump="1"><b>NEEDS YOU · ${need.total}</b><span>${need.parts}</span><span class="go">answer →</span></button>` : ''}
+        ${step ? `<div class="step"><span class="step-n">▶ ${step.id} · ${done}/${st.plan.length} done</span>${esc(step.text)}</div>` : ''}
+        <div class="stream-head"><span>${idle ? 'last activity' : 'live tool stream'}</span>${streamNote}</div>
+        <ul class="stream">${streamHtml(key, idle ? 2 : 14)}</ul>
+        <footer class="tile-foot"><span>→ next prompt: ${st.pending.length ? `<b>${st.pending.length} queued</b>` : 'nothing queued'}</span><span>session ${esc(log.session.id || '—')}</span></footer>
+      </article>`;
+    }
+
+    function renderWall() {
+      const shown = S.logs.filter(l => l.on && view.onWall.has(l.key));
+      // Reason: idle tiles shrink and sink so live sessions keep the top row
+      const ordered = [...shown.filter(l => stateSlug(l) !== 'idle'), ...shown.filter(l => stateSlug(l) === 'idle')];
+      $('wall').innerHTML = ordered.map(tileHtml).join('') || '<p class="empty">No worktrees on the wall. Tick one in the bar above.</p>';
+      $('shelf').innerHTML = [
+        ...S.logs.filter(l => l.on && !view.onWall.has(l.key)).map(l => `<span class="shelf-chip">${esc(l.key)} · not on the wall</span>`),
+        ...S.logs.filter(l => !l.on).map(l => `<span class="shelf-chip shelf-chip--off st-off" title="${esc(l.worktree)}"><span class="dot"></span> ${esc(l.key)} · off · last event ${ago(l.session.lastAt)} · run <code>ernie init</code> there to turn it on</span>`),
+      ].join('');
+    }
+
+    function renderControls() {
+      const repos = [...new Set(S.logs.map(l => l.repo))];
+      $('wt-select').innerHTML = repos.map(repo => `<span class="repo-group"><span class="ctl-label">${esc(repo)}</span>${S.logs.filter(l => l.repo === repo).map(l => {
+        const need = l.on ? needs(l.key).total : 0;
+        return `<label class="wt st-${stateSlug(l)}${l.on ? '' : ' wt--off'}" title="${esc(l.worktree)}"><input type="checkbox" data-wall="${esc(l.key)}"${view.onWall.has(l.key) ? ' checked' : ''}${l.on ? '' : ' disabled'}>`
+          + `<span class="dot"></span>${esc(l.branch)}<span class="wt-state">${esc(l.session.state)}${need ? ` · <b>${need}</b>` : ''}</span></label>`;
+      }).join('')}</span>`).join('');
+      const count = state => S.logs.filter(l => stateSlug(l) === state).length;
+      const needing = S.logs.filter(l => l.on && needs(l.key).total).length;
+      $('wall-summary').textContent = `${needing} need you · ${count('working')} working · ${count('idle')} idle · ${count('off')} off`;
+      $('pause-btn').textContent = view.paused ? '▶ resume' : '❚❚ pause';
+      $('controls').classList.toggle('focus-mode', view.tab !== 'wall');
+    }
+
+    function renderTabs() {
+      const tab = (key, inner, closable) => `<span class="tabx${view.tab === key ? ' on' : ''}"><button type="button" data-tab="${esc(key)}">${inner}</button>`
+        + `${closable ? `<button type="button" class="tab-close" data-close="${esc(key)}" aria-label="Close tab">×</button>` : ''}</span>`;
+      const wallCount = S.logs.filter(l => l.on && view.onWall.has(l.key)).length;
+      $('tabs').innerHTML = tab('wall', `▦ wall <span class="tab-n">${wallCount}</span>`, false) + view.focused.map(key => {
+        const log = logOf(key), need = needs(key).total;
+        return tab(key, `<span class="st-${stateSlug(log)}"><span class="dot"></span></span>${esc(log.repo)}/${esc(log.branch)}${need ? ` <span class="tab-need">${need}</span>` : ''}`, true);
+      }).join('');
+    }
+
+    // ---- Focus tab: one worktree, full detail, tool log as a wide column ----
+    const lab = (label, text) => text ? `<p class="lab"><b>${label}</b>${esc(text)}</p>` : '';
+    const exLink = (key, name) => `<button type="button" class="link-btn" data-example="${esc(key)}|${esc(name)}">see example ${esc(name)} ↓</button>`;
+    const methodLine = (key, item) => view.methodOpen.has(`${key}|${item.id}`) ? `<div class="method">method: ${esc(item.method || 'none given')}</div>` : '';
+    function badge(key, item) {
+      const conf = CONF[item.confidence];
+      if (!conf) return '';
+      return `<button class="badge b-${conf[2]}" type="button" data-method="${esc(key)}|${item.id}" title="${esc(`${conf[1]} · ${item.method || 'no method given'}`)}">${conf[0]} ${conf[1]}</button>`;
+    }
+
+    function questionsHtml(key, st) {
+      const total = st.questions.length;
+      if (!total) return '<p class="empty">No questions.</p>';
+      const rank = q => q.answer ? 2 : q.more ? 1 : 0;
+      return st.questions.map((q, index) => ({ q, index })).sort((a, b) => rank(a.q) - rank(b.q) || a.index - b.index).map(({ q, index }) => {
+        const num = `Q${index + 1}/${total} · ${q.id}`;
+        const ref = `${esc(key)}|${q.id}`;
+        if (q.answer) {
+          return `<div class="q answered"><div class="q-top"><span class="q-num">${num}</span><button class="link-btn" type="button" data-reopen="${ref}">change</button></div>
+            <div class="q-text">${esc(q.text)}</div><div class="answer">→ ${esc(q.answer)}</div></div>`;
+        }
+        const assume = q.kind === 'assume';
+        const choices = assume ? ['yes', 'no'] : q.choices || [];
+        const chips = choices.map(c => {
+          const shown = assume ? c[0].toUpperCase() + c.slice(1) : c;
+          return `<button class="chip${c === q.recommended ? ' chip--rec' : ''}" type="button" data-answer="${ref}" data-value="${esc(c)}">${esc(shown)}${c === q.recommended ? ' · recommended' : ''}</button>`;
+        }).join('');
+        const more = q.more ? '' : `<button class="chip chip--more" type="button" data-more="${ref}">need more context</button>`;
+        return `<div class="q open${q.more ? ' q--more' : ''}" id="q-${domId(key)}-${q.id}">
+          <div class="q-top"><span class="q-num">${num}${assume ? ' · assumption' : ''}</span></div>
+          <div class="q-text">${assume ? `I assumed: ${esc(q.text)}. True?` : esc(q.text)}</div>
+          ${lab('Context', q.context)}${lab('Impact', q.impact)}${q.example ? exLink(key, q.example) : ''}
+          ${q.more ? '<p class="more-note">You asked for more context. Claude adds it after your next prompt; you can still answer now.</p>' : ''}
+          <div class="chips">${chips}${more}</div>
+          ${assume ? '' : `<input type="text" data-answer-input="${ref}" placeholder="or type an answer + enter">`}
+        </div>`;
+      }).join('');
+    }
+
+    function issuesHtml(key, st) {
+      if (!st.issues.length) return '<p class="empty">No issues.</p>';
+      const ours = st.issues.filter(i => i.owner === 'us'), theirs = st.issues.filter(i => i.owner !== 'us');
+      const order = [...ours, ...theirs];
+      const pick = byId(order, view.issueSel[key]) || order.find(i => i.status === 'explained') || order[0];
+      const pos = order.indexOf(pick), group = pick.owner === 'us' ? ours : theirs;
+      const tabs = [['ours', ours], ['theirs', theirs]].filter(([, items]) => items.length).map(([label, items]) => `<span class="itabs-group"><span class="ctl-label">${label} ${items.length}</span>`
+        + items.map(i => `<button type="button" class="itab s-${i.status}${i === pick ? ' on' : ''}" data-issue="${esc(key)}|${i.id}" title="${esc(`${i.title} · ${i.status}`)}">${i.id}</button>`).join('') + '</span>').join('');
+      const reached = GATE.indexOf(pick.status);
+      const gate = pick.status === 'dropped'
+        ? '<span class="cur">dropped</span>'
+        : GATE.map((s, i) => `<span class="${i < reached ? 'on' : i === reached ? 'cur' : ''}">${s}</span>`).join('<span>→</span>');
+      const act = (status, text, cls = '') => `<button type="button" class="btn ${cls}" data-iset="${esc(key)}|${pick.id}|${status}">${text}</button>`;
+      const actions = {
+        explained: act('approved', 'Approve', 'btn--primary') + act('dropped', 'Drop'),
+        approved: act('explained', 'Undo approve') + act('dropped', 'Drop'),
+        dropped: act('explained', 'Undo drop'),
+        fixed: '<span class="hint">fixed by Claude after approval</span>',
+      }[pick.status] || '';
+      const nav = (i, text) => order[i] ? `<button type="button" class="btn btn--ghost" data-issue="${esc(key)}|${order[i].id}">${text}</button>` : '';
+      return `<div class="itabs">${tabs}</div>
+        <div class="icard s-${pick.status}">
+          <div class="q-top"><span class="q-num">issue ${pos + 1}/${order.length} · ${pick.owner === 'us' ? 'ours' : 'theirs'} ${group.indexOf(pick) + 1}/${group.length} · ${pick.id}</span>${badge(key, pick)}</div>
+          <div class="q-text">${esc(pick.title)}</div>
+          <div class="gate">${gate}</div>
+          ${pick.quote && pick.status === 'approved' ? `<p class="quote">approved in chat: “${esc(pick.quote)}”</p>` : ''}
+          ${methodLine(key, pick)}${lab('Cause', pick.cause)}${lab('Fix', pick.fix)}${lab('Impact', pick.impact)}${pick.example ? exLink(key, pick.example) : ''}
+          <div class="actions">${actions}<span class="inav">${nav(pos - 1, '← prev')}${nav(pos + 1, 'next →')}</span></div>
+        </div>`;
+    }
+
+    function planHtml(key, st) {
+      if (!st.plan.length) return '<p class="empty">No plan yet.</p>';
+      const done = st.plan.filter(p => p.status === 'done').length;
+      return `<div class="progress"><i style="width:${(done / st.plan.length) * 100}%"></i></div><ul class="plan">${st.plan.map(p => `<li class="${p.status}">
+        <button class="status-box" type="button" data-plan="${esc(key)}|${p.id}" title="${p.status}: click to change">${statusGlyph[p.status]}</button>
+        <span class="item-id">${p.id}</span><span class="text">${esc(p.text)}</span></li>`).join('')}</ul>`;
+    }
+
+    function factsHtml(key, st) {
+      const facts = st.facts.filter(f => f.kind !== 'term'), terms = st.facts.filter(f => f.kind === 'term');
+      const list = facts.map(f => `<li>${badge(key, f)} ${esc(f.text)}<button class="dismiss" type="button" data-dismiss="${esc(key)}|${f.id}" title="Dismiss">×</button>${methodLine(key, f)}</li>`).join('');
+      const gloss = terms.map(t => `<dt>${esc(t.term)}</dt><dd>${esc(t.text)}</dd>`).join('');
+      return (list ? `<ul class="facts">${list}</ul>` : '<p class="empty">No facts.</p>')
+        + (gloss ? `<div class="sub-head">Glossary</div><dl class="gloss">${gloss}</dl>` : '');
+    }
+
+    function examplesHtml(key, st) {
+      if (!st.examples.length) return '<p class="empty">No examples.</p>';
+      return st.examples.map(e => `<figure class="ex" id="ex-${domId(key)}-${esc(e.name)}">
+        <figcaption class="ex-title"><span class="item-id">${esc(e.name)}</span>${esc(e.title)}</figcaption>
+        <div class="ex-scroll"><table><thead><tr>${e.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
+          <tbody>${e.rows.map(row => `<tr>${row.map((cell, i) => i ? `<td>${esc(cell)}</td>` : `<th scope="row">${esc(cell)}</th>`).join('')}</tr>`).join('')}</tbody></table></div>
+        ${e.caption ? `<p class="ex-cap">${esc(e.caption)}</p>` : ''}${e.run ? `<p class="ex-run">run it yourself: ${esc(e.run)}</p>` : ''}
+      </figure>`).join('');
+    }
+
+    function logCount(key) {
+      const rows = visibleRows(key).length, held = heldBack(key);
+      return `${rows} rows · ${view.tool === 'all' ? 'all tools' : view.tool}${view.paused ? ` · paused${held ? ` +${held}` : ''}` : ' · newest first'}`;
+    }
+
+    function renderFocus(key) {
+      const log = logOf(key), st = S.states[key], need = needs(key);
+      const panel = (cls, title, count, body) => `<section class="panel ${cls}"><div class="panel-head"><span>${title}</span><span class="count">${count}</span></div><div class="panel-body">${body}</div></section>`;
+      const answered = st.questions.filter(q => q.answer).length;
+      const ours = st.issues.filter(i => i.owner === 'us').length;
+      const done = st.plan.filter(p => p.status === 'done').length;
+      const terms = st.facts.filter(f => f.kind === 'term').length;
+      const pickedDiagram = view.diagramSel[key] || st.diagrams[0]?.name;
+      $('focus').innerHTML = `
+        <section class="f-head st-${stateSlug(log)}">
+          <div class="f-title"><span class="dot"></span><span><span class="repo">${esc(log.repo)}/</span>${esc(log.branch)}</span><span class="pill">${esc(log.session.state)}</span></div>
+          <div class="f-meta">${esc(log.worktree)} · session ${esc(log.session.id || '—')} · turn ${st.turn} · last event <span data-ago="${esc(key)}">${ago(log.session.lastAt)}</span></div>
+          ${need.total ? `<div class="needs needs--static"><b>NEEDS YOU · ${need.total}</b><span>${need.parts}</span><span class="go">first two panels below</span></div>` : ''}
+        </section>
+        <div class="focus-grid">
+          ${panel('f-q', 'Questions', `${answered}/${st.questions.length} answered`, questionsHtml(key, st))}
+          ${panel('f-iss', 'Issues', `${ours} ours · ${st.issues.length - ours} theirs`, issuesHtml(key, st))}
+          <section class="panel f-log"><div class="panel-head"><span>Tool log</span><span class="count" id="focus-log-count">${logCount(key)}</span></div>
+            <ul class="stream" id="focus-stream">${streamHtml(key, 350)}</ul></section>
+          ${panel('f-plan', 'Plan', st.plan.length ? `${done}/${st.plan.length}` : '', planHtml(key, st))}
+          ${panel('f-facts', 'Facts · terms', `${st.facts.length - terms} · ${terms}`, factsHtml(key, st))}
+          ${panel('f-ex', 'Examples', st.examples.length, examplesHtml(key, st))}
+          <section class="panel f-dia"><div class="panel-head"><span>Diagrams</span><div class="dtabs">${st.diagrams.map(d => `<button type="button" class="dtab${d.name === pickedDiagram ? ' on' : ''}" data-dtab="${esc(key)}|${esc(d.name)}">${esc(d.name)}</button>`).join('')}</div></div>
+            ${st.diagrams.length ? `<div class="diagram" data-mermaid="${esc(key)}"><span class="loading">rendering…</span></div>` : '<div class="panel-body"><p class="empty">No diagrams.</p></div>'}</section>
+          ${panel('f-dec', 'Decisions', st.decisions.length, st.decisions.map(d => `<div class="dec"><b><span class="item-id">${d.id}</span>${esc(d.text)}</b><span class="why">${esc(d.why)}</span></div>`).join('') || '<p class="empty">No decisions.</p>')}
+          ${panel('f-notes', 'Notes', st.notes.length, st.notes.length ? `<ul class="notes">${st.notes.map(n => `<li><span class="item-id">${n.id}</span>${esc(n.text)}${n.ref ? ` <span class="hint">→ ${esc(n.ref)}</span>` : ''}</li>`).join('')}</ul>` : '<p class="empty">No notes. Add one in the bar below.</p>')}
+        </div>`;
+      renderOutbox(key);
+      window.paintDiagrams?.();
+    }
+    window.diagramSource = key => {
+      const st = S.states[key], name = view.diagramSel[key] || st.diagrams[0]?.name;
+      return st.diagrams.find(d => d.name === name)?.mermaid;
+    };
+
+    function renderOutbox(key) {
+      const st = S.states[key], branch = esc(logOf(key).branch), queued = st.pending.length;
+      const el = $('outbox-state');
+      el.classList.toggle('clear', !queued);
+      el.innerHTML = queued ? `→ ${branch} on its next prompt: <b>${queued} queued</b>` : `→ ${branch}: <b>up to date</b>`;
+      $('preview-text').textContent = st.inboxText || 'Nothing queued. Claude is up to date.';
+      $('preview').classList.toggle('open', view.previewOpen);
+      $('preview-btn').textContent = view.previewOpen ? 'hide preview' : 'preview';
+    }
+
+    function renderAll() {
+      const onWall = view.tab === 'wall';
+      renderTabs();
+      renderControls();
+      $('wall-view').hidden = !onWall;
+      $('focus').hidden = onWall;
+      $('outbox').hidden = onWall;
+      if (onWall) renderWall(); else renderFocus(view.tab);
+    }
+
+    // Only the changed log's stream is redrawn on a tick, so focused inputs and diagrams are left alone
+    function refreshLog(key) {
+      if (view.tab === key) {
+        $('focus-stream').innerHTML = streamHtml(key, 350);
+        $('focus-log-count').textContent = logCount(key);
+        return;
+      }
+      const tile = view.tab === 'wall' && $(`tile-${domId(key)}`);
+      if (tile) tile.outerHTML = tileHtml(logOf(key));
+    }
+
+    const flash = el => { if (!el) return; el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); };
+    function openFocus(key, jump) {
+      if (!view.focused.includes(key)) view.focused.push(key);
+      view.tab = key;
+      renderAll();
+      window.scrollTo(0, 0);
+      if (!jump) return;
+      const target = document.querySelector('#focus .q.open:not(.q--more), #focus .icard.s-explained');
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      flash(target);
+    }
+
+    // Page actions: the five ops the server accepts. Each lands in `pending` and the next prompt's inbox
+    function queue(key, event, label) {
+      const st = S.states[key];
+      st.pending.push({ ...event, label });
+      st.inboxText = [`ernie inbox · turn ${st.turn + 1}`, ...st.pending.map(p => `- ${p.label}`)].join('\n');
+      st.activity.unshift({ ts: clock(), by: 'user', t: event.t, op: event.op, text: label, fresh: true });
+      renderAll();
+    }
+    function answer(key, id, value) {
+      const q = byId(S.states[key].questions, id), text = value.trim();
+      if (!q || !text) return;
+      q.answer = text;
+      q.more = false;
+      queue(key, { t: 'question', op: 'answer', id, text }, `answered ${id} → ${text}`);
+    }
+
+    document.addEventListener('click', e => {
+      const hit = sel => e.target.closest(sel);
+      const refOf = (el, attr) => el.dataset[attr].split('|');
+      let el;
+      if ((el = hit('[data-focus]'))) return openFocus(el.dataset.focus, Boolean(el.dataset.jump));
+      if ((el = hit('[data-tab]'))) { view.tab = el.dataset.tab; renderAll(); return window.scrollTo(0, 0); }
+      if ((el = hit('[data-close]'))) {
+        view.focused = view.focused.filter(k => k !== el.dataset.close);
+        if (view.tab === el.dataset.close) view.tab = 'wall';
+        return renderAll();
+      }
+      if ((el = hit('[data-plan]'))) {
+        const [key, id] = refOf(el, 'plan'), item = byId(S.states[key].plan, id);
+        item.status = nextStatus[item.status];
+        return queue(key, { t: 'plan', op: 'set', id, status: item.status }, `${id} → ${item.status}`);
+      }
+      if ((el = hit('[data-answer]'))) { const [key, id] = refOf(el, 'answer'); return answer(key, id, el.dataset.value); }
+      if ((el = hit('[data-more]'))) {
+        const [key, id] = refOf(el, 'more'), q = byId(S.states[key].questions, id);
+        q.more = true;
+        q.followUp = 'need more context';
+        return queue(key, { t: 'question', op: 'answer', id, more: true }, `${id}: need more context`);
+      }
+      if ((el = hit('[data-reopen]'))) { const [key, id] = refOf(el, 'reopen'); byId(S.states[key].questions, id).answer = undefined; return renderFocus(key); }
+      if ((el = hit('[data-dismiss]'))) {
+        const [key, id] = refOf(el, 'dismiss'), st = S.states[key], fact = byId(st.facts, id);
+        st.facts = st.facts.filter(f => f !== fact);
+        return queue(key, { t: 'fact', op: 'dismiss', id }, `dismissed ${id} "${fact.text}"`);
+      }
+      if ((el = hit('[data-issue]'))) { const [key, id] = refOf(el, 'issue'); view.issueSel[key] = id; return renderFocus(key); }
+      if ((el = hit('[data-iset]'))) {
+        const [key, id, status] = refOf(el, 'iset'), issue = byId(S.states[key].issues, id);
+        const undo = status === 'explained' ? ' (undo)' : '';
+        issue.status = status;
+        if (status !== 'approved') delete issue.quote;
+        view.issueSel[key] = id;
+        return queue(key, { t: 'issue', op: 'set', id, status }, `${id} → ${status}${undo}`);
+      }
+      if ((el = hit('[data-method]'))) {
+        const ref = el.dataset.method;
+        view.methodOpen.has(ref) ? view.methodOpen.delete(ref) : view.methodOpen.add(ref);
+        return renderFocus(view.tab);
+      }
+      if ((el = hit('[data-example]'))) {
+        const [key, name] = refOf(el, 'example'), target = $(`ex-${domId(key)}-${name}`);
+        target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return flash(target);
+      }
+      if ((el = hit('[data-dtab]'))) { const [key, name] = refOf(el, 'dtab'); view.diagramSel[key] = name; return renderFocus(key); }
+    });
+
+    document.addEventListener('change', e => {
+      const t = e.target;
+      if (t.dataset.wall) {
+        if (t.checked) view.onWall.add(t.dataset.wall); else view.onWall.delete(t.dataset.wall);
+        return renderAll();
+      }
+      if (t.id === 'tool-filter') view.tool = t.value;
+      else if (t.id === 'hide-agents') view.hideAgents = t.checked;
+      else if (t.id === 'tools-only') view.toolsOnly = t.checked;
+      else return;
+      renderAll();
+    });
+
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      const input = e.target.closest('[data-answer-input]');
+      if (input) { const [key, id] = input.dataset.answerInput.split('|'); return answer(key, id, input.value); }
+      if (e.target.id !== 'note-input' || !e.target.value.trim() || view.tab === 'wall') return;
+      const text = e.target.value.trim(), st = S.states[view.tab];
+      e.target.value = '';
+      st.notes.push({ id: `n${st.notes.length + 1}`, text });
+      queue(view.tab, { t: 'note', op: 'add', text }, `note: ${text}`);
+    });
+
+    $('pause-btn').addEventListener('click', () => {
+      view.paused = !view.paused;
+      if (view.paused) view.pauseSeq = seq;
+      renderAll();
+    });
+    $('preview-btn').addEventListener('click', () => { view.previewOpen = !view.previewOpen; renderOutbox(view.tab); });
+
+    // ---- Liveness: each session ticks on its own cadence (hook `tool run` / `file touch` rows) ----
+    const SIM = {
+      'glue/CDIT-2631-ga4-dedupe': { start: 2, every: 4, next: 0, rows: [
+        { tool: 'Read', text: 'sql/views/sessions.sql' },
+        { t: 'file', op: 'touch', tool: 'Edit', text: 'sql/views/sessions.sql' },
+        { tool: 'Bash', text: 'Re-run dedupe probe on stage' },
+        { tool: 'Grep', text: 'page_location' },
+        { tool: 'Agent', text: 'Find views that hash page_location' },
+        { tool: 'Glob', text: 'sql/views/*.sql', agent: 'Explore' },
+        { tool: 'Read', text: 'sql/views/pageviews.sql', agent: 'Explore' },
+        { tool: 'Bash', text: 'Compare session counts before and after for 10-07' },
+        { tool: 'Bash', text: '' },
+        { tool: 'WebSearch', text: 'GA4 page_location trailing slash normalization' },
+      ] },
+      // A background subagent keeps working while the main session waits on you
+      'glue/CDIT-2627-gsc-backfill': { start: 5, every: 7, next: 0, rows: [
+        { tool: 'Grep', text: 'MAX_ROWS', agent: 'Explore' },
+        { tool: 'Read', text: 'lambda/gsc/handler.py', agent: 'Explore' },
+        { tool: 'Bash', text: 'List properties by monthly row volume', agent: 'Explore' },
+        { tool: 'WebFetch', text: 'https://developers.google.com/webmaster-tools/limits', agent: 'Explore' },
+      ] },
+      // Idle at load; wakes after ~10 s to show an idle tile growing into a live one
+      'ernie/main': { start: 10, every: 5, next: 0, rows: [
+        { tool: 'Read', text: '.mem/artifacts/ref_ernie_views/_sample_state.js' },
+        { tool: 'Skill', text: 'artifact-design' },
+        { t: 'file', op: 'touch', tool: 'Write', text: '.mem/artifacts/ref_ernie_views/09-monitor-wall.html' },
+        { tool: 'Bash', text: 'Count lines in the wall mock' },
+        { tool: 'Agent', text: 'Review the wall mock at 390px' },
+        { tool: 'Read', text: '.mem/artifacts/ref_ernie_views/09-monitor-wall.html', agent: 'code-reviewer' },
+        { t: 'file', op: 'touch', tool: 'Edit', text: '.mem/artifacts/ref_ernie_views/09-monitor-wall.html' },
+        { tool: 'mcp__claude-in-chrome__computer', text: '' },
+      ] },
+    };
+
+    function simStep(key, sim) {
+      const log = logOf(key), st = S.states[key];
+      log.session.lastAt = Date.now();
+      if (stateSlug(log) === 'idle') {
+        log.session.state = 'working';
+        st.turn += 1;
+        st.activity.unshift({ ts: clock(), by: 'hook', t: 'turn', op: 'mark', text: `turn ${st.turn}`, seq: ++seq, fresh: true });
+        renderTabs();
+        renderControls();
+        if (view.tab === 'wall') renderWall(); else if (view.tab === key) renderFocus(key);
+        return;
+      }
+      const row = sim.rows[sim.next++ % sim.rows.length];
+      st.activity.unshift({ ts: clock(), by: 'hook', t: 'tool', op: 'run', ...row, seq: ++seq, fresh: true });
+      st.activity.length = Math.min(st.activity.length, 350);
+      refreshLog(key);
+    }
+
+    let tickN = 0;
+    setInterval(() => {
+      tickN += 1;
+      Object.entries(SIM).forEach(([key, sim]) => {
+        const sinceStart = tickN - sim.start;
+        if (sinceStart >= 0 && sinceStart % sim.every === 0) simStep(key, sim);
+      });
+      document.querySelectorAll('[data-ago]').forEach(el => { el.textContent = ago(logOf(el.dataset.ago).session.lastAt); });
+    }, 1000);
+
+    // Theme
+    const root = document.documentElement;
+    window.currentTheme = () => root.dataset.theme || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    $('theme-toggle').addEventListener('click', () => {
+      root.dataset.theme = window.currentTheme() === 'dark' ? 'light' : 'dark';
+      window.dispatchEvent(new Event('themechange'));
+    });
+
+    renderAll();
+  </script>
+
+  <!-- Mermaid: renders only when a diagram's source (or the theme) changed -->
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
+    const palettes = {
+      dark: {
+        primaryColor: '#0c2f48', primaryTextColor: '#d8e6f2', primaryBorderColor: '#38bdf8',
+        lineColor: '#5f7d96', secondaryColor: '#0f1e2c', tertiaryColor: '#0c1925',
+        background: '#0f1e2c', mainBkg: '#0c2f48', edgeLabelBackground: '#0f1e2c',
+        actorBkg: '#0c2f48', actorBorder: '#38bdf8', actorTextColor: '#d8e6f2', actorLineColor: '#1f5a82',
+        signalColor: '#8299ae', signalTextColor: '#d8e6f2',
+      },
+      light: {
+        primaryColor: '#e0f2fe', primaryTextColor: '#0d1f2e', primaryBorderColor: '#0284c7',
+        lineColor: '#7b93a8', secondaryColor: '#ffffff', tertiaryColor: '#f3f7fb',
+        background: '#ffffff', mainBkg: '#e0f2fe', edgeLabelBackground: '#ffffff',
+        actorBkg: '#e0f2fe', actorBorder: '#0284c7', actorTextColor: '#0d1f2e', actorLineColor: '#7cc4ee',
+        signalColor: '#557087', signalTextColor: '#0d1f2e',
+      },
+    };
+    const svgCache = new Map();
+    let renderPass = 0;
+
+    window.paintDiagrams = async () => {
+      const theme = window.currentTheme();
+      for (const target of document.querySelectorAll('[data-mermaid]')) {
+        const source = window.diagramSource(target.dataset.mermaid);
+        const cacheKey = `${theme}\n${source}`;
+        if (!source) continue;
+        if (svgCache.has(cacheKey)) { target.innerHTML = svgCache.get(cacheKey); continue; }
+        mermaid.initialize({
+          startOnLoad: false, theme: 'base', securityLevel: 'strict',
+          fontFamily: "'Fragment Mono', ui-monospace, monospace",
+          themeVariables: { ...palettes[theme], fontFamily: "'Fragment Mono', ui-monospace, monospace", fontSize: '13px' },
+          flowchart: { curve: 'basis' }, sequence: { mirrorActors: false },
+        });
+        try {
+          const { svg } = await mermaid.render(`dgm-${++renderPass}`, source);
+          svgCache.set(cacheKey, svg);
+          if (target.isConnected) target.innerHTML = svg;
+        } catch (err) {
+          target.textContent = `Diagram failed to render: ${String(err.message || err)}`;
+        }
+      }
+    };
+
+    await document.fonts.ready;
+    window.paintDiagrams();
+    window.addEventListener('themechange', window.paintDiagrams);
+  </script>
+</body>
+</html>

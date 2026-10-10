@@ -1,0 +1,1176 @@
+<!--
+  Variation 08 · Briefing
+  For: catching up after being away. Reading, not scanning: one calm ~720px column that reads like a short generated briefing.
+  Key idea: each worktree opens with ONE bottom line saying what you must do ("2 questions and 1 approval need you;
+  Claude is editing sessions.sql"), then sections in the user's writing order: Needs you → Issues (ours, theirs) → Plan →
+  Decisions → Facts ✓ ~ ✗ → Glossary → Diagrams → Notes. Every "needs you" item leads with its example table.
+  Anything logged after you last looked (default 14:10) carries a margin rule and "new"; "mark read" moves the marker.
+  MUST items:
+    1. Selector: quiet text tabs under the title + a "switch worktree ▾" menu grouped by repo, showing on/off and
+       each session's state (working / waiting on you / idle / off) with last-event age.
+    2. Tool log: a per-worktree "What Claude did" tab. Tool calls are grouped into prose runs ("14:11 sent a subagent
+       (Explore) to find every reader of dedupe_key: 3 calls"), each expandable to its rows; toggle to a raw table with
+       filters (tool, hide subagents, files only). Liveness: a new tool row lands on glue/CDIT-2631 every 4 s.
+    3. Tabs: meaning (a), worktrees open side by side as tabs (open from the menu or Home, close with ×). Issues (b) are
+       not tabs; they are anchored items with N/M counters inside the briefing.
+    4. Home: a briefing across all worktrees: an aggregate bottom line, then one short paragraph per worktree
+       (waiting on you → working → idle → off) with links into its briefing and its tool log.
+  View-only state (not in spec): lastSeen marker per log, session state, worktree path, open tabs.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ernie · Briefing</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Fragment+Mono&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    img, svg, pre { max-width: 100%; }
+    :root {
+      --sans: 'Bricolage Grotesque', system-ui, sans-serif;
+      --mono: 'Fragment Mono', ui-monospace, SFMono-Regular, monospace;
+      --serif: 'Newsreader', Georgia, 'Times New Roman', serif;
+      --bg: #0a1520; --bg-card: #0f1e2c; --bg-recessed: #0c1925; --bg-raised: #132638;
+      --text: #d8e6f2; --text-dim: #8299ae; --text-accent: #7dd3fc;
+      --accent: #38bdf8; --accent-soft: #0c2f48;
+      --border: #1c3246; --border-accent: #1f5a82;
+      --success: #34d399; --warning: #fbbf24; --error: #f87171;
+      --pass-bg: #064e3b; --pass-fg: #a7f3d0;
+      --warn-bg: #78350f; --warn-fg: #fde68a;
+      --new: #fbbf24;
+      --shadow: rgba(0,0,0,.5);
+      color-scheme: dark;
+    }
+    @media (prefers-color-scheme: light) {
+      :root:not([data-theme="dark"]) {
+        --bg: #f6f8fb; --bg-card: #ffffff; --bg-recessed: #eef3f8; --bg-raised: #ffffff;
+        --text: #0d1f2e; --text-dim: #557087; --text-accent: #0369a1;
+        --accent: #0284c7; --accent-soft: #e0f2fe;
+        --border: #d3dfea; --border-accent: #7cc4ee;
+        --success: #059669; --warning: #b45309; --error: #dc2626;
+        --pass-bg: #d1fae5; --pass-fg: #065f46;
+        --warn-bg: #fef3c7; --warn-fg: #92400e;
+        --new: #d97706;
+        --shadow: rgba(13,31,46,.16);
+        color-scheme: light;
+      }
+    }
+    :root[data-theme="light"] {
+      --bg: #f6f8fb; --bg-card: #ffffff; --bg-recessed: #eef3f8; --bg-raised: #ffffff;
+      --text: #0d1f2e; --text-dim: #557087; --text-accent: #0369a1;
+      --accent: #0284c7; --accent-soft: #e0f2fe;
+      --border: #d3dfea; --border-accent: #7cc4ee;
+      --success: #059669; --warning: #b45309; --error: #dc2626;
+      --pass-bg: #d1fae5; --pass-fg: #065f46;
+      --warn-bg: #fef3c7; --warn-fg: #92400e;
+      --new: #d97706;
+      --shadow: rgba(13,31,46,.16);
+      color-scheme: light;
+    }
+    body { margin: 0; font: 17px/1.6 var(--serif); color: var(--text); background-color: var(--bg); }
+    code, .mono { font-family: var(--mono); font-size: .8em; overflow-wrap: anywhere; }
+    button, select { font: inherit; color: inherit; }
+    a { color: var(--text-accent); }
+    .mock-banner { font: 11px var(--mono); text-align: center; padding: 6px 16px;
+      background: var(--warn-bg); color: var(--warn-fg); letter-spacing: .05em; }
+
+    .page { max-width: 752px; margin: 0 auto; padding: 0 16px 160px; }
+    .mast-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+      padding-top: 22px; font: 12px var(--mono); color: var(--text-dim); }
+    .brand { font: 800 19px var(--sans); color: var(--text); letter-spacing: -.02em; }
+    .brand span { color: var(--accent); }
+    .mast-meta { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+    .live { color: var(--success); display: inline-flex; align-items: center; gap: 6px; }
+    .live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--success); animation: pulse 1.8s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+    .kicker { margin: 30px 0 2px; font: 12px var(--mono); color: var(--text-dim); overflow-wrap: anywhere; }
+    h1 { font: 600 34px/1.15 var(--sans); letter-spacing: -.02em; margin: 0 0 16px; overflow-wrap: anywhere; }
+
+    /* Worktree tabs: quiet text, underline marks the open one */
+    .tabs { position: relative; display: flex; flex-wrap: wrap; gap: 6px 20px; align-items: baseline;
+      border-bottom: 1px solid var(--border); font: 13px var(--mono); }
+    .tab { background: none; border: none; padding: 4px 0 8px; cursor: pointer; color: var(--text-dim);
+      border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tab:hover { color: var(--text); }
+    .tab.on { color: var(--text); border-bottom-color: var(--accent); }
+    .tab .repo { opacity: .6; }
+    .tabwrap { display: inline-flex; align-items: baseline; gap: 2px; }
+    .x { background: none; border: none; cursor: pointer; color: var(--text-dim); opacity: .5; padding: 0 2px; font: 13px var(--mono); }
+    .x:hover { opacity: 1; color: var(--error); }
+    .switch { margin-left: auto; color: var(--text-accent); }
+    .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; flex: none; }
+    .dot.working { background: var(--accent); animation: pulse 1.8s ease-in-out infinite; }
+    .dot.waiting { background: var(--warning); }
+    .dot.idle { background: var(--text-dim); opacity: .6; }
+    .dot.off { border: 1px solid var(--text-dim); }
+    .menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; width: min(440px, 100%);
+      background: var(--bg-raised); border: 1px solid var(--border); border-radius: 10px; padding: 8px;
+      box-shadow: 0 24px 50px -20px var(--shadow); }
+    .menu h4 { font: 11px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); margin: 8px 8px 2px; }
+    .menu button { display: flex; width: 100%; justify-content: space-between; gap: 10px; text-align: left; background: none;
+      border: none; padding: 7px 8px; border-radius: 6px; cursor: pointer; font: 12.5px var(--mono); }
+    .menu button:hover { background: var(--accent-soft); }
+    .menu button > span:first-child { overflow-wrap: anywhere; }
+    .menu .st { color: var(--text-dim); white-space: nowrap; }
+    .menu .foot { font: 11.5px var(--mono); color: var(--text-dim); margin: 8px; }
+    .subnav { display: flex; gap: 20px; margin-top: 14px; font: 13px var(--mono); flex-wrap: wrap; }
+
+    /* Reading column */
+    .bottom-line { font: 500 27px/1.35 var(--serif); margin: 32px 0 18px; }
+    .bottom-line strong { font-weight: 600; }
+    .since { border-left: 2px solid var(--new); padding: 2px 0 2px 14px; margin: 0 0 14px; font-size: 16px; color: var(--text-dim); }
+    .since b { color: var(--text); font-weight: 600; }
+    .toc { font: 12px var(--mono); color: var(--text-dim); display: flex; flex-wrap: wrap; gap: 4px 16px; }
+    .toc a { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--border-accent); }
+    .toc a:hover { color: var(--accent); }
+    section { margin-top: 46px; scroll-margin-top: 16px; }
+    h2 { font: 400 12px var(--mono); text-transform: uppercase; letter-spacing: .14em; color: var(--text-dim);
+      margin: 0 0 8px; display: flex; gap: 10px; align-items: baseline; }
+    h2::after { content: ''; flex: 1; border-bottom: 1px solid var(--border); }
+    h3 { font: 600 21px/1.3 var(--sans); margin: 2px 0 12px; overflow-wrap: break-word; }
+    p { margin: 0 0 10px; overflow-wrap: break-word; }
+    .lead { color: var(--text-dim); font-style: italic; margin-bottom: 18px; }
+    .item { margin: 0 0 34px; scroll-margin-top: 16px; }
+    .item.new, .new-line { border-left: 2px solid var(--new); margin-left: -14px; padding-left: 12px; }
+    .meta { font: 11.5px var(--mono); color: var(--text-dim); overflow-wrap: anywhere; }
+    .new-tag { color: var(--new); }
+    .id { font: 11px var(--mono); color: var(--text-dim); margin-right: 6px; }
+    .ref { font: .8em var(--mono); color: var(--text-accent); }
+    .muted { color: var(--text-dim); }
+    .struck { text-decoration: line-through; }
+
+    /* Examples: small tables, fields as row labels */
+    .ex { margin: 4px 0 16px; }
+    .ex-title { font: 12px var(--mono); color: var(--text-dim); margin-bottom: 6px; }
+    .ex-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); }
+    .ex table { border-collapse: collapse; width: 100%; font: 12.5px var(--mono); }
+    .ex th, .ex td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; vertical-align: top; }
+    .ex th { color: var(--text-dim); font-weight: 400; background: var(--bg-recessed); }
+    .ex tr:last-child td { border-bottom: none; }
+    .ex td:first-child { color: var(--text-dim); }
+    .ex-cap { font-size: 15.5px; font-style: italic; color: var(--text-dim); margin-top: 6px; }
+
+    /* Controls */
+    .choices { display: flex; flex-wrap: wrap; gap: 8px 12px; margin: 14px 0 10px; align-items: center; }
+    .choice { font: 13px var(--mono); padding: 7px 15px; border-radius: 18px; border: 1px solid var(--border-accent);
+      background: var(--bg-card); cursor: pointer; }
+    .choice:hover { background: var(--accent-soft); }
+    .choice.rec { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .choice.rec::after { content: ' · recommended'; color: var(--text-dim); }
+    .choice.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+    .text-in { width: 100%; font: 13px var(--mono); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--bg-card); color: var(--text); }
+    .text-in:focus { outline: none; border-color: var(--accent); }
+    .link { background: none; border: none; padding: 0; cursor: pointer; font: 12px var(--mono); color: var(--text-dim);
+      text-decoration: underline; text-underline-offset: 3px; }
+    .link:hover { color: var(--accent); }
+    .claim { font: 11.5px var(--mono); border: 1px solid transparent; border-radius: 10px; padding: 1px 8px; cursor: help; }
+    .c-verified { background: var(--pass-bg); color: var(--pass-fg); }
+    .c-inferred { background: var(--warn-bg); color: var(--warn-fg); }
+    .c-unchecked { background: var(--bg-recessed); color: var(--error); border-color: var(--border); }
+    .method { display: block; font: 12px var(--mono); color: var(--text-dim); margin-top: 4px; overflow-wrap: anywhere; }
+    .gate { font: 12px var(--mono); color: var(--text-dim); }
+    .gate .past { color: var(--success); }
+    .gate .now { color: var(--accent); }
+
+    /* Issues, plan, facts */
+    .issue { margin-bottom: 22px; scroll-margin-top: 16px; }
+    .issue p { margin: 0 0 4px; }
+    .row { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin-top: 4px; }
+    .plan { list-style: none; padding: 0; margin: 0; }
+    .plan li { display: flex; gap: 12px; align-items: baseline; padding: 5px 0; }
+    .pbox { flex: none; width: 20px; height: 20px; border-radius: 5px; border: 1.5px solid var(--text-dim); background: none;
+      cursor: pointer; font: 800 12px/17px var(--sans); padding: 0; transform: translateY(3px); }
+    .plan li.done { color: var(--text-dim); }
+    .plan li.done .ptext { text-decoration: line-through; text-decoration-color: var(--border-accent); }
+    .plan li.done .pbox { background: var(--success); border-color: var(--success); color: var(--bg); }
+    .plan li.active .pbox { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .plan li.active .ptext { color: var(--text-accent); }
+    .plan li.dropped { opacity: .5; }
+    .bare { list-style: none; padding: 0; margin: 0; }
+    .bare li { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; }
+    .bare .body { flex: 1; min-width: 0; overflow-wrap: break-word; }
+    .gloss dt { font: 600 13px var(--mono); }
+    .gloss dd { margin: 0 0 12px; }
+    figure { margin: 0 0 22px; }
+    .dgm { overflow-x: auto; padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card);
+      display: flex; justify-content: center; min-height: 120px; }
+    .dgm .loading { font: 12px var(--mono); color: var(--text-dim); align-self: center; }
+    .dgm .nodeLabel { color: var(--text) !important; }
+    .dgm .edgeLabel { color: var(--text-dim) !important; background-color: var(--bg-card) !important; }
+    .dgm .edgeLabel rect { fill: var(--bg-card) !important; }
+    .dgm .edgeLabel p { background-color: var(--bg-card) !important; }
+    figcaption { font: 12px var(--mono); color: var(--text-dim); margin-top: 6px; }
+
+    /* Home */
+    .wt { margin: 0 0 30px; }
+    .wt h3 { font-size: 19px; margin: 0; }
+    .wt .meta { margin-bottom: 6px; }
+    .links { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+
+    /* What Claude did */
+    .story { list-style: none; padding: 0; margin: 0; }
+    .story > li { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 12px; padding: 7px 0; }
+    .story .t { font: 12px var(--mono); color: var(--text-dim); padding-top: 4px; }
+    .story summary { cursor: pointer; list-style: none; }
+    .story summary::-webkit-details-marker { display: none; }
+    .story summary::before { content: '▸ '; color: var(--text-dim); font-size: 12px; }
+    .story details[open] summary::before { content: '▾ '; }
+    .story .calls { font: 12px var(--mono); color: var(--text-dim); }
+    .story .rows { font: 12px/1.7 var(--mono); color: var(--text-dim); margin: 6px 0 0; padding-left: 12px; border-left: 1px solid var(--border); overflow-wrap: anywhere; }
+    .story .div { display: block; text-align: center; font: 11.5px var(--mono); color: var(--text-dim); padding: 10px 0; }
+    .story .div.seen { color: var(--new); }
+    .who { font: 600 .95em var(--sans); }
+    .who.claude { color: var(--accent); } .who.user { color: var(--success); }
+    .sub { font: 10.5px var(--mono); padding: 0 6px; border-radius: 8px; background: var(--accent-soft); color: var(--text-accent); }
+    .fresh { animation: flash 1.8s ease-out; }
+    @keyframes flash { from { background: var(--accent-soft); } to { background: transparent; } }
+    .filters { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; font: 12px var(--mono); color: var(--text-dim); margin: 0 0 12px; }
+    .filters select { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 3px 6px; font: 12px var(--mono); }
+    .raw { width: 100%; border-collapse: collapse; table-layout: fixed; font: 12px var(--mono); }
+    .raw th, .raw td { padding: 5px 6px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+    .raw th { color: var(--text-dim); font-weight: 400; }
+    .raw col.c-t { width: 72px; } .raw col.c-tool { width: 26%; }
+
+    /* Outbox pill */
+    .pill { position: fixed; right: 16px; bottom: 16px; z-index: 60; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+    .pill-btn { font: 12.5px var(--mono); padding: 9px 16px; border-radius: 22px; border: 1px solid var(--border-accent);
+      background: var(--bg-raised); box-shadow: 0 12px 30px -10px var(--shadow); cursor: pointer; }
+    .pill-btn b { color: var(--warning); font-weight: 400; }
+    .pill-btn.clear b { color: var(--success); }
+    .pill-panel { width: min(400px, calc(100vw - 32px)); background: var(--bg-raised); border: 1px solid var(--border);
+      border-radius: 12px; padding: 14px; box-shadow: 0 24px 50px -20px var(--shadow); font-size: 15px; }
+    .pill-panel pre { margin: 6px 0 12px; padding: 10px 12px; border-radius: 8px; background: var(--bg-recessed);
+      border: 1px solid var(--border); font: 12px/1.7 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+    .pill-panel .meta { margin-top: 8px; }
+    @media (max-width: 560px) {
+      body { font-size: 16px; }
+      h1 { font-size: 27px; }
+      .bottom-line { font-size: 22px; }
+      .switch { margin-left: 0; }
+      .item.new, .new-line { margin-left: -12px; padding-left: 10px; }
+      .story > li { grid-template-columns: 44px minmax(0, 1fr); gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="mock-banner">MOCK · Briefing · sample data, no server</div>
+  <div class="page">
+    <header>
+      <div class="mast-row">
+        <span class="brand">ernie<span>.</span></span>
+        <span class="mast-meta"><span class="live">live</span><span id="server"></span>
+          <button class="link" id="theme-toggle" type="button">◐ theme</button></span>
+      </div>
+      <p class="kicker" id="kicker"></p>
+      <h1 id="title"></h1>
+      <nav class="tabs" id="tabs" aria-label="Worktrees"></nav>
+    </header>
+    <main id="main"></main>
+  </div>
+  <div class="pill" id="pill"></div>
+
+  <script>
+// Shared sample data for the ernie view variations (ref_ernie_views/*.html).
+// Every mock inlines a copy of ERNIE_SAMPLE so all ten show the same data and differ only in layout.
+// Shapes follow spec_ernie.md (event types, fold output) plus A114 `tool run` activity rows.
+// Fields marked "view-only" are not in the spec yet; mocks that use them should say so.
+
+const ERNIE_SAMPLE = {
+  server: { port: 7477, version: 'v0.1.0-12-g3c9e1a7', connected: true },
+
+  // One entry per log file (~/.local/state/ernie/<repo>/<branch>.jsonl). Worktrees of one repo share the repo slug.
+  logs: [
+    {
+      key: 'glue/CDIT-2631-ga4-dedupe', repo: 'glue', branch: 'CDIT-2631-ga4-dedupe', on: true,
+      worktree: '~/things/myc/glue/CDIT-2631-ga4-dedupe', // view-only: spec stores the repo root, not the worktree path
+      session: { id: '4995d496', state: 'working', lastEventAgo: '3s' }, // view-only: derived from hook timestamps
+    },
+    {
+      key: 'glue/CDIT-2627-gsc-backfill', repo: 'glue', branch: 'CDIT-2627-gsc-backfill', on: true,
+      worktree: '~/things/myc/glue/CDIT-2627-gsc-backfill',
+      session: { id: '3fb7e802', state: 'waiting on you', lastEventAgo: '6m' },
+    },
+    {
+      key: 'glue/main', repo: 'glue', branch: 'main', on: true,
+      worktree: '~/things/myc/glue/main',
+      session: { id: null, state: 'idle', lastEventAgo: '1d' },
+    },
+    {
+      key: 'ernie/main', repo: 'ernie', branch: 'main', on: true,
+      worktree: '~/things/myc/ernie/main',
+      session: { id: '715abde2', state: 'idle', lastEventAgo: '2h' },
+    },
+    {
+      key: 'dotfiles/main', repo: 'dotfiles', branch: 'main', on: false, // has a main.off marker
+      worktree: '~/.dotfiles',
+      session: { id: null, state: 'off', lastEventAgo: '5d' },
+    },
+  ],
+
+  // Folded state per log key, as `GET /stream` would push it.
+  states: {
+    'glue/CDIT-2631-ga4-dedupe': {
+      turn: 14,
+      plan: [
+        { id: 'p1', text: 'Reproduce double count on one Dealer Spike host', status: 'done' },
+        { id: 'p2', text: 'Find the dedupe gap', status: 'done' },
+        { id: 'p3', text: 'Normalize page_location before hashing', status: 'active' },
+        { id: 'p4', text: 'Backfill 90 days', status: 'todo' },
+        { id: 'p5', text: 'Verify session counts on stage', status: 'todo' },
+        { id: 'p6', text: 'Open PR', status: 'todo' },
+      ],
+      decisions: [
+        { id: 'd1', text: 'dedupe_key = sha1(session_id, normalized page_location, event_ts)', why: 'event_ts alone collides across tabs; session_id alone merges real repeat views' },
+        { id: 'd2', text: 'Platform-side bugs go to the platform team, not fixed in glue', why: 'we only own the loader and views' },
+      ],
+      questions: [
+        {
+          id: 'q1', kind: 'assume', text: 'publicDigmsDB.clients = Glue\'s client list', choices: ['yes', 'no'],
+          context: 'The 212-site count below comes from joining ga4_hits to publicDigmsDB.clients.',
+          impact: 'If clients is missing sites, the double-count rate is understated.',
+        },
+        {
+          id: 'q2', text: 'Normalize page_location in the SQL view or in the loader?', choices: ['view', 'loader'], recommended: 'view',
+          context: 'Both fix new rows. Only the view also fixes old rows without a backfill.',
+          impact: 'Loader means a 90-day backfill (~40 min on stage) before counts are right.',
+          example: 'e2',
+        },
+        { id: 'q3', text: 'Backfill window?', choices: ['30 days', '90 days'], answer: '90 days' },
+        {
+          id: 'q4', text: 'Should the dedupe also cover Dealer Inspire hosts?', choices: ['yes', 'no'],
+          more: true, followUp: 'need more context', // answered "need more context" → stays open (A88)
+        },
+      ],
+      issues: [
+        {
+          id: 'i1', title: 'Dedupe key ignores the trailing "i" on listing ids', status: 'explained', owner: 'us',
+          cause: 'page_location for the same listing arrives as …-14615315i and …-14615315, so one session hashes to two keys.',
+          fix: 'Strip a trailing "i" from the listing id segment before hashing.',
+          impact: '~3.1% of sessions double-counted on 212 Dealer Spike sites.',
+          confidence: 'verified', method: 'SELECT page_location, dedupe_key FROM ga4_hits WHERE host = \'ds-4471.dealerspike.com\' LIMIT 5',
+          example: 'e1',
+        },
+        {
+          id: 'i2', title: 'Backfill job skips days with late-arriving hits', status: 'approved', owner: 'us',
+          cause: 'The job filters on load_date, but late hits land under the next day\'s partition.',
+          fix: 'Filter on event_date with a 2-day lookback.',
+          impact: 'Up to 0.8% of hits missing from any backfilled day.',
+          confidence: 'inferred', method: 'read backfill.py:88; not run',
+          quote: 'approved, fix it',
+        },
+        {
+          id: 'i3', title: 'SPA route changes send page_view twice', status: 'explained', owner: 'other',
+          cause: 'The platform GTM container fires page_view on history change and on load.',
+          fix: 'Platform team removes the history-change trigger.',
+          impact: 'Inflates page_views ~1.4%; sessions are unaffected after i1.',
+          confidence: 'unchecked', method: 'needs GTM access (SSO wall)',
+        },
+        {
+          id: 'i4', title: 'Stage run reports success with 0 rows', status: 'fixed', owner: 'us',
+          cause: 'Empty result set was treated as success.', fix: 'Fail the run when rows_written = 0.',
+          impact: 'Silent empty loads on stage.', confidence: 'verified', method: 'go test ./loader/... and a stage run',
+        },
+        {
+          id: 'i5', title: 'GTM container v41 missing consent tag', status: 'dropped', owner: 'other',
+          cause: 'Consent tag removed in v41.', fix: 'Platform re-adds it.', impact: 'Not related to this ticket.',
+          confidence: 'inferred', method: 'GTM changelog',
+        },
+      ],
+      examples: [
+        {
+          name: 'e1', title: 'Same listing, two page_location values',
+          columns: ['ga4_hits field', 'Row A', 'Row B'],
+          rows: [
+            ['site_platform', 'Dealer Spike', 'Dealer Spike'],
+            ['session_id', '1728…441', '1728…441'],
+            ['page_location', '…/2019-ford-f150-14615315i', '…/2019-ford-f150-14615315'],
+            ['dedupe_key', 'a91f…', 'c03e…'],
+          ],
+          caption: 'Same session, same listing, two keys → counted twice.',
+          run: 'sql/probe_dedupe.sql',
+        },
+        {
+          name: 'e2', title: 'Where to normalize: options run on e1',
+          columns: ['option', 'Row A key', 'Row B key', 'result'],
+          rows: [
+            ['view', 'a91f…', 'a91f…', '✓ one row, old data fixed too'],
+            ['loader', 'a91f…', 'a91f…', '✓ one row, needs backfill'],
+            ['none (today)', 'a91f…', 'c03e…', '✗ counted twice'],
+          ],
+          caption: 'Both options fix e1; only the view fixes rows already loaded.',
+        },
+      ],
+      facts: [
+        { id: 'f1', text: 'ga4_hits holds 41.2M rows for September', confidence: 'verified', method: 'SELECT count(*) FROM ga4_hits WHERE event_date BETWEEN …' },
+        { id: 'f2', text: 'Duplicates appear only on Dealer Spike hosts', confidence: 'inferred', method: 'grouped by site_platform on a 1-day sample' },
+        { id: 'f3', text: 'Consent mode drops ~2% of hits', confidence: 'unchecked' },
+        { id: 'f4', kind: 'term', term: 'DS', text: 'Dealer Spike, the site platform behind 212 client sites' },
+        { id: 'f5', kind: 'term', term: 'H1', text: 'hypothesis that trailing-"i" listing ids split one session into two keys (now i1)' },
+      ],
+      notes: [
+        { id: 'n1', text: 'platform contact is #glue-platform, ask for GTM read access', ref: 'i3' },
+      ],
+      diagrams: [
+        {
+          name: 'flow', mermaid: `flowchart LR
+  GTM["GTM / gtag"] -->|hits| L["loader"]
+  L -->|"dedupe_key"| H[("ga4_hits")]
+  H --> V["sessions view"]
+  V --> D["dashboard"]
+  L -. "i1: key split here" .-> H`,
+        },
+        {
+          name: 'late-hits', mermaid: `sequenceDiagram
+  participant GTM
+  participant Loader
+  participant Backfill
+  GTM->>Loader: hit (event_date 10-07, arrives 10-08 02:10)
+  Loader->>Loader: partition load_date = 10-08
+  Backfill->>Loader: reload load_date = 10-07
+  Note over Backfill: late hit missed (i2)`,
+        },
+      ],
+      // Newest first. by: claude (CLI writes), hook (file touch, tool run, turn mark), user (page or your terminal).
+      // `tool run` text is the tool's one-line summary; Bash shows its description, never the command (A114).
+      activity: [
+        { ts: '14:21:08', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Run dedupe probe on stage' },
+        { ts: '14:21:02', by: 'hook', t: 'file', op: 'touch', tool: 'Edit', text: 'sql/views/sessions.sql' },
+        { ts: '14:20:51', by: 'hook', t: 'tool', op: 'run', tool: 'Read', text: 'sql/views/sessions.sql' },
+        { ts: '14:20:44', by: 'hook', t: 'tool', op: 'run', tool: 'Grep', text: 'dedupe_key' },
+        { ts: '14:20:30', by: 'claude', t: 'plan', op: 'set', text: 'p3 → active' },
+        { ts: '14:20:12', by: 'hook', t: 'turn', op: 'mark', text: 'turn 14 · delivered 1 event' },
+        { ts: '14:19:58', by: 'user', t: 'question', op: 'answer', text: 'q3 → 90 days' },
+        { ts: '14:12:40', by: 'claude', t: 'question', op: 'add', text: 'q2 Normalize in the view or the loader?' },
+        { ts: '14:12:31', by: 'claude', t: 'example', op: 'put', text: 'e2 Where to normalize: options run on e1' },
+        { ts: '14:12:05', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Compare keys for both options on e1 rows' },
+        { ts: '14:11:20', by: 'hook', t: 'tool', op: 'run', tool: 'Agent', text: 'Find every reader of dedupe_key', agent: null },
+        { ts: '14:11:18', by: 'hook', t: 'tool', op: 'run', tool: 'Grep', text: 'dedupe_key', agent: 'Explore' },
+        { ts: '14:11:16', by: 'hook', t: 'tool', op: 'run', tool: 'Glob', text: '**/*.sql', agent: 'Explore' },
+        { ts: '14:11:14', by: 'hook', t: 'tool', op: 'run', tool: 'Read', text: 'loader/hash.py', agent: 'Explore' },
+        { ts: '14:10:02', by: 'claude', t: 'issue', op: 'add', text: 'i3 [other] SPA route changes send page_view twice' },
+        { ts: '14:09:47', by: 'claude', t: 'issue', op: 'add', text: 'i1 [us] Dedupe key ignores the trailing "i"' },
+        { ts: '14:09:30', by: 'claude', t: 'example', op: 'put', text: 'e1 Same listing, two page_location values' },
+        { ts: '14:09:02', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Pull 5 hits for one Dealer Spike host' },
+        { ts: '14:08:40', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Count rows per dedupe_key for Sept' },
+        { ts: '14:07:15', by: 'hook', t: 'tool', op: 'run', tool: 'WebFetch', text: 'https://support.google.com/analytics/answer/9234069' },
+        { ts: '14:06:58', by: 'user', t: 'issue', op: 'set', text: 'i2 → approved' },
+        { ts: '14:06:02', by: 'hook', t: 'tool', op: 'run', tool: 'mcp__claude_ai_Google_Drive__search_files', text: '' },
+        { ts: '14:05:30', by: 'claude', t: 'fact', op: 'add', text: 'f1 ✓ ga4_hits holds 41.2M rows for September' },
+        { ts: '14:05:12', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: '' }, // a Bash call without a description
+        { ts: '14:04:50', by: 'hook', t: 'tool', op: 'run', tool: 'Skill', text: 'mem' },
+      ],
+      // Your page/terminal events since the last turn mark (what the next prompt delivers).
+      pending: [
+        { t: 'note', op: 'add', text: 'check Dealer Inspire after this', label: 'note: check Dealer Inspire after this' },
+      ],
+      inboxText: 'ernie inbox · turn 15\n- note: check Dealer Inspire after this',
+      warnings: 0,
+    },
+
+    'glue/CDIT-2627-gsc-backfill': {
+      turn: 9,
+      plan: [
+        { id: 'p1', text: 'Probe GSC lambda on stage (G0)', status: 'done' },
+        { id: 'p2', text: 'Pick backfill strategy', status: 'active' },
+        { id: 'p3', text: 'Backfill 16 months', status: 'todo' },
+        { id: 'p4', text: 'Add row-count alarm', status: 'todo' },
+      ],
+      decisions: [
+        { id: 'd1', text: 'Backfill one property at a time', why: 'GSC quota is per property; parallel runs hit 429s' },
+      ],
+      questions: [
+        {
+          id: 'q1', text: 'Backfill by day or by month?', choices: ['by day', 'by month'], recommended: 'by day',
+          context: 'GSC caps 50k rows per request; busy properties exceed it in a month.',
+          impact: 'By month silently truncates the 6 busiest properties.',
+          example: 'e1',
+        },
+        { id: 'q2', text: 'OK to run the backfill on prod tonight?', choices: ['yes', 'no, stage first'] },
+      ],
+      issues: [
+        {
+          id: 'i1', title: 'Retry drops 429s after 3 attempts', status: 'explained', owner: 'us',
+          cause: 'Retry gives up after 3 attempts with no backoff jitter.', fix: 'Exponential backoff with jitter, 8 attempts.',
+          impact: '~4% of days missing for busy properties.', confidence: 'verified', method: 'CloudWatch: 312 "429 giving up" lines on 10-06',
+        },
+      ],
+      examples: [
+        {
+          name: 'e1', title: 'One busy property, by day vs by month',
+          columns: ['request', 'rows returned', 'rows that exist'],
+          rows: [['2026-09 (by month)', '50,000', '61,204'], ['2026-09-14 (by day)', '2,031', '2,031']],
+          caption: 'By month hits the 50k cap and drops 11,204 rows.',
+        },
+      ],
+      facts: [
+        { id: 'f1', kind: 'term', term: 'G0', text: 'throwaway probe script against the stage GSC lambda' },
+        { id: 'f2', text: 'GSC keeps 16 months of data', confidence: 'verified', method: 'GSC API docs' },
+      ],
+      notes: [],
+      diagrams: [],
+      activity: [
+        { ts: '14:15:40', by: 'claude', t: 'question', op: 'add', text: 'q2 OK to run the backfill on prod tonight?' },
+        { ts: '14:15:22', by: 'claude', t: 'question', op: 'add', text: 'q1 Backfill by day or by month?' },
+        { ts: '14:15:01', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Invoke G0 for one property, by month' },
+        { ts: '14:14:30', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Tail GSC lambda logs for 429s' },
+        { ts: '14:13:55', by: 'hook', t: 'file', op: 'touch', tool: 'Write', text: 'scripts/g0_probe.py' },
+        { ts: '14:13:10', by: 'hook', t: 'turn', op: 'mark', text: 'turn 9' },
+      ],
+      pending: [],
+      inboxText: '',
+      warnings: 0,
+    },
+
+    'glue/main': {
+      turn: 3,
+      plan: [], decisions: [], questions: [], issues: [], examples: [], facts: [], notes: [], diagrams: [],
+      activity: [
+        { ts: 'yesterday 17:02', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Pull latest main' },
+      ],
+      pending: [], inboxText: '', warnings: 0,
+    },
+
+    'ernie/main': {
+      turn: 31,
+      plan: [
+        { id: 'p1', text: 'Spec + build plan', status: 'done' },
+        { id: 'p2', text: 'Scratch flow test', status: 'done' },
+        { id: 'p3', text: 'UI view variations', status: 'active' },
+        { id: 'p4', text: 'Phase 1: core (append, fold, dump)', status: 'todo' },
+      ],
+      decisions: [
+        { id: 'd1', text: 'Tool activity shows Bash descriptions only', why: 'no command text → no redactor in v1 (A114)' },
+      ],
+      questions: [],
+      issues: [],
+      examples: [],
+      facts: [
+        { id: 'f1', text: 'Hooks must exit 0 on any error', confidence: 'verified', method: 'flow test F4' },
+      ],
+      notes: [],
+      diagrams: [],
+      activity: [
+        { ts: '12:40:10', by: 'hook', t: 'file', op: 'touch', tool: 'Edit', text: '.mem/artifacts/spec_ernie.md' },
+        { ts: '12:39:55', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Fold A114 into the spec and memory pointer' },
+      ],
+      pending: [], inboxText: '', warnings: 0,
+    },
+  },
+};
+  </script>
+
+  <!-- Rendering + interactions. The real page gets each log's state over SSE and POSTs user events. -->
+  <script>
+    const S = structuredClone(ERNIE_SAMPLE);
+    const DEFAULT_SEEN = '14:10:00';
+    const view = {
+      tab: 'glue/CDIT-2631-ga4-dedupe',
+      open: ['glue/CDIT-2631-ga4-dedupe', 'glue/CDIT-2627-gsc-backfill'],
+      sub: {}, raw: false, filters: { tool: 'all', hideSub: false, filesOnly: false },
+      lastSeen: {}, claims: new Set(), openGroups: new Set(), menu: false, pill: false,
+    };
+
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const st = key => S.states[key];
+    const logOf = key => S.logs.find(l => l.key === key);
+    const seenOf = key => view.lastSeen[key] || DEFAULT_SEEN;
+    const isAfter = (ts, since) => /^\d/.test(ts) && ts > since;
+    const hm = ts => /^\d/.test(ts) ? ts.slice(0, 5) : ts;
+    const base = p => p.split('/').pop();
+    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+    const listJoin = xs => xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`;
+    const lcFirst = s => s.charAt(0).toLowerCase() + s.slice(1);
+    const stateClass = s => ({ working: 'working', 'waiting on you': 'waiting', idle: 'idle', off: 'off' }[s]);
+    const GLYPH = { verified: '✓', inferred: '~', unchecked: '✗' };
+    const PLAN_GLYPH = { todo: '', active: '▶', done: '✓', dropped: '–' };
+    const NEXT_STATUS = { todo: 'active', active: 'done', done: 'todo', dropped: 'todo' };
+    const EVENT_VERB = {
+      'question add': 'asked', 'question answer': 'answered', 'example put': 'added example', 'issue add': 'raised',
+      'issue set': 'set', 'fact add': 'noted', 'fact dismiss': 'dismissed', 'plan add': 'planned', 'plan set': 'moved',
+      'decision add': 'decided', 'note add': 'added a',
+    };
+
+    // Simulated clock that continues from the sample's last event
+    let simSeconds = 14 * 3600 + 21 * 60 + 8;
+    function simClock() {
+      simSeconds += 3 + Math.floor(Math.random() * 5);
+      const pad = n => String(n).padStart(2, '0');
+      return `${pad(Math.floor(simSeconds / 3600))}:${pad(Math.floor(simSeconds / 60) % 60)}:${pad(simSeconds % 60)}`;
+    }
+
+    function needs(s) {
+      const open = s.questions.filter(q => !q.answer && !q.more && q.status !== 'dropped');
+      return {
+        asks: open.filter(q => q.kind !== 'assume'),
+        assumes: open.filter(q => q.kind === 'assume'),
+        approvals: s.issues.filter(i => i.owner === 'us' && i.status === 'explained'),
+        waiting: s.questions.filter(q => q.more && !q.answer),
+        answered: s.questions.filter(q => q.answer),
+        questionCount: open.length,
+      };
+    }
+    function needLine(questionCount, approvalCount) {
+      const parts = [];
+      if (questionCount) parts.push(plural(questionCount, 'question'));
+      if (approvalCount) parts.push(plural(approvalCount, 'approval'));
+      if (!parts.length) return 'Nothing needs you';
+      return `${parts.join(' and ')} ${questionCount + approvalCount === 1 ? 'needs' : 'need'} you`;
+    }
+    function claudeLine(key) {
+      const log = logOf(key), s = st(key);
+      if (!log.on || !s) return 'ernie is off here';
+      if (log.session.state === 'working') {
+        const touch = s.activity.find(a => a.t === 'file');
+        return touch ? `Claude is editing ${base(touch.text)}` : 'Claude is working';
+      }
+      if (log.session.state === 'waiting on you') return `Claude has waited on you for ${log.session.lastEventAgo}`;
+      return `Claude is idle (last event ${log.session.lastEventAgo} ago)`;
+    }
+
+    // Ids that Claude (or you, before this page load) logged after the "last looked" marker
+    function newIds(key) {
+      const ids = new Set();
+      st(key).activity.forEach(a => {
+        if (a.local || a.by === 'hook' || !isAfter(a.ts, seenOf(key))) return;
+        const match = /^[a-z]\d+/.exec(a.text);
+        if (match) ids.add(match[0]);
+      });
+      return ids;
+    }
+
+    function phraseEvent(a, withText) {
+      const verb = EVENT_VERB[`${a.t} ${a.op}`] || `${a.t} ${a.op}`;
+      const match = /^([a-z]\d+)\s*(.*)$/.exec(a.text);
+      if (!match) return `${verb} ${esc(a.text)}`;
+      const [, id, rest] = match;
+      if (rest.startsWith('→')) return `${verb} <span class="ref">${id}</span> ${esc(rest)}`;
+      return `${verb} <span class="ref">${id}</span>${withText && rest ? ` “${esc(rest)}”` : ''}`;
+    }
+    function phraseTool(a) {
+      const t = esc(a.text);
+      switch (a.tool) {
+        case 'Bash': return t ? `ran “${t}”` : 'ran a Bash command with no description';
+        case 'Read': return `read <code>${t}</code>`;
+        case 'Grep': return `searched for “${t}”`;
+        case 'Glob': return `listed <code>${t}</code>`;
+        case 'Edit': case 'MultiEdit': return `edited <code>${t}</code>`;
+        case 'Write': return `wrote <code>${t}</code>`;
+        case 'WebFetch': return `fetched <code>${t}</code>`;
+        case 'WebSearch': return `searched the web for “${t}”`;
+        case 'Skill': return `used the ${t} skill`;
+        case 'Agent': return `sent a subagent to ${esc(lcFirst(a.text))}`;
+        default: return t ? `${esc(a.tool)}: ${t}` : `called <code>${esc(a.tool)}</code>`;
+      }
+    }
+
+    function exampleHTML(s, name) {
+      const e = s.examples.find(x => x.name === name);
+      if (!e) return '';
+      return `<figure class="ex"><div class="ex-title"><span class="id">${esc(e.name)}</span>${esc(e.title)}</div>
+        <div class="ex-scroll"><table><thead><tr>${e.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
+        <tbody>${e.rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+        ${e.caption ? `<div class="ex-cap">${esc(e.caption)}</div>` : ''}
+        ${e.run ? `<div class="meta">see it yourself: <code>${esc(e.run)}</code> (shown, never run)</div>` : ''}</figure>`;
+    }
+    function claim(o, key) {
+      if (!o.confidence) return '';
+      const claimKey = `${key}:${o.id}`, method = o.method || 'no method recorded';
+      return `<button class="claim c-${o.confidence}" type="button" data-claim="${claimKey}" title="${esc(method)}">${GLYPH[o.confidence]} ${o.confidence}</button>`
+        + (view.claims.has(claimKey) ? `<span class="method">${esc(method)}</span>` : '');
+    }
+    function gate(i) {
+      if (i.status === 'dropped') return '<span class="gate">dropped</span>';
+      const steps = ['explained', 'approved', 'fixed'], at = steps.indexOf(i.status);
+      return `<span class="gate">${steps.map((x, n) => `<span class="${n < at ? 'past' : n === at ? 'now' : ''}">${x}</span>`).join(' → ')}</span>`;
+    }
+
+    function sinceHTML(key) {
+      const since = seenOf(key), fresh = st(key).activity.filter(a => isAfter(a.ts, since)).reverse();
+      if (!fresh.length) return `<aside class="since"><b>Nothing new</b> since you last looked at ${hm(since)}.</aside>`;
+      const phrases = who => fresh.filter(a => a.by === who).map(a => phraseEvent(a));
+      const tools = fresh.filter(a => a.by === 'hook' && (a.t === 'tool' || a.t === 'file')).length;
+      const sentences = [];
+      if (phrases('claude').length) sentences.push(`Claude ${listJoin(phrases('claude'))}.`);
+      if (phrases('user').length) sentences.push(`You ${listJoin(phrases('user'))}.`);
+      if (tools) sentences.push(`<button class="link" type="button" data-sub="did">${plural(tools, 'tool call')}</button>.`);
+      return `<aside class="since"><b>Since you last looked (${hm(since)}):</b> ${sentences.join(' ')}
+        <button class="link" type="button" data-markread>mark read</button></aside>`;
+    }
+
+    function briefHTML(key) {
+      const s = st(key), n = needs(s), fresh = newIds(key);
+      const cls = (id, base = 'item') => fresh.has(id) ? `${base} new` : base;
+      const newTag = id => fresh.has(id) ? ' <span class="new-tag">· new</span>' : '';
+      const qPos = q => `Q${s.questions.indexOf(q) + 1}/${s.questions.length}`;
+      const total = n.asks.length + n.assumes.length + n.approvals.length;
+      let position = 0;
+
+      const questionCard = q => {
+        const assume = q.kind === 'assume';
+        const choices = (assume ? ['yes', 'no'] : q.choices || []).map(c =>
+          `<button class="choice${c === q.recommended ? ' rec' : ''}" type="button" data-answer="${q.id}" data-value="${esc(c)}">${esc(c)}</button>`).join('');
+        return `<article class="${cls(q.id)}" id="need-${q.id}">
+          <div class="meta">${++position}/${total} · ${qPos(q)} · ${q.id}${assume ? ' · assumption check' : ''}${newTag(q.id)}</div>
+          <h3>${esc(assume ? `I assumed: ${q.text}. True?` : q.text)}</h3>
+          ${q.example ? exampleHTML(s, q.example) : ''}
+          ${q.context ? `<p><b>Context.</b> ${esc(q.context)}</p>` : ''}
+          ${q.impact ? `<p><b>Impact.</b> ${esc(q.impact)}</p>` : ''}
+          ${q.recommended ? `<p><b>Claude recommends</b> ${esc(q.recommended)}.</p>` : ''}
+          <div class="choices">${choices}<button class="link" type="button" data-more="${q.id}">need more context</button></div>
+          ${assume ? '' : `<input class="text-in" data-keep="ans-${key}-${q.id}" data-answer-input="${q.id}" placeholder="or write your own answer, enter to queue">`}
+        </article>`;
+      };
+      const approvalCard = i => `<article class="${cls(i.id)}" id="need-${i.id}">
+          <div class="meta">${++position}/${total} · issue · ${i.id} · ours${newTag(i.id)}</div>
+          <h3>${esc(i.title)}</h3>
+          ${i.example ? exampleHTML(s, i.example) : ''}
+          <p><b>Cause.</b> ${esc(i.cause)}</p><p><b>Fix.</b> ${esc(i.fix)}</p><p><b>Impact.</b> ${esc(i.impact)}</p>
+          <p><b>How sure.</b> ${claim(i, key)}</p>
+          <div class="choices"><button class="choice primary" type="button" data-issue="${i.id}" data-set="approved">Approve the fix</button>
+            <button class="link" type="button" data-issue="${i.id}" data-set="dropped">drop it</button>${gate(i)}</div>
+        </article>`;
+
+      const needsBody = total
+        ? [...n.asks.map(questionCard), ...n.assumes.map(questionCard), ...n.approvals.map(approvalCard)].join('')
+        : '<p class="lead">Nothing needs you right now.</p>';
+      const waiting = n.waiting.map(q => `<p class="muted">${qPos(q)} <span class="ref">${q.id}</span> ${esc(q.text)} <i>· you asked for more context; waiting on Claude</i></p>`).join('');
+      const answered = n.answered.map(q => `<p class="muted ${fresh.has(q.id) ? 'new-line' : ''}">${qPos(q)} <span class="ref">${q.id}</span> ${esc(q.text)} → <b>${esc(q.answer)}</b>${newTag(q.id)}
+        <button class="link" type="button" data-reopen="${q.id}">change</button></p>`).join('');
+
+      const issueRow = (i, pos) => {
+        let action = '';
+        if (i.status === 'explained' && i.owner === 'us') action = `<a class="link" href="#need-${i.id}">waiting for your approval, above</a>`;
+        else if (i.status === 'explained') action = `<button class="choice" type="button" data-issue="${i.id}" data-set="approved">Approve</button>
+          <button class="link" type="button" data-issue="${i.id}" data-set="dropped">drop</button>`;
+        else if (i.status === 'approved') action = `<span class="muted">${i.quote ? `approved in chat: <i>“${esc(i.quote)}”</i>` : 'approved by you'}</span>
+          <button class="link" type="button" data-issue="${i.id}" data-set="explained">undo</button>`;
+        const dropped = i.status === 'dropped';
+        return `<div class="${cls(i.id, 'issue')}${dropped ? ' muted' : ''}" id="iss-${i.id}">
+          <div class="meta">${pos} · ${i.id}${newTag(i.id)}</div>
+          <p><b class="${dropped ? 'struck' : ''}">${esc(i.title)}</b></p>
+          <p class="muted">Fix: ${esc(i.fix)} Impact: ${esc(i.impact)}</p>
+          <div class="row">${gate(i)} ${claim(i, key)}</div>${action ? `<div class="row">${action}</div>` : ''}
+        </div>`;
+      };
+      const issueGroup = (owner, label) => {
+        const list = s.issues.filter(i => i.owner === owner);
+        if (!list.length) return '';
+        return `<p class="lead">${label} (${list.length})</p>${list.map((i, idx) => issueRow(i, `${idx + 1}/${list.length} ${owner === 'us' ? 'ours' : 'theirs'}`)).join('')}`;
+      };
+
+      const done = s.plan.filter(p => p.status === 'done').length, active = s.plan.find(p => p.status === 'active');
+      const facts = s.facts.filter(f => f.kind !== 'term'), terms = s.facts.filter(f => f.kind === 'term');
+      const referenced = new Set([...s.questions, ...s.issues].map(x => x.example).filter(Boolean));
+      const looseExamples = s.examples.filter(e => !referenced.has(e.name));
+      const theme = currentTheme();
+
+      const sections = [
+        ['needs', 'Needs you', total || '', `${needsBody}${waiting}${answered}`],
+        ['issues', 'Issues', s.issues.length, issueGroup('us', 'Ours, the fixes we make') + issueGroup('other', 'Theirs, for the platform team')],
+        ['plan', 'Plan', s.plan.length ? `${done}/${s.plan.length}` : '', s.plan.length ? `<p class="lead">${done} of ${s.plan.length} done${active ? `; Claude is on ${active.id}` : ''}. Tap a box to change a step.</p>
+          <ol class="plan">${s.plan.map(p => `<li class="${p.status}${fresh.has(p.id) ? ' new-line' : ''}">
+            <button class="pbox" type="button" data-plan="${p.id}" title="${p.status}, tap to change">${PLAN_GLYPH[p.status]}</button>
+            <span><span class="id">${p.id}</span><span class="ptext">${esc(p.text)}</span>${newTag(p.id)}</span></li>`).join('')}</ol>` : ''],
+        ['decisions', 'Decisions', s.decisions.length, s.decisions.map(d =>
+          `<p class="${fresh.has(d.id) ? 'new-line' : ''}"><span class="id">${d.id}</span><b>${esc(d.text)}</b>, because ${esc(d.why)}.</p>`).join('')],
+        ['facts', 'Facts', facts.length, facts.length ? `<p class="lead">Tap a badge to see how it was checked.</p><ul class="bare">${facts.map(f => `<li>
+            <span class="body">${esc(f.text)}<br>${claim(f, key) || '<span class="meta">no confidence given</span>'}</span>
+            <button class="x" type="button" data-dismiss="${f.id}" title="dismiss ${f.id}">×</button></li>`).join('')}</ul>` : ''],
+        ['glossary', 'Glossary', terms.length, `<dl class="gloss">${terms.map(t => `<dt>${esc(t.term)}</dt><dd>${esc(t.text)}</dd>`).join('')}</dl>`],
+        ['diagrams', 'Diagrams', s.diagrams.length, s.diagrams.map(d => `<figure>
+            <div class="dgm" data-dgm="${key}|${esc(d.name)}">${svgCache[`${key}|${d.name}|${theme}`] || '<span class="loading">rendering…</span>'}</div>
+            <figcaption>${esc(d.name)}</figcaption></figure>`).join('')],
+        ['examples', 'Other examples', looseExamples.length, looseExamples.map(e => exampleHTML(s, e.name)).join('')],
+        ['notes', 'Notes', s.notes.length, `<ul class="bare">${s.notes.map(nt => `<li><span class="id">${nt.id}</span><span class="body">${esc(nt.text)}
+            ${nt.ref ? `<a class="link" href="#${nt.ref.startsWith('i') ? 'iss' : 'need'}-${esc(nt.ref)}">about ${esc(nt.ref)}</a>` : ''}</span></li>`).join('')}</ul>`],
+      ].filter(([id, , count]) => id === 'needs' || count);
+
+      return `<p class="bottom-line"><strong>${needLine(n.questionCount, n.approvals.length)}</strong>; ${esc(claudeLine(key))}.</p>
+        ${sinceHTML(key)}
+        <nav class="toc">${sections.map(([id, label, count]) => `<a href="#sec-${id}">${label}${count ? ` ${count}` : ''}</a>`).join('')}</nav>
+        ${sections.map(([id, label, , body]) => `<section id="sec-${id}"><h2>${label}</h2>${body}</section>`).join('')}`;
+    }
+
+    // Tool log: consecutive tool calls fold into one run; a subagent's calls plus its Agent row fold into one line
+    function groupRuns(activity) {
+      const groups = [];
+      let current = null;
+      for (const a of [...activity].reverse()) {
+        const isTool = a.by === 'hook' && (a.t === 'tool' || a.t === 'file');
+        if (!isTool) { current = null; groups.push({ kind: a.t === 'turn' ? 'turn' : a.by, rows: [a] }); continue; }
+        if (a.agent) {
+          if (!current || current.kind !== 'sub' || current.agent !== a.agent || current.lead) {
+            current = { kind: 'sub', agent: a.agent, rows: [] };
+            groups.push(current);
+          }
+          current.rows.push(a);
+          continue;
+        }
+        if (a.tool === 'Agent' && current && current.kind === 'sub' && !current.lead) { current.lead = a; continue; }
+        if (!current || current.kind !== 'run') { current = { kind: 'run', rows: [] }; groups.push(current); }
+        current.rows.push(a);
+      }
+      return groups.reverse();
+    }
+    const rawLine = a => `<div>${esc(a.ts)} · ${esc(a.tool || `${a.by} ${a.t} ${a.op}`)}${a.text ? ` · ${esc(a.text)}` : ''}${a.agent ? ` <span class="sub">${esc(a.agent)}</span>` : ''}</div>`;
+
+    function groupHTML(g) {
+      const first = g.rows[0], fresh = g.rows.concat(g.lead || []).some(r => r.fresh) ? ' class="fresh"' : '';
+      const line = body => `<li${fresh}><span class="t">${esc(hm(first.ts))}</span><div>${body}</div></li>`;
+      if (g.kind === 'turn') return `<li class="div">${esc(first.text)}</li>`;
+      if (g.kind === 'claude' || g.kind === 'user') {
+        return line(`<span class="who ${g.kind}">${g.kind === 'user' ? 'You' : 'Claude'}</span> ${phraseEvent(first, true)}`);
+      }
+      const count = g.rows.length;
+      let sentence;
+      if (g.kind === 'sub') {
+        sentence = g.lead ? `sent a subagent (${esc(g.agent)}) to ${esc(lcFirst(g.lead.text))}` : `a subagent (${esc(g.agent)}) is working`;
+      } else {
+        const phrases = g.rows.map(phraseTool);
+        sentence = phrases.length > 4 ? `${phrases.slice(0, 3).join(', ')} and ${phrases.length - 3} more` : listJoin(phrases);
+      }
+      if (count === 1 && g.kind === 'run') return line(sentence);
+      const groupKey = `${first.ts}|${first.tool}`;
+      return line(`<details data-group="${esc(groupKey)}"${view.openGroups.has(groupKey) ? ' open' : ''}>
+        <summary>${sentence}<span class="calls">: ${plural(count, 'call')}</span></summary>
+        <div class="rows">${g.rows.concat(g.lead || []).map(rawLine).join('')}</div></details>`);
+    }
+
+    function storyHTML(key) {
+      const since = seenOf(key);
+      let dividerPlaced = false, anyNew = false;
+      return `<ul class="story">${groupRuns(st(key).activity).map(g => {
+        const last = g.lead || g.rows[g.rows.length - 1];
+        let divider = '';
+        if (!dividerPlaced && !isAfter(last.ts, since)) {
+          dividerPlaced = true;
+          if (anyNew) divider = `<li class="div seen">↑ new since you last looked (${hm(since)})</li>`;
+        }
+        if (!dividerPlaced) anyNew = true;
+        return divider + groupHTML(g);
+      }).join('')}</ul>`;
+    }
+
+    function rawHTML(key) {
+      const s = st(key), f = view.filters;
+      const tools = [...new Set(s.activity.filter(a => a.tool).map(a => a.tool))];
+      const rows = s.activity.filter(a => (f.tool === 'all' || a.tool === f.tool)
+        && !(f.hideSub && a.agent)
+        && !(f.filesOnly && a.t !== 'file' && a.tool !== 'Read'));
+      return `<div class="filters">
+          <label>tool <select data-filter="tool"><option value="all">all</option>${tools.map(t => `<option${t === f.tool ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+          <label><input type="checkbox" data-filter="hideSub"${f.hideSub ? ' checked' : ''}> hide subagents</label>
+          <label><input type="checkbox" data-filter="filesOnly"${f.filesOnly ? ' checked' : ''}> files only</label>
+          <span>${rows.length}/${s.activity.length} rows</span></div>
+        <table class="raw"><colgroup><col class="c-t"><col class="c-tool"><col></colgroup>
+          <thead><tr><th>time</th><th>tool</th><th>text</th></tr></thead>
+          <tbody>${rows.map(a => `<tr${a.fresh ? ' class="fresh"' : ''}><td>${esc(a.ts)}</td><td>${esc(a.tool || a.by)}</td>
+            <td>${a.tool ? esc(a.text) : `<span class="muted">${a.t} ${a.op}</span> ${esc(a.text)}`}${a.agent ? ` <span class="sub">${esc(a.agent)}</span>` : ''}</td></tr>`).join('')}</tbody></table>`;
+    }
+
+    function didHTML(key) {
+      return `<p class="lead">Every tool call in this worktree, newest first. Bash shows its description, never the command.</p>
+        <div class="subnav" style="margin:0 0 16px"><button class="tab ${view.raw ? '' : 'on'}" type="button" data-raw="0">read as a story</button>
+          <button class="tab ${view.raw ? 'on' : ''}" type="button" data-raw="1">raw table</button></div>
+        ${view.raw ? rawHTML(key) : storyHTML(key)}`;
+    }
+
+    function worktreeHTML(key) {
+      const log = logOf(key), s = st(key);
+      if (!log.on || !s) {
+        return `<p class="bottom-line"><strong>Nothing to read</strong>; ernie is off for this branch.</p>
+          <p>A <code>${esc(log.branch)}.off</code> marker sits next to the log, so hooks and CLI writes are skipped. Turn it back on
+          with <code>ernie init</code> from your own shell in <code>${esc(log.worktree)}</code>.</p>`;
+      }
+      const sub = view.sub[key] || 'brief';
+      const freshCount = s.activity.filter(a => isAfter(a.ts, seenOf(key))).length;
+      return `<div class="subnav"><button class="tab ${sub === 'brief' ? 'on' : ''}" type="button" data-sub="brief">Briefing</button>
+          <button class="tab ${sub === 'did' ? 'on' : ''}" type="button" data-sub="did">What Claude did${freshCount ? ` <span class="new-tag">${freshCount} new</span>` : ''}</button></div>
+        ${sub === 'did' ? didHTML(key) : briefHTML(key)}`;
+    }
+
+    function homeHTML() {
+      const order = { 'waiting on you': 0, working: 1, idle: 2, off: 3 };
+      const logs = [...S.logs].sort((a, b) => order[a.session.state] - order[b.session.state]);
+      let questions = 0, approvals = 0, needy = 0;
+      S.logs.filter(l => l.on && st(l.key)).forEach(l => {
+        const n = needs(st(l.key));
+        questions += n.questionCount; approvals += n.approvals.length;
+        if (n.questionCount + n.approvals.length) needy += 1;
+      });
+      const waitingLog = S.logs.find(l => l.session.state === 'waiting on you');
+      const paragraphs = logs.map(l => {
+        const s = st(l.key);
+        const head = `<h3><span class="dot ${stateClass(l.session.state)}"></span>${esc(l.repo)} / ${esc(l.branch)}</h3>
+          <div class="meta">${esc(l.session.state)} · last event ${esc(l.session.lastEventAgo)} ago${s ? ` · turn ${s.turn}` : ''} · ${esc(l.worktree)}</div>`;
+        if (!l.on || !s) {
+          return `<div class="wt">${head}<p class="muted">ernie is off for this branch, so nothing is logged. Run <code>ernie init</code>
+            in that worktree to turn it on.</p></div>`;
+        }
+        const n = needs(s), sentences = [`${esc(claudeLine(l.key))}.`];
+        const first = [...n.asks, ...n.assumes][0];
+        if (n.questionCount + n.approvals.length) {
+          sentences.push(`<b>${needLine(n.questionCount, n.approvals.length)}</b>${first
+            ? `; first: “${esc(first.kind === 'assume' ? `I assumed: ${first.text}. True?` : first.text)}”${first.recommended ? ` (Claude recommends ${esc(first.recommended)})` : ''}` : ''}.`);
+        } else sentences.push('Nothing needs you.');
+        const done = s.plan.filter(p => p.status === 'done').length, active = s.plan.find(p => p.status === 'active');
+        if (s.plan.length) sentences.push(`Plan ${done}/${s.plan.length}${active ? `, on ${active.id}: ${esc(active.text)}` : ''}.`);
+        const fresh = s.activity.filter(a => isAfter(a.ts, seenOf(l.key))).length;
+        if (fresh) sentences.push(`<span class="new-tag">${plural(fresh, 'event')} since you last looked.</span>`);
+        if (s.pending.length) sentences.push(`${plural(s.pending.length, 'item')} ${s.pending.length === 1 ? 'waits' : 'wait'} for your next prompt.`);
+        return `<div class="wt">${head}<p>${sentences.join(' ')}</p>
+          <div class="links"><button class="link" type="button" data-open="${l.key}" data-sub="brief">read the briefing →</button>
+            <button class="link" type="button" data-open="${l.key}" data-sub="did">what Claude did →</button></div></div>`;
+      });
+      return `<p class="bottom-line"><strong>${needLine(questions, approvals)}</strong>${needy ? ` across ${plural(needy, 'worktree')}` : ''}${waitingLog
+          ? `; ${esc(waitingLog.branch)} has waited on you for ${esc(waitingLog.session.lastEventAgo)}` : ''}.</p>
+        <aside class="since">One paragraph per worktree, the ones waiting on you first. "New" counts what was logged after you last looked.</aside>
+        <section><h2>Worktrees</h2>${paragraphs.join('')}</section>`;
+    }
+
+    function tabsHTML() {
+      const tabs = view.open.map(k => {
+        const l = logOf(k);
+        return `<span class="tabwrap"><button class="tab ${view.tab === k ? 'on' : ''}" type="button" data-tab="${k}">
+          <span class="dot ${stateClass(l.session.state)}"></span>${esc(l.branch)}<span class="repo"> · ${esc(l.repo)}</span></button>
+          <button class="x" type="button" data-close="${k}" aria-label="close ${esc(k)}">×</button></span>`;
+      }).join('');
+      const repos = [...new Set(S.logs.map(l => l.repo))];
+      const menu = !view.menu ? '' : `<div class="menu">${repos.map(r => `<h4>${esc(r)}</h4>${S.logs.filter(l => l.repo === r).map(l =>
+        `<button type="button" data-open="${l.key}"><span><span class="dot ${stateClass(l.session.state)}"></span>${esc(l.branch)}</span>
+          <span class="st">${l.on ? esc(l.session.state) : 'off'} · ${esc(l.session.lastEventAgo)}${view.open.includes(l.key) ? ' · open' : ''}</span></button>`).join('')}`).join('')}
+        <p class="foot">One log per repo + branch. Turning one on or off is <code>ernie init</code> / <code>ernie off</code> in your own shell.</p></div>`;
+      return `<button class="tab ${view.tab === 'home' ? 'on' : ''}" type="button" data-tab="home">Home</button>${tabs}
+        <button class="tab switch" type="button" data-menu>switch worktree ▾</button>${menu}`;
+    }
+
+    function pillHTML() {
+      const keys = view.tab === 'home' ? S.logs.filter(l => st(l.key)).map(l => l.key) : [view.tab].filter(st);
+      const queued = keys.reduce((sum, k) => sum + st(k).pending.length, 0);
+      const inbox = keys.filter(k => st(k).inboxText).map(k => `${keys.length > 1 ? `<div class="meta">${esc(k)}</div>` : ''}<pre>${esc(st(k).inboxText)}</pre>`).join('');
+      const panel = !view.pill ? '' : `<div class="pill-panel"><div class="meta">your next prompt delivers</div>
+          ${inbox || '<p class="muted">Nothing queued. Claude is up to date.</p>'}
+          ${view.tab !== 'home' && st(view.tab) ? '<input class="text-in" id="note-input" data-keep="note" placeholder="Note to Claude, enter to queue">' : '<p class="meta">Open a worktree to add a note.</p>'}
+          <p class="meta">The page can't start a turn. Send any prompt in the terminal and the hook hands this to Claude.</p></div>`;
+      return `${panel}<button class="pill-btn ${queued ? '' : 'clear'}" type="button" data-pill>→ Claude on next prompt · <b>${queued ? `${queued} queued` : 'up to date'}</b></button>`;
+    }
+
+    // Re-rendering must never clobber what you are typing
+    function preserveInputs(fn) {
+      const saved = [...document.querySelectorAll('[data-keep]')].map(el => ({
+        key: el.dataset.keep, value: el.value, focused: el === document.activeElement, caret: el.selectionStart,
+      }));
+      fn();
+      saved.forEach(x => {
+        const el = document.querySelector(`[data-keep="${x.key}"]`);
+        if (!el) return;
+        el.value = x.value;
+        if (x.focused) { el.focus(); el.setSelectionRange(x.caret, x.caret); }
+      });
+    }
+
+    function render() {
+      preserveInputs(() => {
+        const log = logOf(view.tab), s = st(view.tab);
+        document.getElementById('server').textContent = `127.0.0.1:${S.server.port} · ${S.server.version}`;
+        document.getElementById('kicker').innerHTML = view.tab === 'home'
+          ? `briefing across ${S.logs.filter(l => l.on).length} worktrees · ${S.logs.filter(l => !l.on).length} off`
+          : `${esc(log.repo)} · ${esc(log.worktree)}${s ? ` · turn ${s.turn}` : ''} · <span class="dot ${stateClass(log.session.state)}"></span>${esc(log.session.state)}`;
+        document.getElementById('title').textContent = view.tab === 'home' ? 'Your briefing' : log.branch;
+        document.getElementById('tabs').innerHTML = tabsHTML();
+        document.getElementById('main').innerHTML = view.tab === 'home' ? homeHTML() : worktreeHTML(view.tab);
+        document.getElementById('pill').innerHTML = pillHTML();
+      });
+      Object.values(S.states).forEach(s => s.activity.forEach(a => { a.fresh = false; }));
+      fillDiagrams();
+    }
+
+    // Simulates POST /events: updates local state, `pending` and the inbox preview
+    function queue(key, event, label, activityText) {
+      const s = st(key);
+      s.pending.push({ ...event, label });
+      s.inboxText = [`ernie inbox · turn ${s.turn + 1}`, ...s.pending.map(p => `- ${p.label}`)].join('\n');
+      s.activity.unshift({ ts: simClock(), by: 'user', t: event.t, op: event.op, text: activityText || label, fresh: true, local: true });
+      render();
+    }
+    function answer(key, id, value) {
+      const q = st(key).questions.find(x => x.id === id), text = value.trim();
+      if (!q || !text) return;
+      q.answer = text;
+      q.more = false;
+      queue(key, { t: 'question', op: 'answer', id, text }, `answered ${id} "${q.text}" → ${text}`, `${id} → ${text}`);
+    }
+
+    document.addEventListener('click', e => {
+      const hit = attr => e.target.closest(`[data-${attr}]`);
+      const key = view.tab, s = st(key);
+      if (view.menu && !e.target.closest('.menu, [data-menu]')) { view.menu = false; render(); }
+      let el;
+      if ((el = hit('menu'))) { view.menu = !view.menu; return render(); }
+      if ((el = hit('pill'))) { view.pill = !view.pill; return render(); }
+      if ((el = hit('open'))) {
+        const k = el.dataset.open;
+        if (!view.open.includes(k)) view.open.push(k);
+        if (el.dataset.sub) view.sub[k] = el.dataset.sub;
+        Object.assign(view, { tab: k, menu: false });
+        render();
+        return window.scrollTo(0, 0);
+      }
+      if ((el = hit('tab'))) { view.tab = el.dataset.tab; render(); return window.scrollTo(0, 0); }
+      if ((el = hit('close'))) {
+        view.open = view.open.filter(k => k !== el.dataset.close);
+        if (view.tab === el.dataset.close) view.tab = 'home';
+        return render();
+      }
+      if ((el = hit('sub'))) { view.sub[key] = el.dataset.sub; render(); return window.scrollTo(0, 0); }
+      if ((el = hit('raw'))) { view.raw = el.dataset.raw === '1'; return render(); }
+      if ((el = hit('markread'))) { view.lastSeen[key] = s.activity[0].ts; return render(); }
+      if ((el = hit('claim'))) {
+        const k = el.dataset.claim;
+        view.claims.has(k) ? view.claims.delete(k) : view.claims.add(k);
+        return render();
+      }
+      if ((el = hit('answer'))) return answer(key, el.dataset.answer, el.dataset.value);
+      if ((el = hit('more'))) {
+        const q = s.questions.find(x => x.id === el.dataset.more);
+        q.more = true;
+        return queue(key, { t: 'question', op: 'answer', id: q.id, more: true }, `${q.id}: need more context on "${q.text}"`, `${q.id} → need more context`);
+      }
+      if ((el = hit('reopen'))) { s.questions.find(x => x.id === el.dataset.reopen).answer = undefined; return render(); }
+      if ((el = hit('plan'))) {
+        const step = s.plan.find(p => p.id === el.dataset.plan);
+        step.status = NEXT_STATUS[step.status];
+        return queue(key, { t: 'plan', op: 'set', id: step.id, status: step.status }, `${step.id} → ${step.status}`);
+      }
+      if ((el = hit('issue'))) {
+        const issue = s.issues.find(i => i.id === el.dataset.issue), status = el.dataset.set;
+        issue.status = status;
+        if (status === 'explained') delete issue.quote;
+        return queue(key, { t: 'issue', op: 'set', id: issue.id, status }, `${issue.id} → ${status}`);
+      }
+      if ((el = hit('dismiss'))) {
+        const fact = s.facts.find(f => f.id === el.dataset.dismiss);
+        s.facts = s.facts.filter(f => f !== fact);
+        return queue(key, { t: 'fact', op: 'dismiss', id: fact.id }, `dismissed ${fact.id} "${fact.text}"`, fact.id);
+      }
+    });
+
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      const input = e.target.closest('[data-answer-input]');
+      if (input) return answer(view.tab, input.dataset.answerInput, input.value);
+      if (e.target.id !== 'note-input' || !e.target.value.trim()) return;
+      const text = e.target.value.trim(), s = st(view.tab);
+      e.target.value = '';
+      s.notes.push({ id: `n${s.notes.length + 1}`, text });
+      queue(view.tab, { t: 'note', op: 'add', text }, `note: ${text}`);
+    });
+
+    document.addEventListener('change', e => {
+      const filter = e.target.dataset.filter;
+      if (!filter) return;
+      view.filters[filter] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+      render();
+    });
+
+    document.addEventListener('toggle', e => {
+      const group = e.target.dataset && e.target.dataset.group;
+      if (!group) return;
+      e.target.open ? view.openGroups.add(group) : view.openGroups.delete(group);
+    }, true);
+
+    // Mermaid: render each diagram once per theme and reuse the SVG on every re-render
+    const svgCache = {}, inflight = new Set();
+    let mermaidChain = Promise.resolve(), diagramCount = 0;
+    function fillDiagrams() {
+      if (!window.mermaidRender) return;
+      const theme = currentTheme();
+      document.querySelectorAll('[data-dgm]').forEach(el => {
+        const ref = el.dataset.dgm, cacheKey = `${ref}|${theme}`;
+        if (svgCache[cacheKey] || inflight.has(cacheKey)) return;
+        inflight.add(cacheKey);
+        const [key, name] = ref.split('|');
+        const source = st(key).diagrams.find(d => d.name === name).mermaid;
+        mermaidChain = mermaidChain.then(async () => {
+          try { svgCache[cacheKey] = await window.mermaidRender(`dgm${++diagramCount}`, source, theme); }
+          catch (err) { svgCache[cacheKey] = `<span class="loading">Diagram failed to render: ${esc(err.message || err)}</span>`; }
+          inflight.delete(cacheKey);
+          if (currentTheme() !== theme) return;
+          document.querySelectorAll('[data-dgm]').forEach(x => { if (x.dataset.dgm === ref) x.innerHTML = svgCache[cacheKey]; });
+        });
+      });
+    }
+    window.addEventListener('mermaidready', fillDiagrams);
+
+    // Theme
+    const root = document.documentElement;
+    function currentTheme() {
+      return root.dataset.theme || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    }
+    window.currentTheme = currentTheme;
+    document.getElementById('theme-toggle').addEventListener('click', () => {
+      root.dataset.theme = currentTheme() === 'dark' ? 'light' : 'dark';
+      render();
+    });
+
+    // Liveness: the working session keeps calling tools
+    const LIVE_KEY = 'glue/CDIT-2631-ga4-dedupe';
+    const LIVE_ROWS = [
+      { tool: 'Read', text: 'sql/views/sessions_test.sql' },
+      { tool: 'Bash', text: 'Run view tests on stage' },
+      { tool: 'Grep', text: 'page_location', agent: 'Explore' },
+      { tool: 'Bash', text: 'Count sessions per host, before vs after' },
+      { tool: 'Glob', text: 'sql/views/*.sql' },
+      { tool: 'Bash', text: '' },
+      { tool: 'WebSearch', text: 'GA4 page_location trailing characters' },
+    ];
+    let liveIndex = 0;
+    setInterval(() => {
+      const row = LIVE_ROWS[liveIndex++ % LIVE_ROWS.length], s = st(LIVE_KEY);
+      s.activity.unshift({ ts: simClock(), by: 'hook', t: 'tool', op: 'run', ...row, fresh: true });
+      s.activity.length = Math.min(s.activity.length, 350);
+      logOf(LIVE_KEY).session.lastEventAgo = '1s';
+      render();
+    }, 4000);
+
+    render();
+  </script>
+
+  <!-- Mermaid -->
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    const palettes = {
+      dark: {
+        primaryColor: '#0c2f48', primaryTextColor: '#d8e6f2', primaryBorderColor: '#38bdf8',
+        lineColor: '#5f7d96', secondaryColor: '#0f1e2c', tertiaryColor: '#0c1925',
+        background: '#0f1e2c', mainBkg: '#0c2f48', edgeLabelBackground: '#0f1e2c',
+        actorBkg: '#0c2f48', actorBorder: '#38bdf8', actorTextColor: '#d8e6f2', actorLineColor: '#1f5a82',
+        signalColor: '#8299ae', signalTextColor: '#d8e6f2', noteBkgColor: '#78350f', noteTextColor: '#fde68a',
+      },
+      light: {
+        primaryColor: '#e0f2fe', primaryTextColor: '#0d1f2e', primaryBorderColor: '#0284c7',
+        lineColor: '#7b93a8', secondaryColor: '#ffffff', tertiaryColor: '#f3f7fb',
+        background: '#ffffff', mainBkg: '#e0f2fe', edgeLabelBackground: '#ffffff',
+        actorBkg: '#e0f2fe', actorBorder: '#0284c7', actorTextColor: '#0d1f2e', actorLineColor: '#7cc4ee',
+        signalColor: '#557087', signalTextColor: '#0d1f2e', noteBkgColor: '#fef3c7', noteTextColor: '#92400e',
+      },
+    };
+    const font = "'Fragment Mono', ui-monospace, monospace";
+    await document.fonts.ready;
+    window.mermaidRender = async (id, source, theme) => {
+      mermaid.initialize({
+        startOnLoad: false, theme: 'base', securityLevel: 'strict', fontFamily: font,
+        themeVariables: { ...palettes[theme], fontFamily: font, fontSize: '13px' },
+        flowchart: { curve: 'basis' }, sequence: { mirrorActors: false },
+      });
+      const { svg } = await mermaid.render(id, source);
+      return svg;
+    };
+    window.dispatchEvent(new Event('mermaidready'));
+  </script>
+</body>
+</html>
