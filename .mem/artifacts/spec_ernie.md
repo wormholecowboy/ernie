@@ -1,6 +1,6 @@
 # Live Context UI — Plan
 
-**Status:** ready to build, nothing built yet · **Updated:** 2026-10-09 (build-plan amendments A1–A35, A51–A92 and A95–A109 folded in)
+**Status:** ready to build, nothing built yet · **Updated:** 2026-10-09 (build-plan amendments A1–A35, A51–A92 and A95–A111 folded in)
 
 Files (all in `.mem/artifacts/`):
 - `spec_ernie.md` — this doc (the build spec)
@@ -142,7 +142,7 @@ printf '%s' '…' | ernie diagram arch       # source on stdin (no heredoc: Bash
 printf '%s' '{"title":…,"columns":[…],"rows":[[…]]}' | ernie example e1   # scoped table (A90)
 ernie issue "Retry drops 429s" --cause … --fix … --impact … --owner us --confidence inferred --method "…" [--example e1]   # → i1 (A89, A91)
 ernie issue set i1 fixed|dropped [--fix …]   # Claude: fixed only after approved
-ernie issue set i1 approved --quote "approved, fix it"   # Claude may approve only with your words (A105)
+ernie issue set i1 approved --quote "approved, fix it"   # Claude may approve only with words from your last prompt (A105, A110)
 ernie fact "Hooks must exit 0 on any error" [--confidence verified --method "go test ./..."] # → f1 (A91)
 ernie fact "throwaway probe script against stage" --term G0   # glossary entry: kind term (A92)
 ernie fact dismiss f1
@@ -152,7 +152,7 @@ ernie mem synced <n>                        # record that *um wrote the delta up
 ernie serve                                 # one server, all logs (port $ERNIE_PORT, default 7477; no --port flag, A86)
 ernie open                                  # open the page for this repo + branch
 ernie completion zsh                        # zsh completion script (cobra)
-ernie hook post-tool-use|user-prompt-submit|session-start   # reads hook JSON on stdin
+ernie hook post-tool-use|user-prompt-submit|session-start|stop   # reads hook JSON on stdin
 ```
 
 Flags can go anywhere on the line (cobra/pflag). Write commands need an existing log: with no log they exit 1 and print a hint to run `ernie init`; with an `.off` marker they write nothing, print the notice on stderr, leave stdout empty and exit 0 (A33). On success they print the new or changed id, two spaces and the first 40 chars of the text (`p2  Wire middleware`); errors name the command (`plan add "B": unknown flag --tga`), so an id shifted by a failed command in a batch is visible (A102). Commands that take an id (`plan set`, `answer`, `fact dismiss`, `decide set`, `issue set`) exit 1 on an id that was never added with `unknown id p14; open: p3,p4` and write nothing (A25, A61). Ids are looked up per type (the prefix must match the command), and `plan set` accepts only todo/active/done/dropped (A75). `issue add` requires `--cause`, `--fix`, `--impact`, `--owner` and `--confidence`; `--recommend` must match a `--choice`; an `example` over its caps exits 1 (A88–A91). **Issue gate:** only you set `approved` (page button or your own terminal). Claude's `issue set i1 approved` exits 1 unless it carries `--quote "<your words>"` (A105), and Claude's `issue set i1 fixed` on an issue that isn't approved exits 1 `i1 not approved` (A89). Your terminal user ops that would push the inbox past its cap exit 1 "outbox full; wait for the next prompt" (A69). Missing log → `Update` returns `ErrNoLog`; the CLI maps it to exit 1 + the init hint, hooks to a no-op, POST to 404 (A54).
@@ -186,10 +186,11 @@ The hooks live in the global `claude/.claude/settings.json`, so there's nothing 
 | Hook | Matcher | Does |
 |---|---|---|
 | `PostToolUse` | `Edit\|Write\|MultiEdit\|NotebookEdit` | Appends `file touch` events. No Bash events in v1 (A62). Reads the key from the session cache `.sessions/<session_id>` instead of calling git; a miss falls back to `Resolve` (A96) |
-| `UserPromptSubmit` | — | Under one lock: fold, build the output, write it to stdout (goes into context), check the write error, and only then append a `turn mark`. If the write failed, no mark, so the inbox is delivered again next prompt (A22). Output = `ernie inbox` (your page and terminal edits since the last turn, header `ernie inbox · turn <n>`, capped at 8 KB, A57, A97; every `by:user` writer checks the cap before writing, so nothing is truncated, A69), plus one reminder line if the turn that just ended edited files (`file touch`) with no `by:claude` events: *"ernie: last turn edited files without logging; update plan status, decisions or questions if they changed."* (A21). Prints nothing when both are empty. Rewrites the session cache (A96). No skip list: `-p` built-ins don't fire UPS and skill prompts start real turns; only a kind the interactive check finds firing without a model turn would be skipped (A99) |
+| `UserPromptSubmit` | — | Under one lock: fold, build the output, write it to stdout (goes into context), check the write error, and only then append a `turn mark`. If the write failed, no mark, so the inbox is delivered again next prompt (A22). Output = `ernie inbox` (your page and terminal edits since the last turn, header `ernie inbox · turn <n>`, capped at 8 KB, A57, A97; every `by:user` writer checks the cap before writing, so nothing is truncated, A69), plus one reminder line if the turn that just ended edited files (`file touch`) with no `by:claude` events: *"ernie: last turn edited files without logging; update plan status, decisions or questions if they changed."* (A21). Prints nothing when both are empty. Rewrites the session cache (A96) and saves your raw prompt to `.sessions/<session_id>.prompt`, which the CLI checks chat-approval quotes against (A110). No skip list: `-p` built-ins don't fire UPS and skill prompts start real turns; only a kind the interactive check finds firing without a model turn would be skipped (A99) |
 | `SessionStart` | `startup\|compact\|clear\|resume\|fork` | Prints `ernie dump` so state comes back in new sessions and after compaction. The dump's header line also tells Claude that ernie is on for this branch. Appends `export ERNIE_PROJECT_DIR='…'` to `$CLAUDE_ENV_FILE` (A95) and writes the session cache (A96) |
+| `Stop` | — | Narrow checks only (A111). `stop_hook_active` → let the stop through. Blocks once when the reply ends in `?` and the turn has no `question add` (*"ernie: your reply asked a question in prose; log it with `ernie ask`."*), or when the turn edited files and an approved issue hasn't been nudged yet (*"ernie: i1 is approved; `ernie issue set i1 fixed` if this fixed it."*, A104; records `stop remind`). Any error → exit 0 |
 
-**No Stop hook in v1 (A21).** Most turns that edit files change no plan state, so a hard block would add a filler model turn to nearly every edit turn. The soft reminder on the next prompt replaces it.
+**The Stop hook doesn't nag about general logging (A21).** Most turns that edit files change no plan state, so a block there would add a filler model turn to nearly every edit turn. That reminder stays a soft line on the next prompt; the Stop hook only handles the two narrow cases above.
 
 The existing `SessionStart` herdr hook stays; the `ernie` hook goes alongside it. Whether `fork` exists as a source is checked by the hook spike.
 
@@ -296,7 +297,7 @@ Each function gets one expected case, one edge case and one failure case. Use `t
 | `POST /events` | valid answer appended | disallowed op → 400 | bad/missing token → 403 |
 | `ernie mem delta` | mixed events → grouped by target, mirror markers included | nothing since last sync → "nothing new" | no log for branch → exit 0, "no ernie log" (so `*um` falls back) |
 | `ernie mem synced` | appends a `mem sync` with the given `upto` | same cursor as the last sync → no duplicate marker | no log → exit 0, no-op; cursor not on a line boundary → exit 1, nothing written |
-| CLI `issue` | `issue add` → `i1`; your `issue set i1 approved` → written | Claude `issue set i1 approved --quote "…"` → written with `quote` (A105) | Claude `approved` without `--quote` → exit 1; Claude `fixed` on an unapproved issue → exit 1 `i1 not approved`; missing `--cause` → exit 1 |
+| CLI `issue` | `issue add` → `i1`; your `issue set i1 approved` → written | Claude `issue set i1 approved --quote "…"` with the quote in your last prompt → written with `quote` (A105, A110) | Claude `approved` without `--quote` → exit 1; quote not in your last prompt, or no saved prompt → exit 1 (A110); Claude `fixed` on an unapproved issue → exit 1 `i1 not approved`; missing `--cause` → exit 1 |
 | CLI `example` | valid JSON → stored | exactly 8 columns × 20 rows | 9 columns or a 201-char cell → exit 1 |
 | CLI id commands | known id → event written | `answer q3 --drop` → `question set {status: dropped}`; reopening a done step → accepted | never-added id → exit 1, lists open ids; bad status or wrong-type id → exit 1 (A75) |
 
@@ -378,7 +379,7 @@ judge       d1 JSONL over JSON — append-only… · f1 Hooks exit 0 on any erro
 
 0. ~~**Confirm** decisions~~ → done 2026-10-02.
 1. **Core:** event types (including the `tag` field), `Create`, `Update`, `AppendExisting`, `Resolve`, `Fold`, `Dump`, `Inbox`, plus the `plan`/`decide`/`ask`/`answer`/`fact`/`diagram`/`example`/`issue`/`dump` commands (A88–A92), with tests. The hook spike runs here, after bootstrap and before the fold (A28).
-2. **Hooks:** the three `ernie hook` handlers (no Stop, A21) with tests, wired into `claude/.claude/settings.json`, plus a minimal `ernie` skill so Claude knows what the hooks mean.
+2. **Hooks:** the four `ernie hook` handlers (Stop narrow, A111) with tests, wired into `claude/.claude/settings.json`, plus a minimal `ernie` skill so Claude knows what the hooks mean.
 3. **Server + page:** `ernie serve`, embedded page built from `spec_ernie_mock.html`, SSE, token-guarded POST, with tests.
 4. **Adoption + skill integration** (see "Integration with skills and `.mem`"):
    - `ernie mem delta` / `ernie mem synced`, with tests
@@ -387,7 +388,6 @@ judge       d1 JSONL over JSON — append-only… · f1 Hooks exit 0 on any erro
    - `gtg` and `handoff` edits
    - an entry in `decisions.md`
    - an `install.txt` entry: clone `~/things/myc/ernie`, run its install script
-   - only if questions still land only in prose after A108: the transcript-based prose-question nudge (A103)
 
 ## v2: "Send now" via channels
 

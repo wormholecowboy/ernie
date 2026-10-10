@@ -1,6 +1,6 @@
 # ernie — chat → CLI → state → page → next turn: scratch flow test
 
-**Run:** 2026-10-09 · **Claude Code:** 2.1.286 · **Built with:** a scratch Go implementation of phases 1–3 (no page HTML), 11 Go flow tests, and live nested `claude -p` sessions (Sonnet for a 4-turn flow, Haiku for probes) · **Amendments:** A95–A109 below, all accepted 2026-10-09 (A100 changed: no new flags; A103 deferred to phase 4) and folded into `spec_ernie.md` + `plan_ernie_build.md`
+**Run:** 2026-10-09 · **Claude Code:** 2.1.286 · **Built with:** a scratch Go implementation of phases 1–3 (no page HTML), 11 Go flow tests, and live nested `claude -p` sessions (Sonnet for a 4-turn flow, Haiku for probes) · **Amendments:** A95–A111 below, all accepted 2026-10-09 and folded into `spec_ernie.md` + `plan_ernie_build.md` (A100 changed: no new flags; A103 superseded by A111; A110–A111 came from reviewing this report)
 
 Tags: ✓ verified (a command or test was run) · ~ inferred · ✗ not checked.
 
@@ -18,7 +18,7 @@ The plumbing held up in every test: locking, delivery, ids, guards. Where it bre
 - The heredoc form needs approval on every call.
 - Notes vanish after `/clear`.
 
-You don't need to do anything right now. Review the amendments (A95–A109) and pick which ones to fold into the spec before phase 1 starts.
+Nothing is left to decide from this report: A95–A111 are folded into the spec and plan. The 1.1s spike items marked ✗ below are still open.
 
 ---
 
@@ -86,26 +86,27 @@ F1–F13 are the findings; "Fix" points at the amendment that addresses each one
 ### F1 · Questions asked in prose never reach the page — high
 - **Example:** T1's 5th question ("is anything else calling /search?") and T3's burst question went only to the terminal. The page showed q1–q4 and nothing else. ✓ 2 of 3 working turns.
 - **Impact:** this is the "question buried at the end of a long reply" problem the formats study ranked #2 (`ref_ernie_formats.md` D2). You'd answer on the page and never see the question.
-- **Fix:** A103 (a nudge from the transcript) and A108 (skill rule).
+- **Fix:** A111 (Stop hook blocks a reply ending in `?` with no `ernie ask`) and A108 (skill rule). A103 was superseded.
 
-### F2 · A denied mixed batch silently drops calls on retry — high
+### F2 · A denied mixed batch silently drops calls on retry — medium (high in `-p`)
 - **Example:** T2's first Bash call held 5 `ernie` commands plus `cat`, `pip list`, `ls`, and the whole call was denied. Claude retried the `ernie` lines separately but left out `decide "Fix client.py retry"`. ✓
 - **Impact:** state differs from what Claude believes it logged, and nothing tells either of you.
+- **Ranking:** ~ the run was `-p`, where anything not pre-allowed is denied outright. Interactively it's a permission prompt; approve it and nothing is lost. It bites only if you deny.
 - **Fix:** A101.
 
 ### F3 · An approved issue is never closed; plan and issue drift — medium
 - **Example:** i1 was approved on the page, and Claude fixed `client.py` and marked p3 "Fix client.py retry" done. i1 stays `approved` forever: in every dump, and as a `queue.md` mirror after `*um`. ✓
 - **Impact:** the issue list fills with stale "open" items.
-- **Fix:** A104.
+- **Fix:** A104, delivered by the Stop hook once per approved issue (A111).
 
 ### F4 · Approval typed in chat can't be recorded — medium
 - **Example:** you type "approved, fix it". Claude's `issue set i1 approved` exits 1 (only you approve), so `issue set i1 fixed` also exits 1 (`i1 not approved`). ✓ `TestRoughEdges/approval…`. In the live run you approved on the page, so it didn't come up.
 - **Impact:** blocks the main "I chat here" flow for issues.
-- **Fix:** A105.
+- **Fix:** A105, with the quote checked against your last prompt (A110).
 
 ### F5 · Heredoc form isn't covered by `Bash(ernie:*)` — medium
 - **Example:** `ernie example limits <<'EOF' … EOF` was denied ✓. Claude worked around it with `printf '…' | ernie example limits`, which was allowed ✓.
-- **Impact:** every diagram and example would prompt you in interactive mode. The spec's own examples use heredocs.
+- **Impact:** every diagram and example would prompt you in interactive mode (~ a prompt, not a loss; in `-p` it's a denial). The spec's own examples used heredocs.
 - **Fix:** A100.
 
 ### F6 · The CLI loses the session log after a `cd`; `CLAUDE_PROJECT_DIR` isn't in Bash — medium
@@ -167,6 +168,7 @@ Nothing reaches Claude until you type. This is v1 by design; v2 channels would c
 | extra | `CLAUDE_ENV_FILE` is set only in the SessionStart env, and its `export` lines reach Bash, subagents included | ✓ | A95 |
 | extra | `CLAUDE_CODE_SESSION_ID` is in both the Bash and the hook env; payloads carry `session_id`, `prompt_id`, `transcript_path`, `permission_mode`, `effort`; subagent payloads add `agent_id` and `agent_type` | ✓ | A96, A103 |
 | extra | In an **untrusted** workspace, project `permissions.allow` is ignored (warning on stderr), but project hooks still run in `-p`. ernie's global allow rule isn't affected | ✓ | none |
+| extra | Stop payload (2.1.287): `session_id`, `transcript_path`, `cwd`, `prompt_id`, `permission_mode`, `stop_hook_active`, `last_assistant_message`, `background_tasks`, `session_crons`. A `{"decision":"block"}` continues the same turn (same `prompt_id`, ~2 s); the next Stop has `stop_hook_active: true` | ✓ Haiku probe | A111 |
 | extra | A Write payload's `tool_input` is `{file_path, content}`; `tool_response` is a dict (`filePath`, `structuredPatch`, …) | ✓ | 2.2 parser |
 
 **Not checked (✗):**
@@ -181,7 +183,7 @@ Nothing reaches Claude until you type. This is v1 by design; v2 channels would c
 
 ---
 
-## Amendments (A95–A109, accepted 2026-10-09)
+## Amendments (A95–A111, accepted 2026-10-09)
 
 | # | Change | Why | Fixes |
 |---|---|---|---|
@@ -190,16 +192,18 @@ Nothing reaches Claude until you type. This is v1 by design; v2 channels would c
 | A97 | **A57 settled:** keep the 8 KB inbox cap. Claude Code's inline ceiling is ~10,000 chars (2 KB preview past it). The 4 KB dump is well under it | Measured | spike 1 |
 | A98 | **A65 settled:** Bash stdin is `/dev/null`, so `diagram`/`example` only reject empty input | Measured | spike 6 |
 | A99 | **A67: drop the skip list** unless the interactive check finds a kind that fires UPS without a model turn. Never match a bare `/` prefix: skills like `/mem` start real turns | `-p` built-ins don't fire UPS | spike 8 |
-| A100 | **Inline source flags:** `ernie example <name> --json '…'` and `ernie diagram <name> --src '…'` (stdin stays). Skill examples use the flag or `printf '%s' '…' \| ernie …`, never a heredoc | The heredoc was denied; `printf \| ernie` was allowed | F5 |
+| A100 | **No heredocs; no new flags.** Source stays on stdin. Skill and spec examples use `printf '%s' '…' \| ernie …`, never a heredoc (inline `--json`/`--src` flags were proposed and dropped) | The heredoc was denied; `printf \| ernie` was allowed | F5 |
 | A101 | **Skill rule:** `ernie` calls go in their own Bash call, never mixed with other commands. After a denial, re-run the whole `ernie` batch, then `ernie dump` to check | The denied mixed batch lost a decision | F2 |
 | A102 | **Write commands echo what they wrote:** stdout `p2  Wire middleware` (id, two spaces, first 40 chars); errors name the command (`plan add "B": unknown flag --tga`) | Claude reads the output, it doesn't parse it. The echo makes shifted ids visible | F9 |
-| A103 | **Prose-question nudge:** `user-prompt-submit` reads the last assistant text from `transcript_path`. If it ends with a question and the turn had no `question add`, add one line: *"ernie: last reply asked a question in prose; log it with `ernie ask`."* Any read error → skip | 2 of 3 turns left questions off the page. ~ The transcript format is internal, so this is best-effort | F1 |
-| A104 | **Approved-issue nudge:** when the turn edited files and any issue is `approved`, the reminder adds *"ernie: i1 is approved; `ernie issue set i1 fixed` if this fixed it."* | i1 stayed approved after the fix | F3 |
-| A105 | **Chat approvals:** Claude may run `ernie issue set i1 approved --quote "<your words>"`, stored with `quote`. The page shows "approved in chat: '…'" with an undo; Claude still can't approve without a quote. Alternative: keep it strict and have the skill tell you to click approve | Recommend the quote option: it keeps the gate visible without forcing a trip to the page | F4 |
+| A103 | **Prose-question nudge:** `user-prompt-submit` reads the last assistant text from `transcript_path`. If it ends with a question and the turn had no `question add`, add one line: *"ernie: last reply asked a question in prose; log it with `ernie ask`."* Any read error → skip | 2 of 3 turns left questions off the page. ~ The transcript format is internal, so this is best-effort. **Superseded by A111** | F1 |
+| A104 | **Approved-issue nudge** (delivered by the Stop hook, once per issue, A111): when the turn edited files and any issue is `approved`, it says *"ernie: i1 is approved; `ernie issue set i1 fixed` if this fixed it."* | i1 stayed approved after the fix | F3 |
+| A105 | **Chat approvals:** Claude may run `ernie issue set i1 approved --quote "<your words>"`, stored with `quote`. The page shows "approved in chat: '…'" with an undo; Claude still can't approve without a quote. The quote must appear in your last prompt (A110) | The quote keeps the gate visible without forcing a trip to the page | F4 |
 | A106 | **Notes survive compaction:** `Dump` gets a `NOTES` section (last 3, cut just before `DONE`), and the skill says to promote durable notes to a fact or decision | A note is delivered once, then only the log has it | F7 |
 | A107 | **Inbox collapses repeats:** keep only the latest `plan set` / `question answer` / `issue set` per id since the last mark; notes stay one per line | 3 lines for one net change | F11 |
 | A108 | **Skill writing rule (folds into A94 rule 3):** don't restate what's on the page. The reply names ids ("logged p1–p4; answer q1–q4 on the page") and puts every question through `ernie ask` | T1 duplicated everything | F1, F8 |
 | A109 | **The fold skips `activity` outside the server** (CLI and hooks never read it) | 67 → 54 ms and 215 → 52 MB at 50k ✓; A73 stays measure-only | F10 |
+| A110 | **Chat-approval quotes are checked:** `user-prompt-submit` saves your raw prompt to `.sessions/<session_id>.prompt`; Claude's `--quote` must be a substring of it (case/whitespace normalized), else exit 1. Fails closed | Without it, Claude could approve with words you never said | F4 |
+| A111 | **Narrow Stop hook:** blocks once if the reply ends in `?` with no `question add` this turn, or (once per issue) if an approved issue saw an edit turn. `stop_hook_active` → let it stop. Replaces A103, hosts A104 | Probe ✓: the payload has `last_assistant_message` and `stop_hook_active`; a block continues the same turn in ~2 s | F1, F3 |
 
 ---
 
@@ -235,7 +239,7 @@ Preview (first 2KB):
 
 ## Appendix B · Scratch implementation (throwaway, not committed)
 
-- **Where:** the session scratchpad, `…/scratchpad/ernie-scratch` (2,932 lines of Go, cobra v1.10.2). Ephemeral: copy it out if you want it as a phase-1 starting point.
+- **Where:** the session scratchpad, `…/scratchpad/ernie-scratch` (2,932 lines of Go, cobra v1.10.2). Gone: the session ended and the scratchpad went with it ✓. Phase 1 rebuilds from the spec.
 - **Layout:** follows plan §1. `logfile`: Resolve, Create via `link(2)`, Update/AppendExisting under `flock`, torn-tail heal. `state`: Event with the A88–A92 fields, Apply/Fold, NextID, Inbox/InboxText/FitsInbox, Dump with A59 cuts. `cli`: cobra, every command from the spec plus `ask set`, `issue`, `example`. `hook`: the three handlers, A22 ordering, session map, `CLAUDE_ENV_FILE` export. `server`: Host/Origin/token/CSP guards, a tailer, SSE `hello` + `state`, POST with `PostOps`. `cmd/pagesim` stands in for the browser.
 - **Tests:** `e2e/flow_test.go`, 11 tests plus 6 subtests, all passing under `-race`.
   - `TestFlowChatToPageToNextTurn`
