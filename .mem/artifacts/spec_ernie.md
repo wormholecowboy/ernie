@@ -115,6 +115,7 @@ flowchart TD
 | `fact` | `add`, `dismiss` | claude, user | `text`, `confidence?`, `method?` (A91), `kind?`: term + `term` (the label, e.g. `G0`) (A92) |
 | `note` | `add` | user | `text`, `ref?` |
 | `file` | `touch` | hook | `path`, `tool`, `agent?` (`cmd run` is deferred to v1.1, A62) |
+| `tool` | `run` | hook | `tool`, `text` (one line, ≤ 120 chars: Bash → its `description`, never the command; Read → path; Grep/Glob → pattern; Agent → description; WebFetch → URL without query; WebSearch → query; Skill → name; else empty), `agent?`. Feeds only the activity panel (A114) |
 | `turn` | `mark` | hook | `n` |
 | `mem` | `sync` | claude; user via terminal (A53) | `upto` (byte offset of the log covered by that `*um`) |
 | `meta` | `init` | user (via `ernie init`) | `root`, `name`; always the first line. Not part of the inbox |
@@ -202,7 +203,7 @@ The hooks live in the global `claude/.claude/settings.json`, so there's nothing 
 
 | Hook | Matcher | Does |
 |---|---|---|
-| `PostToolUse` | `Edit\|Write\|MultiEdit\|NotebookEdit` | Appends `file touch` events. No Bash events in v1 (A62). Reads the key from the session cache `.sessions/<session_id>` instead of calling git; a miss falls back to `Resolve` (A96) |
+| `PostToolUse` | `*` | Edit/Write/MultiEdit/NotebookEdit append `file touch`; every other tool appends `tool run`, so the page shows what Claude is doing live (A114). Bash rows carry the call's `description`, never the command text, so nothing needs redacting (A62). Reads the key from the session cache `.sessions/<session_id>` instead of calling git; a miss falls back to `Resolve` (A96) |
 | `UserPromptSubmit` | — | Under one lock: fold, build the output, write it to stdout (goes into context), check the write error, and only then append a `turn mark`. If the write failed, no mark, so the inbox is delivered again next prompt (A22). Output = `ernie inbox` (your page and terminal edits since the last turn, header `ernie inbox · turn <n>`, capped at 8 KB, A57, A97; every `by:user` writer checks the cap before writing, so nothing is truncated, A69), plus one reminder line if the turn that just ended edited files (`file touch`) with no `by:claude` events: *"ernie: last turn edited files without logging; update plan status, decisions or questions if they changed."* (A21). Prints nothing when both are empty. Rewrites the session cache (A96) and saves your raw prompt to `.sessions/<session_id>.prompt`, which the CLI checks chat-approval quotes against (A110). No skip list: `-p` built-ins don't fire UPS and skill prompts start real turns; only a kind the interactive check finds firing without a model turn would be skipped (A99) |
 | `SessionStart` | `startup\|compact\|clear\|resume\|fork` | Prints `ernie dump` so state comes back in new sessions and after compaction. The dump's header line also tells Claude that ernie is on for this branch. Appends `export ERNIE_PROJECT_DIR='…'` to `$CLAUDE_ENV_FILE` (A95) and writes the session cache (A96) |
 | `Stop` | — | Narrow checks only (A111). `stop_hook_active` → let the stop through. Blocks once when the reply ends in `?` and the turn has no `question add` (*"ernie: your reply asked a question in prose; log it with `ernie ask`."*), or when the turn edited files and an approved issue hasn't been nudged yet (*"ernie: i1 is approved; `ernie issue set i1 fixed` if this fixed it."*, A104; records `stop remind`). Any error → exit 0 |
@@ -211,7 +212,7 @@ The hooks live in the global `claude/.claude/settings.json`, so there's nothing 
 
 The existing `SessionStart` herdr hook stays; the `ernie` hook goes alongside it. Whether `fork` exists as a source is checked by the hook spike.
 
-**Hook spike (phase 1, after task 1.1 and before the fold, A28):** capture real payloads with a throwaway logging hook before writing parsers or turn-scoped state. Settled by the 2026-10-09 scratch flow test (`ref_ernie_flow_test.md`): UPS stdout reaches context, inline up to ~10,000 chars, so the 8 KB cap stays (A97); a failed Edit fires no PostToolUse; `CLAUDE_PROJECT_DIR` is in hook envs but not Bash, so the CLI uses `ERNIE_PROJECT_DIR` (A95); `Bash(ernie:*)` doesn't cover heredocs (A100); Bash stdin is `/dev/null`, so no `diagram` deadline (A98); `CLAUDECODE=1` marks Claude's Bash, hooks and subagent Bash (A27, A53, A83); `-p` built-ins don't fire UPS (A99). Still open: the notebook path field, whether `fork` is a SessionStart source and what `clear` prints, whether the payload `cwd` follows a Bash `cd`, whether `CLAUDECODE` leaks into your own panes or `!` mode (A58), and UPS for interactive `!`, queued and slash prompts (A99).
+**Hook spike (phase 1, after task 1.1 and before the fold, A28):** capture real payloads with a throwaway logging hook before writing parsers or turn-scoped state. Settled by the 2026-10-09 scratch flow test (`ref_ernie_flow_test.md`): UPS stdout reaches context, inline up to ~10,000 chars, so the 8 KB cap stays (A97); a failed Edit fires no PostToolUse; `CLAUDE_PROJECT_DIR` is in hook envs but not Bash, so the CLI uses `ERNIE_PROJECT_DIR` (A95); `Bash(ernie:*)` doesn't cover heredocs (A100); Bash stdin is `/dev/null`, so no `diagram` deadline (A98); `CLAUDECODE=1` marks Claude's Bash, hooks and subagent Bash (A27, A53, A83); `-p` built-ins don't fire UPS (A99). Still open: the notebook path field, whether `fork` is a SessionStart source and what `clear` prints, whether the payload `cwd` follows a Bash `cd`, whether `CLAUDECODE` leaks into your own panes or `!` mode (A58), and UPS for interactive `!`, queued and slash prompts (A99); for A114, whether `*` catches MCP and Agent calls, each tool's `tool_input` field names, and whether a failing Bash fires PostToolUse or PostToolUseFailure.
 
 ## Server (`ernie serve`)
 
@@ -263,7 +264,7 @@ The browser never reads the JSONL. The server tails it, keeps the folded state i
 - Vanilla JS, no build step: `index.html` + `app.js` (inline scripts moved out so CSP can stay `script-src 'self'`), a vendored pinned single-file UMD `mermaid.min.js`, and the two font faces as woff2 with real fallback stacks. All embedded in the binary via `go:embed`; nothing loads from another origin, so the page also works offline (A23).
 - Renders the state from SSE and POSTs your actions. It doesn't fold or keep its own copy of the logic.
 - The state includes `pending` (your events since the last turn mark) and `inboxText` (the exact text the next prompt's hook will inject, from the same Go function). The page's outbox and preview show these instead of keeping a client-side outbox.
-- `activity` in the state holds only the last 350 entries, so SSE frames stay small. The full history stays in the log.
+- `activity` in the state holds only the last 350 entries, so SSE frames stay small. The full history stays in the log. Besides logged events, it shows every tool call as `tool run` rows (`claude · Bash · Run tests`, `· Read · internal/state/fold.go`), tagged with the subagent when there is one (A114).
 - Paths are shown relative to the repo root from the log's `meta init` line; the index page (`/` without `?log`) is a plain list of links, one per log key (`<repo-slug>/<branch>`), from the directory listing.
 - **Explaining issues (A88–A92, A105):**
   - open questions show their position (`Q2/5`), context, impact, a linked example, and the recommended choice marked; a **need more context** button posts `question answer {more: true}`
@@ -309,7 +310,7 @@ Each function gets one expected case, one edge case and one failure case. Use `t
 | `Tail` (watcher read) | new complete lines returned, offset advanced | half-written trailing line held until the next read | file shrank → offset reset, state rebuilt |
 | `GET /stream` | new subscriber gets a `hello` frame with the token, then current state at once | append → every subscriber gets the new state | unknown log → 404 |
 | `Dump` | golden output, `NOTES` included (A106) | empty state | — |
-| hook `post-tool-use` | Edit → `file touch` | unknown tool → no-op | bad stdin JSON → exit 0, nothing written |
+| hook `post-tool-use` | Edit → `file touch`; Bash → `tool run` with its description | Bash without a description → empty `text`, command never written | bad stdin JSON → exit 0, nothing written |
 | hook `user-prompt-submit` | inbox printed, then turn mark appended | edits without claude events → reminder line added | stdout write fails → no turn mark, inbox redelivered |
 | `POST /events` | valid answer appended | disallowed op → 400 | bad/missing token → 403 |
 | `ernie mem delta` | mixed events → grouped by target, mirror markers included | nothing since last sync → "nothing new" | no log for branch → exit 0, "no ernie log" (so `*um` falls back) |
@@ -360,7 +361,7 @@ How the delta maps to `.mem`:
 | fact (not dismissed) | `long.md ## gotchas` / `## learnings` | only if durable |
 | hook `file touch` | daily `## files` | deduped absolute paths; no line numbers (hooks don't know them) |
 | log key | daily `branch` frontmatter | — |
-| diagram, note, activity | — | not carried over unless the main thread promotes one |
+| diagram, note, activity (`tool run` included) | — | not carried over unless the main thread promotes one |
 
 `ernie mem delta` output, compact text for the main thread:
 

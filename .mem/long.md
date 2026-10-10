@@ -25,11 +25,11 @@
 - [ernie] source here (~/things/myc/ernie), built to ~/.local/bin. Dotfiles holds only Claude-side pieces: hooks in claude/.claude/settings.json, ernie skill, mem/gtg/handoff edits, install.txt entry
 - [docs] spec + build plan live in .mem/artifacts/ (D10), not docs/
 - [ernie] writing rules live in CLAUDE.local.md block written by `ernie init` (A112), not the skill; skill holds only ernie-specific rules
-- [ernie] attribution: by=claude iff Claude Bash env var set (A53); no cmd run events in v1 (A62)
+- [ernie] attribution: by=claude iff Claude Bash env var set (A53); no cmd text in v1 (A62); every tool call → `tool run` activity row, Bash shows description only (A114)
 ## reference
 - [ernie] spec → .mem/artifacts/spec_ernie.md
-- [ernie] build plan (phases, tasks, amendments A1–A113) → .mem/artifacts/plan_ernie_build.md
+- [ernie] build plan (phases, tasks, amendments A1–A114) → .mem/artifacts/plan_ernie_build.md
 - [ernie] page mock, phase 3 visual target → .mem/artifacts/spec_ernie_mock.html
 - [ernie] design walkthrough → .mem/artifacts/ref_ernie_proposal.html
-- [ernie] response formats for explaining issues (transcript study, accepted vs pending, A88–A94) → .mem/artifacts/ref_ernie_formats.md
+- [ernie] response formats for explaining issues (transcript study, all decided: A88–A92 accepted, A93 v2, A94 → A112/A113) → .mem/artifacts/ref_ernie_formats.md
 - [ernie] scratch flow test report (works/fails, spike results, A95–A111 folded) → .mem/artifacts/ref_ernie_flow_test.md
