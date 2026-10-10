@@ -1,6 +1,6 @@
 # Live Context UI — Plan
 
-**Status:** ready to build, nothing built yet · **Updated:** 2026-10-09 (build-plan amendments A1–A35, A51–A87 and A95–A109 folded in; A104/A105 wait on A89)
+**Status:** ready to build, nothing built yet · **Updated:** 2026-10-09 (build-plan amendments A1–A35, A51–A92 and A95–A109 folded in)
 
 Files (all in `.mem/artifacts/`):
 - `spec_ernie.md` — this doc (the build spec)
@@ -108,9 +108,11 @@ flowchart TD
 |---|---|---|---|
 | `plan` | `add`, `set` | claude, user | `text`, `status`: todo/active/done/dropped |
 | `decision` | `add`, `set` | claude; user via terminal (A53) | `text`, `why` |
-| `question` | `add`, `answer`, `set` | claude, user via terminal / claude, user / claude, user via terminal (A53) | `text`, `choices[]?` / `text` / `status`: dropped (A34) |
+| `question` | `add`, `answer`, `set` | claude, user via terminal / claude, user / claude, user via terminal (A53) | `text`, `choices[]?`, `context?`, `impact?`, `recommended?` (one of `choices`), `example?` (an example name) (A88) / `text`, `more?` (true = "need more context"; the question stays open, A88) / `status`: dropped (A34) |
 | `diagram` | `put` | claude; user via terminal (A53) | `name`, `mermaid` |
-| `fact` | `add`, `dismiss` | claude, user | `text` |
+| `example` | `put` | claude; user via terminal (A53) | `name`, `title`, `columns[]`, `rows[][]`, `caption?`, `run?` (repo-relative path you can run; ernie never runs it). Caps: ≤ 8 columns, ≤ 20 rows, cells ≤ 200 chars (A90) |
+| `issue` | `add`, `set` | claude; user via terminal / claude, user | `title`, `cause`, `fix`, `impact`, `owner`: us/other, `example?`, `confidence`, `method?` (A89, A91) / `status`: explained → approved → fixed, or dropped; `fix?`; `quote?` (A105) |
+| `fact` | `add`, `dismiss` | claude, user | `text`, `confidence?`, `method?` (A91), `kind?`: term + `term` (the label, e.g. `G0`) (A92) |
 | `note` | `add` | user | `text`, `ref?` |
 | `file` | `touch` | hook | `path`, `tool`, `agent?` (`cmd run` is deferred to v1.1, A62) |
 | `turn` | `mark` | hook | `n` |
@@ -119,7 +121,7 @@ flowchart TD
 
 Items Claude writes (`plan`, `decision`, `question`, `fact`) take an optional `tag` field that matches `.mem/tags.md` vocabulary (e.g. `auth`), so `*um` can carry it over and `*mr` can find it.
 
-`table` is deferred to v2. Unknown `t`/`op` values stay in the log and are ignored by the fold, so new types won't break old binaries.
+`table` is deferred to v2; `example` covers a scoped slice of it (A90). Unknown `t`/`op` values stay in the log and are ignored by the fold, so new types won't break old binaries.
 
 ## CLI surface
 
@@ -133,10 +135,16 @@ ernie plan set p4 active|done|todo|dropped
 ernie decide "JSONL over JSON" --why "..."  # → d3
 ernie decide set d3 ["new text"] [--why "..."]  # revise a decision
 ernie ask "CLI language?" --choice go --choice "bash + jq"   # → q2
+  [--context "…"] [--impact "…"] [--recommend go] [--example e1]   # A88; --recommend must match a --choice
 ernie answer q2 go                          # close a question you answered in the terminal
 ernie answer q2 --drop                      # retire a question that no longer matters
 printf '%s' '…' | ernie diagram arch       # source on stdin (no heredoc: Bash(ernie:*) doesn't cover it, A100); errors on empty input (A98)
-ernie fact "Hooks must exit 0 on any error" # → f1
+printf '%s' '{"title":…,"columns":[…],"rows":[[…]]}' | ernie example e1   # scoped table (A90)
+ernie issue "Retry drops 429s" --cause … --fix … --impact … --owner us --confidence inferred --method "…" [--example e1]   # → i1 (A89, A91)
+ernie issue set i1 fixed|dropped [--fix …]   # Claude: fixed only after approved
+ernie issue set i1 approved --quote "approved, fix it"   # Claude may approve only with your words (A105)
+ernie fact "Hooks must exit 0 on any error" [--confidence verified --method "go test ./..."] # → f1 (A91)
+ernie fact "throwaway probe script against stage" --term G0   # glossary entry: kind term (A92)
 ernie fact dismiss f1
 ernie dump                                  # compact state, for Claude
 ernie mem delta                             # what changed since the last *um, grouped by .mem target; ends with cursor=<n>
@@ -147,7 +155,7 @@ ernie completion zsh                        # zsh completion script (cobra)
 ernie hook post-tool-use|user-prompt-submit|session-start   # reads hook JSON on stdin
 ```
 
-Flags can go anywhere on the line (cobra/pflag). Write commands need an existing log: with no log they exit 1 and print a hint to run `ernie init`; with an `.off` marker they write nothing, print the notice on stderr, leave stdout empty and exit 0 (A33). On success they print the new or changed id, two spaces and the first 40 chars of the text (`p2  Wire middleware`); errors name the command (`plan add "B": unknown flag --tga`), so an id shifted by a failed command in a batch is visible (A102). Commands that take an id (`plan set`, `answer`, `fact dismiss`, `decide set`) exit 1 on an id that was never added with `unknown id p14; open: p3,p4` and write nothing (A25, A61). Ids are looked up per type (the prefix must match the command), and `plan set` accepts only todo/active/done/dropped (A75). Your terminal user ops that would push the inbox past its cap exit 1 "outbox full; wait for the next prompt" (A69). Missing log → `Update` returns `ErrNoLog`; the CLI maps it to exit 1 + the init hint, hooks to a no-op, POST to 404 (A54).
+Flags can go anywhere on the line (cobra/pflag). Write commands need an existing log: with no log they exit 1 and print a hint to run `ernie init`; with an `.off` marker they write nothing, print the notice on stderr, leave stdout empty and exit 0 (A33). On success they print the new or changed id, two spaces and the first 40 chars of the text (`p2  Wire middleware`); errors name the command (`plan add "B": unknown flag --tga`), so an id shifted by a failed command in a batch is visible (A102). Commands that take an id (`plan set`, `answer`, `fact dismiss`, `decide set`, `issue set`) exit 1 on an id that was never added with `unknown id p14; open: p3,p4` and write nothing (A25, A61). Ids are looked up per type (the prefix must match the command), and `plan set` accepts only todo/active/done/dropped (A75). `issue add` requires `--cause`, `--fix`, `--impact`, `--owner` and `--confidence`; `--recommend` must match a `--choice`; an `example` over its caps exits 1 (A88–A91). **Issue gate:** only you set `approved` (page button or your own terminal). Claude's `issue set i1 approved` exits 1 unless it carries `--quote "<your words>"` (A105), and Claude's `issue set i1 fixed` on an issue that isn't approved exits 1 `i1 not approved` (A89). Your terminal user ops that would push the inbox past its cap exit 1 "outbox full; wait for the next prompt" (A69). Missing log → `Update` returns `ErrNoLog`; the CLI maps it to exit 1 + the init hint, hooks to a no-op, POST to 404 (A54).
 
 `ernie init` exits 1 with "run `ernie init` yourself" when the env var that marks Claude's Bash tool is set (`CLAUDECODE=1`, confirmed by the flow test; also set in subagent Bash, A83). The settings.json `ask` rule is a second layer, since it may not match `cd x && ernie init` or `ERNIE_HOME=… ernie init` (A27). Only you run `init`, from your own shell; `!` mode counts as Claude's (pending the A58 check, A70).
 
@@ -158,11 +166,16 @@ PLAN 2/6  ✓p1 Pick event format · ✓p2 Sketch arch · ▶p3 Build ernie · p
 DECIDED   d1 JSONL over JSON (append-only) · d2 Scope repo+branch (survives /clear)
 OPEN      q1 CLI language? [go | bash + jq | bun]
 ANSWERED  q2 Where does it live? → dotfiles
-FACTS     Hooks must exit 0 on any error
+ISSUES 1/2 ✓i1 [us] Retry drops 429s (approved) · ~i2 [other] Gateway timeout 30s (explained)
+FACTS     ✓f1 Hooks must exit 0 on any error
+TERMS     G0 = throwaway probe script against stage
 NOTES     n1 3 workers on 2 hosts
+EXAMPLES  e1
 ```
 
-Target ≤ 1.5 KB, hard cap 4 KB. `NOTES` holds the last 3 notes, so a note survives `/clear` and compaction (A106). Past the cap, sections are cut from the end in this order of priority: open questions, active steps, todo steps, decisions, facts, notes, done/answered, diagram names. Each cut section ends with `+N more` (A59).
+Glyphs: ✓ verified · ~ inferred · ✗ unchecked (A91). Questions show `recommended` as `[go* | bash + jq]` (A88).
+
+Target ≤ 1.5 KB, hard cap 4 KB. `NOTES` holds the last 3 notes, so a note survives `/clear` and compaction (A106). Past the cap, sections are cut from the end in this order of priority: open questions, open issues (A89), active steps, todo steps, decisions, facts, terms, notes, done/answered, diagram and example names. Each cut section ends with `+N more` (A59).
 
 ## Hooks
 
@@ -195,7 +208,7 @@ The existing `SessionStart` herdr hook stays; the `ernie` hook goes alongside it
   - a random token generated per server start, sent to the page in an `event: hello` frame (`data: {"token":"…","version":"…"}`) at the start of every `/stream` connection, and required on every POST. A cross-origin page can't read the SSE response (no CORS headers), and the Host allowlist blocks rebinding, so only the page sees it
   - `Origin` must be the server's own origin
   - `Content-Type: application/json` only, with no CORS preflight handling
-  - an allowlist of ops users may send: `question answer`, `plan set`, `note add`, `fact dismiss` (`PostOps`, A71)
+  - an allowlist of ops users may send: `question answer` (incl. `more: true`, A88), `plan set`, `note add`, `fact dismiss`, `issue set` (approved / explained for undo / dropped) (`PostOps`, A71, A89)
   - 409 `{"error":"outbox full"}` when an event would push the inbox past its cap (A57; the same `FitsInbox` check the CLI uses, A69)
   - inbox output is framed as "user notes from the page"
   - no third-party code or assets: every response sets `Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:`. Any script loaded from a CDN would run in the origin that holds the token and could POST text into Claude's context, and pinning a version doesn't stop a compromised response (A23)
@@ -234,6 +247,11 @@ The browser never reads the JSONL. The server tails it, keeps the folded state i
 - The state includes `pending` (your events since the last turn mark) and `inboxText` (the exact text the next prompt's hook will inject, from the same Go function). The page's outbox and preview show these instead of keeping a client-side outbox.
 - `activity` in the state holds only the last 350 entries, so SSE frames stay small. The full history stays in the log.
 - Paths are shown relative to the repo root from the log's `meta init` line; the index page (`/` without `?log`) is a plain list of links, one per log key (`<repo-slug>/<branch>`), from the directory listing.
+- **Explaining issues (A88–A92, A105):**
+  - open questions show their position (`Q2/5`), context, impact, a linked example, and the recommended choice marked; a **need more context** button posts `question answer {more: true}`
+  - issues are listed in order with an N/M position, grouped by owner (us / other), each with an approve button; an issue Claude approved from chat shows "approved in chat: '…'" with an undo that posts `issue set {status: explained}`
+  - examples render as small tables with caption and the `run` path (shown, never run)
+  - facts and issues carry ✓ / ~ / ✗ badges with the method on hover; terms appear in a glossary
 - `spec_ernie_mock.html` is the visual target; its `render*` functions are the starting point.
 - Render rules:
   - every `state` frame redraws each panel from scratch, with no partial patching
@@ -252,9 +270,11 @@ The browser never reads the JSONL. The server tails it, keeps the folded state i
 | malformed line | skipped, counted in `State.Warnings` |
 | unknown `t` / `op` | ignored silently (forward compatibility) |
 | `question set {status: dropped}` | question leaves OPEN in dumps; its `queue.md` mirror is deleted on the next `*um` (A34) |
+| `question answer {more: true}` | question stays open; the answer text is kept as a follow-up request (A88) |
+| `issue set` | status changes as written; the approval gate lives in the CLI and POST, not the fold, so old or hand-edited logs still fold (A89) |
 | `turn mark` | resets the turn-scoped fields (file touched, claude logged, `pending`) and sets `Turn = max(Turn+1, n)` (A81), so a fold before the next mark describes the turn that just ended (what the A21 reminder reads) |
 
-`Inbox(state)` returns `state.Pending` (`pending` in the state JSON, A81): the `by:user` events after the last `turn mark` (from the page or your own terminal, A53), limited to `InboxOps`: the four page ops plus your terminal `question set` and `decision set` (A71); `meta` events don't count. Repeats collapse: only the latest `plan set` / `question answer` per id since the last mark is kept, and notes stay one per line (A107). `InboxText(state)` renders it, plus the A21 reminder; it takes no clock (A63).
+`Inbox(state)` returns `state.Pending` (`pending` in the state JSON, A81): the `by:user` events after the last `turn mark` (from the page or your own terminal, A53), limited to `InboxOps`: the five page ops (`issue set` included, A89) plus your terminal `question set` and `decision set` (A71); `meta` events don't count. Repeats collapse: only the latest `plan set` / `question answer` per id since the last mark is kept, and notes stay one per line (A107). `InboxText(state)` renders it (a `more: true` answer reads `q2: need more context`, A88), plus the A21 reminder, plus the A104 line when the turn that just ended edited files and an issue is `approved`: *"ernie: i1 is approved; `ernie issue set i1 fixed` if this fixed it."* It takes no clock (A63).
 
 ## Tests (`go test`)
 
@@ -276,6 +296,8 @@ Each function gets one expected case, one edge case and one failure case. Use `t
 | `POST /events` | valid answer appended | disallowed op → 400 | bad/missing token → 403 |
 | `ernie mem delta` | mixed events → grouped by target, mirror markers included | nothing since last sync → "nothing new" | no log for branch → exit 0, "no ernie log" (so `*um` falls back) |
 | `ernie mem synced` | appends a `mem sync` with the given `upto` | same cursor as the last sync → no duplicate marker | no log → exit 0, no-op; cursor not on a line boundary → exit 1, nothing written |
+| CLI `issue` | `issue add` → `i1`; your `issue set i1 approved` → written | Claude `issue set i1 approved --quote "…"` → written with `quote` (A105) | Claude `approved` without `--quote` → exit 1; Claude `fixed` on an unapproved issue → exit 1 `i1 not approved`; missing `--cause` → exit 1 |
+| CLI `example` | valid JSON → stored | exactly 8 columns × 20 rows | 9 columns or a 201-char cell → exit 1 |
 | CLI id commands | known id → event written | `answer q3 --drop` → `question set {status: dropped}`; reopening a done step → accepted | never-added id → exit 1, lists open ids; bad status or wrong-type id → exit 1 (A75) |
 
 ## Integration with skills and `.mem`
@@ -313,7 +335,9 @@ How the delta maps to `.mem`:
 | plan `done` | daily `## done` | keep only what's worth remembering (mem's "be ruthless") |
 | plan `todo` | `queue.md ## next` mirror | marker `(ernie:<repo>/<branch>#p5)` |
 | question open | `queue.md ## qs` mirror | `(asked YYYY-MM-DD)` from the event's `ts` |
-| question answered/dropped, plan done/dropped | delete the mirror | resolution discipline; a durable answer → one line in `long.md` |
+| issue explained/approved | `queue.md ## next` mirror | marker `(ernie:<repo>/<branch>#i1)`; `owner: other` items keep the owner in the text |
+| term fact | `long.md ## reference` or the repo glossary | only if the label outlives the task |
+| question answered/dropped, plan done/dropped, issue fixed/dropped | delete the mirror | resolution discipline; a durable answer → one line in `long.md` |
 | decision | `long.md ## arch`, or `artifacts/spec_<topic>.md` if it's part of a locked set | only if durable; main thread judges |
 | fact (not dismissed) | `long.md ## gotchas` / `## learnings` | only if durable |
 | hook `file touch` | daily `## files` | deduped absolute paths; no line numbers (hooks don't know them) |
@@ -342,7 +366,7 @@ judge       d1 JSONL over JSON — append-only… · f1 Hooks exit 0 on any erro
 | `handoff` | Build the HANDOFF file from `ernie dump` + a pointer to the plan doc. Tell the next agent to run `ernie dump` for fresh state |
 | `mem` `/mem` resume | After reading `.mem`, add `ernie dump` for the current branch to the resume summary if a log exists |
 | `mem` `*mr` | No change. Mirrors carry tags and markers, so grep still finds them |
-| new `ernie` skill | When to log (plan changes, decisions, questions via `ernie ask` with Qx/total; `ernie answer --drop` for questions that no longer matter), what the reminder line means (act only if plan state actually changed), and when to tag. `ernie` calls go in their own Bash call; after a denial, re-run the whole batch and check with `ernie dump` (A101). Source goes in through `printf '%s' '…' \| ernie …`, never a heredoc (A100). Don't restate the page: name the ids and send every question through `ernie ask` (A108). Promote durable notes to a fact or decision (A106) |
+| new `ernie` skill | When to log (plan changes, decisions, questions via `ernie ask` with Qx/total; `ernie answer --drop` for questions that no longer matter), what the reminder line means (act only if plan state actually changed), and when to tag. `ernie` calls go in their own Bash call; after a denial, re-run the whole batch and check with `ernie dump` (A101). Source goes in through `printf '%s' '…' \| ernie …`, never a heredoc (A100). Don't restate the page: name the ids and send every question through `ernie ask` (A108). Promote durable notes to a fact or decision (A106). Explaining issues: one `ernie issue` per finding with `--confidence` (never claim ✓ without a `--method`); lead with an `ernie example` before any aggregate; give questions `--context`/`--impact`/`--recommend`; add a `--term` the first time a label is coined; when you approve in chat, `issue set approved --quote` with your words (A88–A92, A105) |
 | everything else | No change (response-style skills, task skills, `visual-explainer`) |
 
 **Edge cases:**
@@ -353,7 +377,7 @@ judge       d1 JSONL over JSON — append-only… · f1 Hooks exit 0 on any erro
 ## Phases (stop for review after each)
 
 0. ~~**Confirm** decisions~~ → done 2026-10-02.
-1. **Core:** event types (including the `tag` field), `Create`, `Update`, `AppendExisting`, `Resolve`, `Fold`, `Dump`, `Inbox`, plus the `plan`/`decide`/`ask`/`answer`/`fact`/`diagram`/`dump` commands, with tests. The hook spike runs here, after bootstrap and before the fold (A28).
+1. **Core:** event types (including the `tag` field), `Create`, `Update`, `AppendExisting`, `Resolve`, `Fold`, `Dump`, `Inbox`, plus the `plan`/`decide`/`ask`/`answer`/`fact`/`diagram`/`example`/`issue`/`dump` commands (A88–A92), with tests. The hook spike runs here, after bootstrap and before the fold (A28).
 2. **Hooks:** the three `ernie hook` handlers (no Stop, A21) with tests, wired into `claude/.claude/settings.json`, plus a minimal `ernie` skill so Claude knows what the hooks mean.
 3. **Server + page:** `ernie serve`, embedded page built from `spec_ernie_mock.html`, SSE, token-guarded POST, with tests.
 4. **Adoption + skill integration** (see "Integration with skills and `.mem`"):
