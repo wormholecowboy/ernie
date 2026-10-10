@@ -1,6 +1,6 @@
 # Live Context UI — Plan
 
-**Status:** ready to build, nothing built yet · **Updated:** 2026-10-09 (build-plan amendments A1–A35, A51–A92 and A95–A111 folded in)
+**Status:** ready to build, nothing built yet · **Updated:** 2026-10-09 (build-plan amendments A1–A35, A51–A92 and A95–A113 folded in)
 
 Files (all in `.mem/artifacts/`):
 - `spec_ernie.md` — this doc (the build spec)
@@ -108,7 +108,7 @@ flowchart TD
 |---|---|---|---|
 | `plan` | `add`, `set` | claude, user | `text`, `status`: todo/active/done/dropped |
 | `decision` | `add`, `set` | claude; user via terminal (A53) | `text`, `why` |
-| `question` | `add`, `answer`, `set` | claude, user via terminal / claude, user / claude, user via terminal (A53) | `text`, `choices[]?`, `context?`, `impact?`, `recommended?` (one of `choices`), `example?` (an example name) (A88) / `text`, `more?` (true = "need more context"; the question stays open, A88) / `status`: dropped (A34) |
+| `question` | `add`, `answer`, `set` | claude, user via terminal / claude, user / claude, user via terminal (A53) | `text`, `choices[]?`, `context?`, `impact?`, `recommended?` (one of `choices`), `example?` (an example name) (A88), `kind?` (`assume`: choices fixed to yes/no, A113) / `text`, `more?` (true = "need more context"; the question stays open, A88) / `status`: dropped (A34) |
 | `diagram` | `put` | claude; user via terminal (A53) | `name`, `mermaid` |
 | `example` | `put` | claude; user via terminal (A53) | `name`, `title`, `columns[]`, `rows[][]`, `caption?`, `run?` (repo-relative path you can run; ernie never runs it). Caps: ≤ 8 columns, ≤ 20 rows, cells ≤ 200 chars (A90) |
 | `issue` | `add`, `set` | claude; user via terminal / claude, user | `title`, `cause`, `fix`, `impact`, `owner`: us/other, `example?`, `confidence`, `method?` (A89, A91) / `status`: explained → approved → fixed, or dropped; `fix?`; `quote?` (A105) |
@@ -136,6 +136,7 @@ ernie decide "JSONL over JSON" --why "..."  # → d3
 ernie decide set d3 ["new text"] [--why "..."]  # revise a decision
 ernie ask "CLI language?" --choice go --choice "bash + jq"   # → q2
   [--context "…"] [--impact "…"] [--recommend go] [--example e1]   # A88; --recommend must match a --choice
+ernie ask --assume "publicDigmsDB.clients = Glue's client list"   # → "I assumed: … True?" yes/no (A113)
 ernie answer q2 go                          # close a question you answered in the terminal
 ernie answer q2 --drop                      # retire a question that no longer matters
 printf '%s' '…' | ernie diagram arch       # source on stdin (no heredoc: Bash(ernie:*) doesn't cover it, A100); errors on empty input (A98)
@@ -158,6 +159,22 @@ ernie hook post-tool-use|user-prompt-submit|session-start|stop   # reads hook JS
 Flags can go anywhere on the line (cobra/pflag). Write commands need an existing log: with no log they exit 1 and print a hint to run `ernie init`; with an `.off` marker they write nothing, print the notice on stderr, leave stdout empty and exit 0 (A33). On success they print the new or changed id, two spaces and the first 40 chars of the text (`p2  Wire middleware`); errors name the command (`plan add "B": unknown flag --tga`), so an id shifted by a failed command in a batch is visible (A102). Commands that take an id (`plan set`, `answer`, `fact dismiss`, `decide set`, `issue set`) exit 1 on an id that was never added with `unknown id p14; open: p3,p4` and write nothing (A25, A61). Ids are looked up per type (the prefix must match the command), and `plan set` accepts only todo/active/done/dropped (A75). `issue add` requires `--cause`, `--fix`, `--impact`, `--owner` and `--confidence`; `--recommend` must match a `--choice`; an `example` over its caps exits 1 (A88–A91). **Issue gate:** only you set `approved` (page button or your own terminal). Claude's `issue set i1 approved` exits 1 unless it carries `--quote "<your words>"` (A105), and Claude's `issue set i1 fixed` on an issue that isn't approved exits 1 `i1 not approved` (A89). Your terminal user ops that would push the inbox past its cap exit 1 "outbox full; wait for the next prompt" (A69). Missing log → `Update` returns `ErrNoLog`; the CLI maps it to exit 1 + the init hint, hooks to a no-op, POST to 404 (A54).
 
 `ernie init` exits 1 with "run `ernie init` yourself" when the env var that marks Claude's Bash tool is set (`CLAUDECODE=1`, confirmed by the flow test; also set in subagent Bash, A83). The settings.json `ask` rule is a second layer, since it may not match `cd x && ernie init` or `ERNIE_HOME=… ernie init` (A27). Only you run `init`, from your own shell; `!` mode counts as Claude's (pending the A58 check, A70).
+
+**Writing rules (A112).** After creating the log, `init` writes this block into `CLAUDE.local.md` at the worktree root, creating the file if needed. Re-running `init` replaces only the text between the markers (a newer version tag updates the rules); anything else in the file is yours and stays. If `CLAUDE.local.md` isn't already git-ignored, `init` appends it to `<git-dir>/info/exclude` once. `ernie off` leaves the block: the rules are about writing, not about ernie. A failure here warns on stderr and doesn't fail `init`. `CLAUDE.local.md` is read at session start (✓ probe, 2.1.287), so the rules apply from the next session.
+
+```markdown
+<!-- ernie:begin v1 -->
+## Writing (ernie)
+- Bottom line first: one line saying what's wrong and what the user must do (or "nothing").
+- Bold labels start a line that carries its own example; never a bare heading over prose.
+- Arrow chains ≤ 4 hops; longer flows as numbered steps.
+- ✓ ✗ ⚠ only on outcomes in an example or on claim tags (✓ verified · ~ inferred · ✗ unchecked); never decoration.
+- Before/after in 3–5 lines, not a full diff.
+- Blockquotes only for text meant to be copied somewhere else (handoff text).
+- One issue per message.
+- Purpose before options: what it is and why it exists, then the choices.
+<!-- ernie:end -->
+```
 
 `ernie dump` prints compact text rather than JSON, to keep it cheap in tokens:
 
@@ -367,7 +384,7 @@ judge       d1 JSONL over JSON — append-only… · f1 Hooks exit 0 on any erro
 | `handoff` | Build the HANDOFF file from `ernie dump` + a pointer to the plan doc. Tell the next agent to run `ernie dump` for fresh state |
 | `mem` `/mem` resume | After reading `.mem`, add `ernie dump` for the current branch to the resume summary if a log exists |
 | `mem` `*mr` | No change. Mirrors carry tags and markers, so grep still finds them |
-| new `ernie` skill | When to log (plan changes, decisions, questions via `ernie ask` with Qx/total; `ernie answer --drop` for questions that no longer matter), what the reminder line means (act only if plan state actually changed), and when to tag. `ernie` calls go in their own Bash call; after a denial, re-run the whole batch and check with `ernie dump` (A101). Source goes in through `printf '%s' '…' \| ernie …`, never a heredoc (A100). Don't restate the page: name the ids and send every question through `ernie ask` (A108). Promote durable notes to a fact or decision (A106). Explaining issues: one `ernie issue` per finding with `--confidence` (never claim ✓ without a `--method`); lead with an `ernie example` before any aggregate; give questions `--context`/`--impact`/`--recommend`; add a `--term` the first time a label is coined; when you approve in chat, `issue set approved --quote` with your words (A88–A92, A105) |
+| new `ernie` skill | When to log (plan changes, decisions, questions via `ernie ask` with Qx/total; `ernie answer --drop` for questions that no longer matter), what the reminder line means (act only if plan state actually changed), and when to tag. `ernie` calls go in their own Bash call; after a denial, re-run the whole batch and check with `ernie dump` (A101). Source goes in through `printf '%s' '…' \| ernie …`, never a heredoc (A100). Don't restate the page: name the ids and send every question through `ernie ask` (A108). Promote durable notes to a fact or decision (A106). Explaining issues: one `ernie issue` per finding with `--confidence` (never claim ✓ without a `--method`); lead with an `ernie example` before any aggregate; give questions `--context`/`--impact`/`--recommend`; add a `--term` the first time a label is coined; put any stand-in source or guess through `ernie ask --assume` before the result that depends on it (A113); when you approve in chat, `issue set approved --quote` with your words (A88–A92, A105). General writing rules aren't in the skill; `init` puts them in `CLAUDE.local.md` (A112) |
 | everything else | No change (response-style skills, task skills, `visual-explainer`) |
 
 **Edge cases:**
@@ -476,3 +493,5 @@ None open. Left to verify during build: everything listed under the hook spike (
 - automatic distilling into `.mem/`
 - editing plan text from the page (status only)
 - the page starting a turn (see v2)
+- `share` blocks for handoff text with a copy button (A93, a v2 candidate); in v1, Claude writes copy-ready text as a terminal blockquote
+- a primitive for annotated mini-lessons: they stay in the terminal and go to pnotes via `/pnotes` (A94)

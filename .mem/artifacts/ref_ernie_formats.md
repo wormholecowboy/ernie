@@ -32,14 +32,14 @@ Every format found is kept. **Accepted** means it maps to a primitive change you
 | Glossary entry for labels Claude coins (G0, H1, D10) | `fact` with `kind: term` (not a separate `term` type) | A92 |
 | Arrow flow / timeline | `diagram` (Mermaid), no change | — |
 
-### Pending
+### Decided later (2026-10-09)
 
 | Format | Proposed home | Amendment |
 |---|---|---|
-| Handoff text for another audience (scrum master, platform team, another chat) | NEW `share` {audience, text, ref}, v2 | A93 |
-| Assumption check ("I assumed X. True?") | `question` with `kind: assume` and yes/no choices | A94 |
-| Annotated mini-lesson (an annotated code block you save to pnotes) | no primitive yet; maybe `example` with a caption, or terminal only | A94 |
-| Terminal writing rules for the `ernie` skill: TL;DR states your action · bold labels tied to an example · arrows ≤4 hops, longer flows as numbered steps · glyphs only on example outcomes · 3–5 line before/after instead of a diff · blockquote only for copy-ready text · one issue per message · purpose before options | `ernie` skill text (phase 4) | A94 |
+| Handoff text for another audience (scrum master, platform team, another chat) | deferred to v2; v1 uses a terminal blockquote | A93 |
+| Assumption check ("I assumed X. True?") | `ernie ask --assume` → `question` `kind: assume`, yes/no | A94 → A113 |
+| Annotated mini-lesson (an annotated code block you save to pnotes) | terminal only, saved via `/pnotes`; no primitive | A94 |
+| Terminal writing rules for the `ernie` skill: TL;DR states your action · bold labels tied to an example · arrows ≤4 hops, longer flows as numbered steps · glyphs only on example outcomes · 3–5 line before/after instead of a diff · blockquote only for copy-ready text · one issue per message · purpose before options | `CLAUDE.local.md` block written by `ernie init`, not the skill | A94 → A112 |
 
 ---
 
