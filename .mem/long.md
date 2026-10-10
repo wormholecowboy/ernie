@@ -12,6 +12,7 @@
 - [claude-hooks] Bash(x:*) allow covers newline-batched x calls; NOT heredoc `x <<'EOF'`, NOT batches mixed with other cmds; `printf … | x` allowed
 - [claude-hooks] untrusted workspace: project permissions.allow ignored (stderr warning) but project hooks still run in -p
 - [claude-hooks] payloads carry session_id, prompt_id, transcript_path, permission_mode, effort; subagent calls add agent_id + agent_type
+- [claude-hooks] CLAUDE.local.md at repo root is still loaded (probe 2.1.287, Haiku -p, 2026-10-09)
 - [claude-hooks] live hook probes: nested `claude -p` under `env -i` (min env) + `--setting-sources project --strict-mcp-config`; allow rules via `--settings` (untrusted dir)
 - [ernie] -p denies anything not pre-allowed; interactive mode prompts instead → flow-test F2/F5 (dropped calls, heredoc) are prompts, not losses, in real use
 - [ernie] live flow verdict: plumbing (lock, delivery, ids, guards) holds; risk is what Claude logs (prose-only Qs, retries drop calls, issues not closed)
@@ -23,10 +24,11 @@
 ## arch
 - [ernie] source here (~/things/myc/ernie), built to ~/.local/bin. Dotfiles holds only Claude-side pieces: hooks in claude/.claude/settings.json, ernie skill, mem/gtg/handoff edits, install.txt entry
 - [docs] spec + build plan live in .mem/artifacts/ (D10), not docs/
+- [ernie] writing rules live in CLAUDE.local.md block written by `ernie init` (A112), not the skill; skill holds only ernie-specific rules
 - [ernie] attribution: by=claude iff Claude Bash env var set (A53); no cmd run events in v1 (A62)
 ## reference
 - [ernie] spec → .mem/artifacts/spec_ernie.md
-- [ernie] build plan (phases, tasks, amendments A1–A111) → .mem/artifacts/plan_ernie_build.md
+- [ernie] build plan (phases, tasks, amendments A1–A113) → .mem/artifacts/plan_ernie_build.md
 - [ernie] page mock, phase 3 visual target → .mem/artifacts/spec_ernie_mock.html
 - [ernie] design walkthrough → .mem/artifacts/ref_ernie_proposal.html
 - [ernie] response formats for explaining issues (transcript study, accepted vs pending, A88–A94) → .mem/artifacts/ref_ernie_formats.md
