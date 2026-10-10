@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<!--
+  TEMPLATE · shell taken from 01 Mission Control, filled one piece at a time.
+  Tabs: ⌂ Home · ▤ Planning · ◎ Issues · ◆ Facts & decisions · ≡ Tool log. No per-worktree tabs; each tab picks its worktree.
+  Pieces so far:
+    - Planning tab (new, view-only data: `phases` in _sample_state.js): three columns. Shows one worktree at a time (no
+      "all" option; defaults to the first with an active phase). Left, phases with a done/total bar; middle, the selected phase's goal, beads and phase done-when checks; right, the
+      selected bead: status stepper todo → active → done (or blocked, naming the unfinished deps), what, notes, done-when
+      checklist, depends on / unblocks (click to jump, across phases), linked ids (decisions, facts and issues resolve to
+      their text; issues open the Issues tab), files, commit. Keys: [ ] prev/next bead, { } prev/next phase.
+    - Issues tab (from 03 Issue Workbench): list grouped ours / platform-other, waiting-for-approval first; the selected
+      issue opens as a worksheet: explained → approved → fixed stepper with Approve / Drop / Undo, then example → cause →
+      fix → impact → how sure (method, copyable) → linked notes and terms. Keys: [ ] prev/next, a approve.
+    - Facts & decisions tab: left column glossary then decisions (text + why); right column facts with ✓ ~ ✗ badges
+      (tap for the method, × to dismiss).
+      Facts panel opens with filter pills that use the badge labels: All · ✓ verified · ~ inferred · ✗ unknown (data value
+      `unchecked`, or no confidence), each with its count; tapping the active pill goes back to All.
+      Each inferred / unknown fact has a ⌕ research pill (new page op `fact research`, not in the spec yet): queued for that
+      session's next prompt → Claude spawns a subagent (Agent row + its tool calls land in the Tool log) → the answer updates
+      the row (badge → verified, method, corrected text with the old wording kept) or leaves a "no answer" note + retry.
+      Mock: the next prompt is simulated 3 s after the click; outcomes come from RESEARCH_OUTCOMES.
+      Scope: all worktrees or one, picked at the top of the tab.
+    - Tool log tab: every tool call across worktrees, newest first (A114: Bash shows its description only),
+      filters for worktree, tool, hide subagents, files only, + ernie events. A new row lands every ~4 s on the working session.
+  Data: _sample_state.js, loaded from this folder (same data as the 10 variations).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ernie · Template</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --sans: 'Bricolage Grotesque', system-ui, sans-serif;
+    --mono: 'Fragment Mono', ui-monospace, SFMono-Regular, monospace;
+    --bg: #0a1520; --bg-card: #0f1e2c; --bg-recessed: #0c1925; --bg-raised: #132638;
+    --text: #d8e6f2; --text-dim: #8299ae; --text-accent: #7dd3fc;
+    --accent: #38bdf8; --accent-soft: #0c2f48;
+    --border: #1c3246; --border-accent: #1f5a82;
+    --grid: rgba(56,189,248,.04);
+    --success: #34d399; --warning: #fbbf24; --error: #f87171;
+    --pass-bg: #064e3b; --pass-fg: #a7f3d0;
+    --warn-bg: #78350f; --warn-fg: #fde68a;
+    --info-bg: #1e3a8a; --info-fg: #dbeafe;
+    --shadow: rgba(0,0,0,.5);
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f3f7fb; --bg-card: #ffffff; --bg-recessed: #eef3f8; --bg-raised: #ffffff;
+      --text: #0d1f2e; --text-dim: #557087; --text-accent: #0369a1;
+      --accent: #0284c7; --accent-soft: #e0f2fe;
+      --border: #d3dfea; --border-accent: #7cc4ee;
+      --grid: rgba(2,132,199,.05);
+      --success: #059669; --warning: #b45309; --error: #dc2626;
+      --pass-bg: #d1fae5; --pass-fg: #065f46;
+      --warn-bg: #fef3c7; --warn-fg: #92400e;
+      --info-bg: #dbeafe; --info-fg: #1e40af;
+      --shadow: rgba(13,31,46,.16);
+      color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f3f7fb; --bg-card: #ffffff; --bg-recessed: #eef3f8; --bg-raised: #ffffff;
+    --text: #0d1f2e; --text-dim: #557087; --text-accent: #0369a1;
+    --accent: #0284c7; --accent-soft: #e0f2fe;
+    --border: #d3dfea; --border-accent: #7cc4ee;
+    --grid: rgba(2,132,199,.05);
+    --success: #059669; --warning: #b45309; --error: #dc2626;
+    --pass-bg: #d1fae5; --pass-fg: #065f46;
+    --warn-bg: #fef3c7; --warn-fg: #92400e;
+    --info-bg: #dbeafe; --info-fg: #1e40af;
+    --shadow: rgba(13,31,46,.16);
+    color-scheme: light;
+  }
+  body { margin: 0; font-family: var(--sans); font-size: 14px; line-height: 1.5; color: var(--text);
+    background-color: var(--bg); overflow-x: hidden;
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 24px 24px; background-attachment: fixed; }
+  code { font-family: var(--mono); font-size: .92em; }
+  button { font: inherit; color: inherit; }
+  .mock-banner { font: 11px var(--mono); text-align: center; padding: 5px 16px; background: var(--warn-bg); color: var(--warn-fg); letter-spacing: .05em; }
+
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+  .badge { font: 10.5px var(--mono); min-width: 18px; padding: 1px 6px; border-radius: 9px; background: var(--accent); color: var(--bg); text-align: center; }
+
+  /* Top bar: brand · tabs · status */
+  .topbar { position: sticky; top: 0; z-index: 50; display: flex; align-items: flex-end; gap: 10px; padding: 8px 20px 0;
+    border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(8px); }
+  .brand { font-weight: 800; font-size: 19px; letter-spacing: -.02em; padding-bottom: 7px; }
+  .brand span { color: var(--accent); }
+  .tabstrip { display: flex; align-items: flex-end; gap: 2px; min-width: 0; flex: 1; overflow-x: auto; scrollbar-width: thin; }
+  .tab { display: flex; align-items: center; border: 1px solid var(--border); border-bottom: none; border-radius: 8px 8px 0 0;
+    background: var(--bg-recessed); color: var(--text-dim); flex: none; max-width: 260px; }
+  .tab.active { background: var(--bg-card); color: var(--text); border-color: var(--border-accent); box-shadow: inset 0 2px 0 var(--accent); }
+  .tab > button { background: none; border: 0; cursor: pointer; padding: 7px 12px; display: flex; align-items: center; gap: 7px;
+    font: 600 12px var(--mono); min-width: 0; }
+  .status { display: flex; align-items: center; gap: 12px; font: 11.5px var(--mono); color: var(--text-dim); padding-bottom: 7px; flex: none; }
+  .live { color: var(--success); display: inline-flex; align-items: center; gap: 6px; }
+  .live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--success); animation: pulse 1.8s infinite; }
+  .icon-btn { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; font: 11.5px var(--mono); }
+  .icon-btn:hover { border-color: var(--accent); }
+  @media (max-width: 720px) {
+    .topbar { flex-wrap: wrap; padding: 8px 16px 0; }
+    .status { margin-left: auto; }
+    .tabstrip { order: 3; flex-basis: 100%; }
+  }
+
+  main { max-width: 1680px; margin: 0 auto; padding: 16px 20px 48px; }
+  @media (max-width: 720px) { main { padding: 12px 16px 48px; } }
+
+  /* Empty tab body */
+  .canvas { min-height: calc(100dvh - 140px); border: 1.5px dashed var(--border); border-radius: 12px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 24px 16px; }
+  .canvas h1 { margin: 0; font: 800 20px var(--sans); letter-spacing: -.02em; overflow-wrap: anywhere; }
+  .canvas p { margin: 0; font: 12px var(--mono); color: var(--text-dim); overflow-wrap: anywhere; }
+
+  /* Tab header: title + scope picker */
+  .tab-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px; margin: 2px 0 14px; }
+  .tab-head h1 { margin: 0; font: 800 22px var(--sans); letter-spacing: -.02em; }
+  .tab-head .meta { font: 12px var(--mono); color: var(--text-dim); }
+  select.scope, .filters select { max-width: 100%; font: 12px var(--mono); background: var(--bg-card); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; }
+
+  /* Panels (from 01) */
+  .panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; min-width: 0; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid var(--border);
+    font: 11px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); }
+  .panel-head .count { color: var(--text-accent); text-transform: none; letter-spacing: 0; }
+  .panel-body { padding: 10px 14px 14px; min-width: 0; }
+  .empty { color: var(--text-dim); font-size: 13px; padding: 4px 0; }
+  .hint { font: 11px var(--mono); color: var(--text-dim); text-transform: none; letter-spacing: 0; }
+  .item-id { font: 10.5px var(--mono); color: var(--text-dim); margin-right: 6px; }
+  .sub { font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); margin: 14px 0 6px; }
+  .sub:first-child { margin-top: 0; }
+  .wt { font: 10.5px var(--mono); color: var(--text-accent); background: var(--accent-soft); border-radius: 4px; padding: 0 6px; margin-right: 6px; white-space: nowrap; }
+
+  /* Facts & decisions */
+  .fd-grid { display: grid; gap: 16px; align-items: start; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  @media (max-width: 860px) { .fd-grid { grid-template-columns: minmax(0, 1fr); } }
+  .fd-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .dec { padding: 4px 0 4px 10px; border-left: 2px solid var(--accent); margin: 4px 0 12px; overflow-wrap: break-word; }
+  .dec b { font-weight: 600; display: block; } .dec .why { font-size: 13px; color: var(--text-dim); }
+  .facts { list-style: none; margin: 0; padding: 0; }
+  .facts li { position: relative; padding: 7px 28px 7px 0; border-bottom: 1px dashed var(--border); overflow-wrap: break-word; }
+  .facts li:last-child { border-bottom: none; }
+  .dismiss { position: absolute; right: 0; top: 6px; width: 22px; height: 22px; border-radius: 5px; border: 1px solid transparent; background: none; cursor: pointer; color: var(--text-dim); }
+  .dismiss:hover { border-color: var(--border); color: var(--error); }
+  .conf { font: 10.5px var(--mono); padding: 1px 6px; border-radius: 4px; border: 0; cursor: pointer; margin-right: 6px; vertical-align: 1px; }
+  .c-verified { background: var(--pass-bg); color: var(--pass-fg); } .c-inferred { background: var(--warn-bg); color: var(--warn-fg); }
+  .c-unchecked { background: var(--bg-raised); color: var(--text-dim); border: 1px dashed var(--text-dim); }
+  .method { font: 11.5px var(--mono); color: var(--text-dim); margin: 5px 0 2px; padding: 5px 8px; border-left: 2px solid var(--border-accent); overflow-wrap: anywhere; }
+  .gloss { margin: 0; display: grid; grid-template-columns: auto minmax(0,1fr); gap: 6px 12px; font-size: 13px; }
+  .gloss dt { font: 12px var(--mono); color: var(--text-accent); } .gloss dd { margin: 0; overflow-wrap: break-word; }
+  .pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+  .fpill { font: 11.5px var(--mono); padding: 2px 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-recessed); color: var(--text-dim); cursor: pointer; }
+  .fpill:hover { border-color: var(--accent); }
+  .fpill .n { opacity: .7; margin-left: 5px; }
+  .fpill.on { border-color: transparent; }
+  .fpill.on.k-all { background: var(--accent); color: var(--bg); }
+  .fpill.on.k-verified { background: var(--pass-bg); color: var(--pass-fg); }
+  .fpill.on.k-inferred { background: var(--warn-bg); color: var(--warn-fg); }
+  .fpill.on.k-unchecked { background: var(--bg-raised); color: var(--text); border: 1px dashed var(--text-dim); }
+  .queued { font: 11.5px var(--mono); color: var(--warning); margin-top: 10px; overflow-wrap: anywhere; }
+  .rpill { font: 10.5px var(--mono); padding: 1px 8px; margin-left: 8px; border-radius: 10px; border: 1px solid var(--border-accent);
+    background: var(--accent-soft); color: var(--text-accent); cursor: pointer; vertical-align: 1px; white-space: nowrap; }
+  .rpill:hover { border-color: var(--accent); }
+  .rpill.wait { cursor: default; border-style: dashed; background: none; color: var(--warning); border-color: var(--warning); }
+  .rpill.running { cursor: default; background: none; }
+  .rpill.running::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 50%;
+    border: 1.5px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; vertical-align: -1px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .found { border-left-color: var(--success); } .found s { opacity: .7; }
+  .no-answer { border-left-color: var(--warning); }
+
+  /* Issues: list + worksheet (from 03) */
+  .is-grid { display: grid; gap: 16px; align-items: start; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); }
+  @media (max-width: 900px) { .is-grid { grid-template-columns: minmax(0, 1fr); } }
+  .is-list { position: sticky; top: 64px; }
+  @media (max-width: 900px) { .is-list { position: static; } }
+  .is-group { font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); margin: 12px 4px 4px; display: flex; justify-content: space-between; }
+  .is-group:first-child { margin-top: 0; }
+  .is-row { width: 100%; display: grid; grid-template-columns: 14px auto minmax(0, 1fr) auto; gap: 7px; align-items: baseline; border: 0; border-radius: 6px;
+    background: none; padding: 7px 6px; text-align: left; cursor: pointer; }
+  .is-row:hover { background: var(--bg-recessed); } .is-row.sel { background: var(--accent-soft); }
+  .is-row .t { font-size: 13px; overflow-wrap: anywhere; }
+  .is-row .t .wt { margin: 4px 0 0; display: inline-block; }
+  .is-row.st-fixed .t, .is-row.st-dropped .t { color: var(--text-dim); }
+  .is-row.st-dropped .t { text-decoration: line-through; }
+  .is-row .id, .is-row .cf { font: 11px var(--mono); color: var(--text-dim); }
+  .g { font: 12px var(--mono); text-align: center; }
+  .g--explained { color: var(--warning); } .g--approved { color: var(--accent); } .g--fixed { color: var(--success); } .g--dropped { color: var(--text-dim); }
+  .legend { margin-top: 12px; font: 10.5px var(--mono); color: var(--text-dim); line-height: 1.8; padding: 0 4px; }
+  .ws { max-width: 780px; }
+  .ws-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font: 11.5px var(--mono); color: var(--text-dim); }
+  .ws h2 { font-size: 21px; line-height: 1.25; margin: 6px 0 12px; letter-spacing: -.01em; overflow-wrap: break-word; }
+  .ws h2 .id { font: 13px var(--mono); color: var(--text-dim); margin-right: 4px; }
+  .pill { font: 11px var(--mono); padding: 1px 8px; border-radius: 10px; white-space: nowrap; }
+  .p-ours { background: var(--info-bg); color: var(--info-fg); } .p-other { background: var(--warn-bg); color: var(--warn-fg); }
+  .gate { border: 1px solid var(--border-accent); border-radius: 10px; background: var(--bg-card); padding: 12px 14px; margin-bottom: 18px; }
+  .stepper { list-style: none; display: flex; margin: 0 0 10px; padding: 0; gap: 4px; }
+  .stepper li { flex: 1; display: flex; align-items: center; gap: 7px; font: 12px var(--mono); color: var(--text-dim); padding: 6px 8px; border-radius: 6px; background: var(--bg-recessed); min-width: 0; }
+  .stepper li span { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid currentColor; display: grid; place-items: center; font-size: 10px; flex: none; }
+  .stepper li.done { color: var(--success); } .stepper li.done span { background: var(--success); color: var(--bg); border-color: var(--success); }
+  .stepper li.now { color: var(--text-accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--border-accent); }
+  .stepper.dropped li { opacity: .4; text-decoration: line-through; }
+  .gate-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .gate-msg { font-size: 13px; color: var(--text-dim); flex: 1 1 220px; }
+  .quote { margin-top: 8px; font: 12px var(--mono); color: var(--text-accent); }
+  .btn { font: 12px var(--mono); padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-card); cursor: pointer; }
+  .btn:hover { border-color: var(--accent); } .btn--primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+  .btn--danger:hover { border-color: var(--error); color: var(--error); }
+  .sec { margin: 0 0 18px; }
+  .sec h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font: 11px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); font-weight: 400; }
+  .sec h3 b { width: 18px; height: 18px; border-radius: 4px; background: var(--bg-raised); border: 1px solid var(--border); display: grid; place-items: center; font-size: 10px; color: var(--text-accent); font-weight: 400; }
+  .sec p { margin: 0; overflow-wrap: break-word; }
+  .tbl-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); }
+  .tbl-wrap table { border-collapse: collapse; width: 100%; font: 12px var(--mono); }
+  .tbl-wrap th, .tbl-wrap td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+  .tbl-wrap thead th { color: var(--text-dim); font-weight: 400; background: var(--bg-recessed); }
+  .tbl-wrap tbody th { color: var(--text-accent); font-weight: 400; white-space: nowrap; }
+  .tbl-wrap tr:last-child td, .tbl-wrap tr:last-child th { border-bottom: 0; }
+  .ok { color: var(--success); } .bad { color: var(--error); }
+  .ex-title { font-weight: 600; margin-bottom: 6px; } .cap { font-size: 13px; margin: 6px 0 0 !important; }
+  .run { font: 11.5px var(--mono); color: var(--text-dim); margin-top: 4px; } .run code { color: var(--text-accent); }
+  .impact { border-left: 3px solid var(--warning); padding: 4px 0 4px 10px; }
+  .cmd { position: relative; margin-top: 6px; }
+  .cmd pre { margin: 0; padding: 10px 70px 10px 12px; border-radius: 8px; background: var(--bg-recessed); border: 1px solid var(--border); font: 12px var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .cmd button { position: absolute; top: 6px; right: 6px; }
+  .linked { display: grid; gap: 6px; font-size: 13px; } .linked b { font: 12px var(--mono); color: var(--text-accent); margin-right: 6px; font-weight: 400; }
+  .ws-foot { display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid var(--border); padding-top: 12px; font: 12px var(--mono); color: var(--text-dim); align-items: center; flex-wrap: wrap; }
+
+  /* Planning: phases | beads | bead detail */
+  .pl-grid { display: grid; gap: 16px; align-items: start; grid-template-columns: minmax(0, 220px) minmax(0, 320px) minmax(0, 1fr); }
+  @media (max-width: 1100px) { .pl-grid { grid-template-columns: minmax(0, 190px) minmax(0, 270px) minmax(0, 1fr); } }
+  @media (max-width: 900px) { .pl-grid { grid-template-columns: minmax(0, 1fr); } }
+  .pl-col { position: sticky; top: 64px; max-height: calc(100dvh - 80px); overflow-y: auto; }
+  @media (max-width: 900px) { .pl-col { position: static; max-height: none; } }
+  .ph-row, .bd-row { width: 100%; display: grid; gap: 7px; align-items: baseline; border: 0; border-radius: 6px;
+    background: none; padding: 7px 6px; text-align: left; cursor: pointer; }
+  .ph-row { grid-template-columns: 14px auto minmax(0, 1fr); }
+  .bd-row { grid-template-columns: 14px auto minmax(0, 1fr); }
+  .ph-row:hover, .bd-row:hover { background: var(--bg-recessed); }
+  .ph-row.sel, .bd-row.sel { background: var(--accent-soft); }
+  .ph-row .id, .bd-row .id { font: 11px var(--mono); color: var(--text-dim); }
+  .ph-row .t, .bd-row .t { font-size: 13px; overflow-wrap: anywhere; min-width: 0; }
+  .ph-row .t b { font-weight: 600; display: block; }
+  .bd-row.st-done .t { color: var(--text-dim); }
+  .bd-row .why { display: block; font: 10.5px var(--mono); color: var(--warning); margin-top: 2px; }
+  .g--todo { color: var(--text-dim); } .g--active { color: var(--accent); } .g--done { color: var(--success); } .g--blocked { color: var(--warning); }
+  .bar { display: flex; align-items: center; gap: 6px; margin-top: 4px; font: 10.5px var(--mono); color: var(--text-dim); }
+  .bar i { flex: 1; height: 4px; border-radius: 2px; background: var(--bg-raised); border: 1px solid var(--border); overflow: hidden; display: block; }
+  .bar i b { display: block; height: 100%; background: var(--success); }
+  .ph-goal { font-size: 13px; color: var(--text-dim); margin: 0 4px 10px; overflow-wrap: break-word; }
+  .checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+  .checks li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 6px; overflow-wrap: anywhere; }
+  .checks li::before { content: '☐'; color: var(--text-dim); font-family: var(--mono); }
+  .checks li.on { color: var(--text-dim); } .checks li.on::before { content: '☑'; color: var(--success); }
+  .ph-checks { margin: 12px 4px 0; padding-top: 10px; border-top: 1px dashed var(--border); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font: 11.5px var(--mono); padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-card); cursor: pointer; }
+  .chip:hover { border-color: var(--accent); }
+  .chip .g { margin-right: 5px; }
+  .blocked-msg { font: 12px var(--mono); color: var(--warning); margin-top: 6px; }
+  .files { list-style: none; margin: 0; padding: 0; font: 12px var(--mono); color: var(--text-accent); display: grid; gap: 3px; overflow-wrap: anywhere; }
+  @media (max-width: 900px) {
+    .pl-phases .panel-body { display: flex; flex-wrap: wrap; gap: 4px; }
+    .pl-phases .ph-row { width: auto; }
+  }
+
+  /* Tool log */
+  .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 14px; border-bottom: 1px solid var(--border);
+    font: 11.5px var(--mono); color: var(--text-dim); }
+  .filters label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+  .feed { list-style: none; margin: 0; padding: 4px 0; font: 12px var(--mono); }
+  .feed li { display: grid; grid-template-columns: 70px minmax(0, 210px) 96px minmax(0, 1fr); gap: 10px; padding: 5px 14px;
+    border-bottom: 1px solid var(--border); color: var(--text-dim); align-items: baseline; }
+  .feed li.head { font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; border-bottom-color: var(--border-accent); }
+  .feed .cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .feed .tool { color: var(--text); }
+  .feed .txt { overflow-wrap: anywhere; color: var(--text); }
+  .feed .txt.none { color: var(--text-dim); font-style: italic; }
+  .feed li.file .tool { color: var(--warning); }
+  .feed li.ev .tool { color: var(--accent); } .feed li.ev.by-user .tool { color: var(--success); }
+  .tag { font-size: 10px; padding: 0 5px; margin-left: 6px; border-radius: 4px; background: var(--info-bg); color: var(--info-fg); white-space: nowrap; }
+  .tag.file { background: var(--warn-bg); color: var(--warn-fg); }
+  .fresh { animation: flash 1.6s ease-out; }
+  @keyframes flash { from { background: var(--accent-soft); } to { background: transparent; } }
+  @media (max-width: 720px) {
+    .feed li { grid-template-columns: 62px minmax(0, 1fr); gap: 2px 8px; }
+    .feed li.head { display: none; }
+    .feed .wtcell { grid-column: 2; grid-row: 1; }
+    .feed .tool { grid-column: 1; grid-row: 2; }
+    .feed .txt { grid-column: 2; grid-row: 2; }
+  }
+</style>
+</head>
+<body>
+<div class="mock-banner">MOCK · Template · pieces pulled in one at a time from the variations</div>
+
+<header class="topbar">
+  <div class="brand">ernie<span>.</span></div>
+  <nav class="tabstrip" id="tabstrip" aria-label="Tabs"></nav>
+  <div class="status"><span class="live">live</span><button class="icon-btn" id="theme-toggle" type="button">◐</button></div>
+</header>
+
+<main id="main"></main>
+
+<script src="_sample_state.js"></script>
+<script>
+  // S stands in for the server's SSE frames; `view` holds view-only state.
+  const S = structuredClone(ERNIE_SAMPLE);
+  const TABS = [
+    { key: 'home', label: '⌂ Home' },
+    { key: 'planning', label: '▤ Planning' },
+    { key: 'issues', label: '◎ Issues' },
+    { key: 'facts', label: '◆ Facts & decisions' },
+    { key: 'log', label: '≡ Tool log' },
+  ];
+  const view = {
+    active: 'home',
+    factsScope: 'all',
+    factsKind: 'all', // pill filter: all / verified / inferred / unchecked
+    research: {}, // "<log key>|<fact id>" → { stage: queued | running | found | none, note, oldText, from }
+    issuesScope: 'all',
+    selectedIssue: null, // "<log key>|<issue id>"
+    planWorktree: null, // one worktree at a time; null → first with an active phase
+    selectedPhase: null, // "<log key>|<phase id>"
+    selectedBead: null, // "<log key>|<phase id>|<bead id>"
+    copied: null,
+    shownMethods: new Set(),
+    queued: [], // page events waiting for each session's next prompt: { key, label }
+    logFilter: { scope: 'all', tool: 'all', hideAgents: false, filesOnly: false, events: false },
+    logUnseen: 0,
+  };
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const logOf = key => S.logs.find(l => l.key === key);
+  const isTab = key => TABS.some(p => p.key === key);
+  const onLogs = () => S.logs.filter(l => l.on && S.states[l.key]);
+  // One label set for badges, filter pills and legends; `unchecked` stays the stored value
+  const confGlyph = { verified: '✓ verified', inferred: '~ inferred', unchecked: '✗ unknown' };
+  const FACT_PILLS = [{ key: 'all', label: 'All' }, ...['verified', 'inferred', 'unchecked'].map(key => ({ key, label: confGlyph[key] }))];
+  // Facts with no confidence count as unknown
+  const factKind = f => f.confidence || 'unchecked';
+
+  // ---------- Tabs ----------
+  function renderTabs() {
+    const toApprove = issueList('all').filter(x => x.iss.status === 'explained').length;
+    document.getElementById('tabstrip').innerHTML = TABS.map(p => {
+      let badge = '';
+      if (p.key === 'log' && view.active !== 'log' && view.logUnseen) badge = `<span class="badge" title="new tool calls">${view.logUnseen}</span>`;
+      if (p.key === 'issues' && toApprove) badge = `<span class="badge" style="background:var(--warning)" title="waiting for your approval">${toApprove}</span>`;
+      return `<div class="tab ${view.active === p.key ? 'active' : ''}"><button type="button" data-tab="${p.key}">${p.label}${badge}</button></div>`;
+    }).join('');
+  }
+
+  function scopeSelect(id, value, withAll = true) {
+    return `<select class="scope" id="${id}" aria-label="Worktree">${withAll ? '<option value="all">all worktrees</option>' : ''}
+      ${onLogs().map(l => `<option value="${esc(l.key)}" ${value === l.key ? 'selected' : ''}>${esc(l.key)}</option>`).join('')}</select>`;
+  }
+
+  function panel(title, count, body, extraHead = '') {
+    return `<section class="panel"><div class="panel-head"><span>${title}</span>${extraHead}${count !== '' ? `<span class="count">${count}</span>` : ''}</div>
+      <div class="panel-body">${body}</div></section>`;
+  }
+
+  // ---------- Facts & decisions tab ----------
+  function confBadge(item, key) {
+    if (!item.confidence) return `<span class="conf c-unchecked" title="no confidence given">${confGlyph.unchecked}</span>`;
+    return `<button class="conf c-${item.confidence}" type="button" data-method="${esc(key)}" title="${esc(item.method || 'no method given')}">${confGlyph[item.confidence]}</button>`;
+  }
+
+  function renderFacts() {
+    const scoped = onLogs().filter(l => view.factsScope === 'all' || l.key === view.factsScope);
+    const showWt = view.factsScope === 'all';
+    const wtTag = log => showWt ? `<span class="wt" title="${esc(log.worktree)}">${esc(log.branch)}</span>` : '';
+    // Reason: grouping by worktree keeps "which ticket is this from" visible without repeating a tag on every row
+    const grouped = (log, items, html) => items.length ? (showWt ? `<div class="sub">${esc(log.key)}</div>` : '') + items.map(html).join('') : '';
+
+    const decisions = scoped.map(l => grouped(l, S.states[l.key].decisions, d =>
+      `<div class="dec"><b><span class="item-id">${d.id}</span>${esc(d.text)}</b><span class="why">${esc(d.why)}</span></div>`)).join('');
+    const decisionCount = scoped.reduce((n, l) => n + S.states[l.key].decisions.length, 0);
+
+    const factHtml = (l, f) => {
+      const methodKey = `${l.key}:${f.id}`;
+      const method = view.shownMethods.has(methodKey) ? `<div class="method">method: ${esc(f.method || 'none given')}</div>` : '';
+      return `<li class="${f.fresh ? 'fresh' : ''}">${confBadge(f, methodKey)}<span class="item-id">${f.id}</span>${esc(f.text)}${researchHtml(l, f)}
+        <button class="dismiss" type="button" data-dismiss="${esc(l.key)}|${f.id}" title="Dismiss">×</button>${method}${researchNote(l, f)}</li>`;
+    };
+    const allFacts = scoped.flatMap(l => S.states[l.key].facts.filter(f => f.kind !== 'term'));
+    const factCount = allFacts.length;
+    const kindMatch = f => view.factsKind === 'all' || factKind(f) === view.factsKind;
+    const facts = scoped.map(l => {
+      const items = S.states[l.key].facts.filter(f => f.kind !== 'term' && kindMatch(f));
+      if (!items.length) return '';
+      return (showWt ? `<div class="sub">${esc(l.key)}</div>` : '') + `<ul class="facts">${items.map(f => factHtml(l, f)).join('')}</ul>`;
+    }).join('');
+    const shownFactCount = allFacts.filter(kindMatch).length;
+    const pills = `<div class="pills" role="group" aria-label="Filter facts">${FACT_PILLS.map(p => {
+      const n = p.key === 'all' ? factCount : allFacts.filter(f => factKind(f) === p.key).length;
+      const on = view.factsKind === p.key;
+      return `<button class="fpill k-${p.key} ${on ? 'on' : ''}" type="button" data-fact-kind="${p.key}" aria-pressed="${on}">${p.label}<span class="n">${n}</span></button>`;
+    }).join('')}</div>`;
+    const noFacts = factCount ? '<div class="empty">No facts match this filter.</div>' : '<div class="empty">No facts pinned.</div>';
+
+    const terms = scoped.flatMap(l => S.states[l.key].facts.filter(f => f.kind === 'term').map(t => ({ t, l })));
+    const glossary = terms.length ? `<dl class="gloss">${terms.map(({ t, l }) => `<dt>${esc(t.term)}</dt><dd>${wtTag(l)}${esc(t.text)}</dd>`).join('')}</dl>` : '<div class="empty">No terms yet.</div>';
+
+    const queued = view.queued.filter(q => scoped.some(l => l.key === q.key));
+    const queuedLine = queued.length ? `<div class="queued">queued for the next prompt: ${queued.map(q => `${esc(q.label)} (${esc(logOf(q.key).branch)})`).join(' · ')}</div>` : '';
+
+    document.getElementById('main').innerHTML = `
+      <div class="tab-head"><h1>Facts & decisions</h1>${scopeSelect('facts-scope', view.factsScope)}
+        <span class="meta">${decisionCount} decisions · ${factCount} facts · ${terms.length} terms</span></div>
+      <div class="fd-grid">
+        <div class="fd-col">
+          ${panel('Glossary', terms.length, glossary)}
+          ${panel('Decisions', decisionCount, decisions || '<div class="empty">No decisions yet.</div>')}
+        </div>
+        <div class="fd-col">
+          ${panel('Facts', shownFactCount === factCount ? factCount : `${shownFactCount}/${factCount}`, pills + (facts || noFacts) + queuedLine, '<span class="hint">tap a badge for its method · × to dismiss</span>')}
+        </div>
+      </div>`;
+  }
+
+  // ---------- Fact research (Facts panel) ----------
+  // Page action `fact research`: goes to that session's Claude on its next prompt; Claude runs a subagent and logs the answer
+  function researchHtml(l, f) {
+    const r = view.research[`${l.key}|${f.id}`];
+    if (r?.stage === 'queued') return `<span class="rpill wait" title="delivered with your next prompt to this session">⏳ queued · next prompt</span>`;
+    if (r?.stage === 'running') return `<span class="rpill running" title="subagent running in ${esc(l.key)}">subagent researching…</span>`;
+    if (factKind(f) === 'verified') return '';
+    return `<button class="rpill" type="button" data-research="${esc(l.key)}|${esc(f.id)}" title="Send a subagent to find an answer">⌕ ${r?.stage === 'none' ? 'retry' : 'research'}</button>`;
+  }
+
+  function researchNote(l, f) {
+    const r = view.research[`${l.key}|${f.id}`];
+    if (r?.stage === 'found') {
+      const oldWording = r.oldText !== f.text ? `: <s>${esc(r.oldText)}</s>` : '';
+      return `<div class="method found">found by subagent · was ${esc(confGlyph[r.from] || confGlyph.unchecked)}${oldWording}<br>method: ${esc(f.method)}</div>`;
+    }
+    if (r?.stage === 'none') return `<div class="method no-answer">no answer: ${esc(r.note)}</div>`;
+    return '';
+  }
+
+  // Mock outcomes per fact; anything not listed comes back with no answer
+  const RESEARCH_OUTCOMES = {
+    'glue/CDIT-2631-ga4-dedupe|f2': {
+      steps: [{ tool: 'Bash', text: 'Count duplicate dedupe keys by site_platform, last 30 days' }, { tool: 'Read', text: 'sql/views/sessions.sql' }],
+      text: 'Duplicates appear on Dealer Spike and Dealer Inspire hosts',
+      method: 'GROUP BY site_platform over 30 days: 96% Dealer Spike, 4% Dealer Inspire, 0 elsewhere',
+    },
+    'glue/CDIT-2631-ga4-dedupe|f3': {
+      steps: [{ tool: 'Grep', text: 'consent' }, { tool: 'WebFetch', text: 'GA4 consent mode docs' }],
+      note: 'needs read access to the platform GTM container (SSO wall); see n1',
+    },
+  };
+  const RESEARCH_FALLBACK = { steps: [{ tool: 'Grep', text: 'search the repo' }], note: 'nothing the subagent could check from here' };
+
+  function logRow(logKey, row) {
+    const st = S.states[logKey];
+    st.activity.unshift({ ts: clock(), fresh: true, ...row });
+    if (view.active !== 'log' && (row.t === 'tool' || row.t === 'file')) view.logUnseen += 1;
+  }
+
+  function startResearch(researchKey) {
+    const [logKey, factId] = researchKey.split('|');
+    const st = S.states[logKey];
+    const fact = st.facts.find(f => f.id === factId);
+    const outcome = RESEARCH_OUTCOMES[researchKey] || RESEARCH_FALLBACK;
+    view.research[researchKey] = { stage: 'queued' };
+    view.queued.push({ key: logKey, label: `research ${factId}`, researchKey });
+    logRow(logKey, { by: 'user', t: 'fact', op: 'research', text: `research ${factId} "${fact.text}"` });
+    renderAll();
+
+    const stillThere = () => st.facts.includes(fact);
+    // Mock: the session's next prompt arrives 3 s later and Claude hands the fact to a subagent
+    setTimeout(() => {
+      view.queued = view.queued.filter(q => q.researchKey !== researchKey);
+      if (!stillThere()) { delete view.research[researchKey]; return renderAll(); }
+      view.research[researchKey] = { stage: 'running' };
+      logRow(logKey, { by: 'hook', t: 'tool', op: 'run', tool: 'Agent', text: `Research ${factId}: ${fact.text}` });
+      renderAll();
+      outcome.steps.forEach((step, i) => setTimeout(() => {
+        logRow(logKey, { by: 'hook', t: 'tool', op: 'run', agent: 'general-purpose', ...step });
+        renderAll();
+      }, 1200 * (i + 1)));
+    }, 3000);
+
+    setTimeout(() => {
+      if (!stillThere()) { delete view.research[researchKey]; return renderAll(); }
+      if (outcome.method) {
+        view.research[researchKey] = { stage: 'found', from: fact.confidence, oldText: fact.text };
+        Object.assign(fact, { confidence: 'verified', method: outcome.method, text: outcome.text || fact.text, fresh: true });
+        logRow(logKey, { by: 'claude', t: 'fact', op: 'set', text: `${factId} → verified: ${fact.text}` });
+      } else {
+        view.research[researchKey] = { stage: 'none', note: outcome.note };
+        logRow(logKey, { by: 'claude', t: 'fact', op: 'note', text: `${factId} research: no answer` });
+      }
+      renderAll();
+      fact.fresh = false;
+    }, 3000 + 1200 * (outcome.steps.length + 1));
+  }
+
+  // ---------- Planning tab ----------
+  const BEAD_GLYPH = { todo: '○', active: '◐', done: '●', blocked: '⊘' };
+
+  const phaseList = logKey => (S.states[logKey]?.phases || []).map(ph => ({ ph, key: `${logKey}|${ph.id}` }));
+
+  // Every bead of one worktree with its phase, so deps can point across phases
+  const beadsOf = logKey => (S.states[logKey].phases || []).flatMap(ph => ph.beads.map(b => ({ b, ph, key: `${logKey}|${ph.id}|${b.id}` })));
+
+  function progressBar(beads) {
+    const done = beads.filter(b => b.status === 'done').length;
+    const pct = beads.length ? Math.round(done / beads.length * 100) : 0;
+    return `<span class="bar"><i><b style="width:${pct}%"></b></i>${done}/${beads.length}</span>`;
+  }
+
+  const checklist = items => `<ul class="checks">${items.map(c => `<li class="${c.done ? 'on' : ''}">${esc(c.text)}</li>`).join('')}</ul>`;
+
+  function beadChip(entry) {
+    return `<button class="chip" type="button" data-bead-open="${esc(entry.key)}" title="${esc(entry.ph.id)} · ${entry.b.status}">
+      <span class="g g--${entry.b.status}">${BEAD_GLYPH[entry.b.status]}</span>${esc(entry.b.id)} ${esc(entry.b.title)}</button>`;
+  }
+
+  // Ids that match a decision, issue or fact in the same worktree show its text; issues open the Issues tab
+  function linkHTML(logKey, ref) {
+    const st = S.states[logKey];
+    const issue = st.issues.find(i => i.id === ref);
+    if (issue) return `<div><button class="chip" type="button" data-issue-jump="${esc(logKey)}|${esc(ref)}"><span class="g g--${issue.status}">${STATUS_GLYPH[issue.status]}</span>${esc(ref)}</button> ${esc(issue.title)}</div>`;
+    const known = st.decisions.find(d => d.id === ref) || st.facts.find(f => f.id === ref);
+    if (known) return `<div><b>${esc(ref)}</b>${esc(known.text)}</div>`;
+    return `<div><b>${esc(ref)}</b><span class="hint">not on this page</span></div>`;
+  }
+
+  function beadHTML(entry, list) {
+    const { b, ph } = entry;
+    const logKey = entry.key.split('|')[0];
+    const all = beadsOf(logKey);
+    const pos = list.findIndex(x => x.key === entry.key);
+    const prev = list[pos - 1], next = list[pos + 1];
+    const deps = (b.deps || []).map(id => all.find(x => x.b.id === id)).filter(Boolean);
+    const unblocks = all.filter(x => (x.b.deps || []).includes(b.id));
+    const openDeps = deps.filter(x => x.b.status !== 'done');
+    const steps = ['todo', 'active', 'done'];
+    // Steps before `reached` show ✓; a done bead ticks all three, a blocked one sits on todo
+    const reached = { blocked: 0, todo: 0, active: 1, done: 3 }[b.status];
+    const checks = b.doneWhen || [];
+    const checksDone = checks.filter(c => c.done).length;
+    return `<article class="ws">
+      <div class="ws-meta"><span>bead ${pos + 1}/${list.length}</span>
+        <span class="pill p-ours">${esc(ph.id)} · ${esc(ph.title)}</span>
+        <span class="wt" title="${esc(logOf(logKey).worktree)}">${esc(logKey)}</span></div>
+      <h2><span class="id">${esc(b.id)}</span>${esc(b.title)}</h2>
+      <div class="gate">
+        <ol class="stepper">${steps.map((s, i) =>
+          `<li class="${i < reached ? 'done' : ''} ${i === reached ? 'now' : ''}"><span>${i < reached ? '✓' : i + 1}</span>${s}</li>`).join('')}</ol>
+        ${b.status === 'blocked'
+          ? `<div class="blocked-msg">⊘ blocked${openDeps.length ? ` on ${openDeps.map(x => esc(x.b.id)).join(', ')}` : ''}</div>`
+          : ''}
+      </div>
+      <section class="sec"><h3><b>1</b>What</h3><p>${esc(b.what || '—')}</p></section>
+      ${b.notes ? `<section class="sec"><h3><b>2</b>Notes</h3><p>${esc(b.notes)}</p></section>` : ''}
+      <section class="sec"><h3><b>3</b>Done when${checks.length ? ` <span class="hint">${checksDone}/${checks.length}</span>` : ''}</h3>
+        ${checks.length ? checklist(checks) : '<p class="empty">No checks yet.</p>'}</section>
+      <section class="sec"><h3><b>4</b>Depends on</h3>
+        ${deps.length ? `<div class="chips">${deps.map(beadChip).join('')}</div>` : '<p class="empty">Nothing; can start any time.</p>'}</section>
+      <section class="sec"><h3><b>5</b>Unblocks</h3>
+        ${unblocks.length ? `<div class="chips">${unblocks.map(beadChip).join('')}</div>` : '<p class="empty">Nothing waits on this bead.</p>'}</section>
+      ${b.links?.length ? `<section class="sec"><h3><b>6</b>Linked</h3><div class="linked">${b.links.map(r => linkHTML(logKey, r)).join('')}</div></section>` : ''}
+      ${b.files?.length ? `<section class="sec"><h3><b>7</b>Files</h3><ul class="files">${b.files.map(f => `<li>${esc(f)}</li>`).join('')}</ul></section>` : ''}
+      ${b.commit ? `<section class="sec"><h3><b>8</b>Commit</h3><p><code>${esc(b.commit)}</code></p></section>` : ''}
+      <footer class="ws-foot">
+        ${prev ? `<button class="btn" type="button" data-bead-open="${esc(prev.key)}">‹ ${esc(prev.b.id)}</button>` : '<span></span>'}
+        <span>[ ] bead · { } phase</span>
+        ${next ? `<button class="btn" type="button" data-bead-open="${esc(next.key)}">${esc(next.b.id)} ›</button>` : '<span></span>'}
+      </footer></article>`;
+  }
+
+  // Keeps the worktree, phase and bead selection valid: active phase first, then its active bead
+  function planSelection() {
+    if (!onLogs().some(l => l.key === view.planWorktree)) {
+      const withPhases = onLogs().filter(l => phaseList(l.key).length);
+      view.planWorktree = (withPhases.find(l => phaseList(l.key).some(x => x.ph.status === 'active')) || withPhases[0] || onLogs()[0])?.key ?? null;
+    }
+    const phases = phaseList(view.planWorktree);
+    if (!phases.some(x => x.key === view.selectedPhase)) {
+      view.selectedPhase = (phases.find(x => x.ph.status === 'active') || phases[0])?.key ?? null;
+    }
+    const phase = phases.find(x => x.key === view.selectedPhase);
+    const beads = phase ? phase.ph.beads.map(b => ({ b, ph: phase.ph, key: `${phase.key}|${b.id}` })) : [];
+    if (!beads.some(x => x.key === view.selectedBead)) {
+      view.selectedBead = (beads.find(x => x.b.status === 'active') || beads.find(x => x.b.status !== 'done') || beads[0])?.key ?? null;
+    }
+    return { phases, phase, beads };
+  }
+
+  function renderPlanning() {
+    const { phases, phase, beads } = planSelection();
+    const phaseRow = x => `<button class="ph-row ${x.key === view.selectedPhase ? 'sel' : ''}" type="button" data-phase-open="${esc(x.key)}" title="${x.ph.status}">
+      <span class="g g--${x.ph.status}">${BEAD_GLYPH[x.ph.status]}</span><span class="id">${esc(x.ph.id)}</span>
+      <span class="t"><b>${esc(x.ph.title)}</b>${progressBar(x.ph.beads)}</span></button>`;
+    const phaseCol = phases.map(phaseRow).join('');
+
+    const blockedBy = entry => {
+      const all = beadsOf(entry.key.split('|')[0]);
+      return (entry.b.deps || []).filter(id => all.find(x => x.b.id === id)?.b.status !== 'done');
+    };
+    const beadRow = x => {
+      const waiting = x.b.status === 'blocked' ? blockedBy(x) : [];
+      return `<button class="bd-row st-${x.b.status} ${x.key === view.selectedBead ? 'sel' : ''}" type="button" data-bead-open="${esc(x.key)}" title="${x.b.status}">
+        <span class="g g--${x.b.status}">${BEAD_GLYPH[x.b.status]}</span><span class="id">${esc(x.b.id)}</span>
+        <span class="t">${esc(x.b.title)}${waiting.length ? `<span class="why">needs ${waiting.map(esc).join(', ')}</span>` : ''}</span></button>`;
+    };
+    const beadCol = phase ? `
+      <div class="is-group"><span>${esc(phase.ph.id)} · ${esc(phase.ph.title)}</span><span>${beads.length} beads</span></div>
+      <p class="ph-goal">${esc(phase.ph.goal || '')}</p>
+      ${beads.map(beadRow).join('')}
+      ${phase.ph.doneWhen?.length ? `<div class="ph-checks"><div class="sub">phase done when</div>${checklist(phase.ph.doneWhen)}</div>` : ''}
+      <div class="legend">${Object.entries(BEAD_GLYPH).map(([s, g]) => `${g} ${s}`).join(' ')}</div>` : '<div class="empty">No phase selected.</div>';
+    const selected = beads.find(x => x.key === view.selectedBead);
+    const allBeads = phases.flatMap(x => x.ph.beads);
+
+    document.getElementById('main').innerHTML = `
+      <div class="tab-head"><h1>Planning</h1>${scopeSelect('plan-worktree', view.planWorktree, false)}
+        <span class="meta">${phases.length} phases · ${allBeads.length} beads · ${allBeads.filter(b => b.status === 'active').length} active · ${allBeads.filter(b => b.status === 'blocked').length} blocked</span></div>
+      ${phases.length ? `<div class="pl-grid">
+        <section class="panel pl-col pl-phases"><div class="panel-body">${phaseCol}</div></section>
+        <section class="panel pl-col"><div class="panel-body">${beadCol}</div></section>
+        <div>${selected ? beadHTML(selected, beads) : '<div class="canvas"><p>No beads in this phase.</p></div>'}</div>
+      </div>` : '<div class="canvas"><p>No phases logged for this worktree.</p></div>'}`;
+  }
+
+  function stepBead(delta) {
+    const { beads } = planSelection();
+    const next = beads[beads.findIndex(x => x.key === view.selectedBead) + delta];
+    if (!next) return;
+    view.selectedBead = next.key;
+    renderAll();
+  }
+
+  function stepPhase(delta) {
+    const { phases } = planSelection();
+    const next = phases[phases.findIndex(x => x.key === view.selectedPhase) + delta];
+    if (!next) return;
+    view.selectedPhase = next.key;
+    renderAll();
+  }
+
+  // ---------- Issues tab ----------
+  const STATUS_ORDER = { explained: 0, approved: 1, fixed: 2, dropped: 3 };
+  const STATUS_GLYPH = { explained: '○', approved: '◐', fixed: '●', dropped: '⊘' };
+  const CONF_GLYPH = { verified: '✓', inferred: '~', unchecked: '✗' };
+
+  // Ours first, then platform/other; inside each, waiting-for-approval first so the next thing you act on is on top
+  function issueList(scope) {
+    return onLogs()
+      .filter(l => scope === 'all' || l.key === scope)
+      .flatMap(l => S.states[l.key].issues.map(iss => ({ iss, log: l, key: `${l.key}|${iss.id}` })))
+      .sort((a, b) => (a.iss.owner === 'us' ? 0 : 1) - (b.iss.owner === 'us' ? 0 : 1)
+        || STATUS_ORDER[a.iss.status] - STATUS_ORDER[b.iss.status]);
+  }
+
+  const cell = v => {
+    const s = esc(v);
+    return s.startsWith('✓') ? `<span class="ok">${s}</span>` : s.startsWith('✗') ? `<span class="bad">${s}</span>` : s;
+  };
+  function exampleHTML(ex) {
+    return `<div class="ex-title"><span class="item-id">${esc(ex.name)}</span>${esc(ex.title)}</div>
+      <div class="tbl-wrap"><table><thead><tr>${ex.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
+      <tbody>${ex.rows.map(r => `<tr><th>${esc(r[0])}</th>${r.slice(1).map(v => `<td>${cell(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+      ${ex.caption ? `<p class="cap">${esc(ex.caption)}</p>` : ''}
+      ${ex.run ? `<div class="run">see for yourself: <code>${esc(ex.run)}</code> · shown, never run</div>` : ''}`;
+  }
+
+  function worksheetHTML(entry, list) {
+    const { iss, log } = entry;
+    const st = S.states[log.key];
+    const pos = list.findIndex(x => x.key === entry.key);
+    const prev = list[pos - 1], next = list[pos + 1];
+    const steps = ['explained', 'approved', 'fixed'];
+    const reached = steps.indexOf(iss.status);
+    const ex = iss.example && st.examples.find(e => e.name === iss.example);
+    const blob = [iss.title, iss.cause, iss.fix, iss.impact].join(' ');
+    const terms = st.facts.filter(f => f.kind === 'term' && (new RegExp(`\\b${f.term}\\b`).test(blob) || new RegExp(`\\b${iss.id}\\b`).test(f.text)));
+    const notes = st.notes.filter(n => n.ref === iss.id);
+    const k = esc(entry.key);
+    const gate = {
+      explained: [`<button class="btn btn--primary" type="button" data-issue-set="${k}" data-to="approved">Approve</button>
+        <button class="btn btn--danger" type="button" data-issue-set="${k}" data-to="dropped">Drop</button>`, 'Claude can\'t fix this until you approve it.'],
+      approved: [`<button class="btn" type="button" data-issue-set="${k}" data-to="explained">Undo</button>
+        <button class="btn btn--danger" type="button" data-issue-set="${k}" data-to="dropped">Drop</button>`, 'Approved. Claude can fix it after your next prompt.'],
+      fixed: ['', 'Fixed by Claude. Nothing for you to do.'],
+      dropped: [`<button class="btn" type="button" data-issue-set="${k}" data-to="explained">Undo</button>`, 'Dropped. Claude won\'t act on it.'],
+    }[iss.status];
+    return `<article class="ws">
+      <div class="ws-meta"><span>issue ${pos + 1}/${list.length}</span>
+        <span class="pill ${iss.owner === 'us' ? 'p-ours' : 'p-other'}">${iss.owner === 'us' ? 'ours' : 'platform / other'}</span>
+        <span class="wt" title="${esc(log.worktree)}">${esc(log.key)}</span></div>
+      <h2><span class="id">${esc(iss.id)}</span>${esc(iss.title)}</h2>
+      <div class="gate">
+        <ol class="stepper ${iss.status === 'dropped' ? 'dropped' : ''}">${steps.map((s, i) =>
+          `<li class="${i < reached ? 'done' : ''} ${i === reached ? 'now' : ''}"><span>${i < reached ? '✓' : i + 1}</span>${s}</li>`).join('')}</ol>
+        <div class="gate-row">${gate[0]}<span class="gate-msg">${gate[1]}</span></div>
+        ${iss.quote ? `<div class="quote">approved in chat: “${esc(iss.quote)}”</div>` : ''}
+      </div>
+      <section class="sec"><h3><b>1</b>Example</h3>${ex ? exampleHTML(ex) : '<p class="empty">No example attached to this issue.</p>'}</section>
+      <section class="sec"><h3><b>2</b>Cause</h3><p>${esc(iss.cause)}</p></section>
+      <section class="sec"><h3><b>3</b>Fix</h3><p>${esc(iss.fix)}</p></section>
+      <section class="sec"><h3><b>4</b>Impact if skipped</h3><p class="impact">${esc(iss.impact)}</p></section>
+      <section class="sec"><h3><b>5</b>How sure</h3>${confBadge(iss, `${entry.key}:method`)}
+        ${iss.method ? `<div class="cmd"><pre>${esc(iss.method)}</pre><button class="btn" type="button" data-copy="${esc(iss.method)}">${view.copied === iss.method ? 'copied' : 'copy'}</button></div>` : '<p class="empty">No method given.</p>'}</section>
+      ${notes.length || terms.length ? `<section class="sec"><h3><b>6</b>Linked</h3><div class="linked">
+        ${notes.map(n => `<div><b>${esc(n.id)}</b>${esc(n.text)}</div>`).join('')}
+        ${terms.map(f => `<div><b>${esc(f.term)}</b>${esc(f.text)}</div>`).join('')}</div></section>` : ''}
+      <footer class="ws-foot">
+        ${prev ? `<button class="btn" type="button" data-issue-open="${esc(prev.key)}">‹ ${esc(prev.iss.id)}</button>` : '<span></span>'}
+        <span>[ ] prev/next · a approve</span>
+        ${next ? `<button class="btn" type="button" data-issue-open="${esc(next.key)}">${esc(next.iss.id)} ›</button>` : '<span></span>'}
+      </footer></article>`;
+  }
+
+  function renderIssues() {
+    const list = issueList(view.issuesScope);
+    if (!list.some(x => x.key === view.selectedIssue)) {
+      view.selectedIssue = (list.find(x => x.iss.status === 'explained') || list[0])?.key ?? null;
+    }
+    const showWt = view.issuesScope === 'all';
+    const row = x => `<button class="is-row st-${x.iss.status} ${x.key === view.selectedIssue ? 'sel' : ''}" type="button" data-issue-open="${esc(x.key)}" title="${x.iss.status}">
+      <span class="g g--${x.iss.status}">${STATUS_GLYPH[x.iss.status]}</span><span class="id">${esc(x.iss.id)}</span>
+      <span class="t">${esc(x.iss.title)}${showWt ? `<br><span class="wt">${esc(x.log.branch)}</span>` : ''}</span>
+      <span class="cf" title="${esc(confGlyph[x.iss.confidence] || 'no confidence given')}">${CONF_GLYPH[x.iss.confidence] || '?'}</span></button>`;
+    const group = (label, items) => `<div class="is-group"><span>${label}</span><span>${items.length}</span></div>`
+      + (items.map(row).join('') || '<div class="empty" style="padding-left:6px">none</div>');
+    const ours = list.filter(x => x.iss.owner === 'us'), other = list.filter(x => x.iss.owner !== 'us');
+    const waiting = list.filter(x => x.iss.status === 'explained').length;
+    const selected = list.find(x => x.key === view.selectedIssue);
+    const queued = view.queued.filter(q => list.some(x => x.log.key === q.key));
+    const queuedLine = queued.length ? `<div class="queued">queued for the next prompt: ${queued.map(q => `${esc(q.label)} (${esc(logOf(q.key).branch)})`).join(' · ')}</div>` : '';
+
+    document.getElementById('main').innerHTML = `
+      <div class="tab-head"><h1>Issues</h1>${scopeSelect('issues-scope', view.issuesScope)}
+        <span class="meta">${list.length} issues · ${waiting} waiting for your approval</span></div>
+      <div class="is-grid">
+        <section class="panel is-list"><div class="panel-body">
+          ${group('Ours', ours)}${group('Platform / other', other)}
+          <div class="legend">status ○ explained ◐ approved ● fixed ⊘ dropped<br>sure ✓ verified ~ inferred ✗ unknown</div>
+          ${queuedLine}</div></section>
+        <div>${selected ? worksheetHTML(selected, list) : '<div class="canvas"><p>No issues logged.</p></div>'}</div>
+      </div>`;
+  }
+
+  function setIssue(entryKey, status) {
+    const [key, id] = entryKey.split('|');
+    const st = S.states[key];
+    const iss = st.issues.find(i => i.id === id);
+    const prior = view.queued.find(q => q.key === key && q.issueId === id);
+    const origin = prior ? prior.from : iss.status;
+    iss.status = status;
+    if (status !== 'approved') delete iss.quote;
+    // Page action `issue set`: goes to that session's Claude on its next prompt.
+    // Reason: setting it back to the status Claude already has cancels the queued change instead of sending a no-op
+    const label = status === 'explained' ? `${id} → explained (undo)` : `${id} → ${status}`;
+    view.queued = view.queued.filter(q => q !== prior);
+    if (status !== origin) view.queued.push({ key, label, issueId: id, from: origin });
+    st.activity.unshift({ ts: clock(), by: 'user', t: 'issue', op: 'set', text: label, fresh: true });
+    renderAll();
+  }
+
+  function stepIssue(delta) {
+    const list = issueList(view.issuesScope);
+    const pos = list.findIndex(x => x.key === view.selectedIssue);
+    const next = list[pos + delta];
+    if (!next) return;
+    view.selectedIssue = next.key;
+    renderAll();
+  }
+
+  // ---------- Tool log tab ----------
+  const isToolRow = a => a.t === 'tool' || a.t === 'file';
+  // Reason: sample times are bare HH:MM:SS (today) or "yesterday HH:MM"; prefix so a string sort puts today first
+  const sortKey = ts => /^\d\d:\d\d:\d\d$/.test(ts) ? '1' + ts : '0' + ts;
+
+  function mergedRows() {
+    const f = view.logFilter;
+    return onLogs()
+      .filter(l => f.scope === 'all' || l.key === f.scope)
+      .flatMap(l => S.states[l.key].activity.map(a => ({ ...a, log: l })))
+      .filter(a => (f.events || isToolRow(a))
+        && (f.tool === 'all' || a.tool === f.tool)
+        && !(f.hideAgents && a.agent)
+        && (!f.filesOnly || a.t === 'file'))
+      .sort((a, b) => sortKey(b.ts).localeCompare(sortKey(a.ts)));
+  }
+
+  function rowHtml(a) {
+    const kind = a.t === 'tool' ? 'tl' : a.t === 'file' ? 'file' : `ev by-${a.by}`;
+    const who = isToolRow(a) ? a.tool : a.by === 'user' ? 'you' : a.by;
+    const text = a.text ? esc(a.text) : '';
+    const tags = (a.t === 'file' ? '<span class="tag file">file</span>' : '') + (a.agent ? `<span class="tag">${esc(a.agent)}</span>` : '');
+    return `<li class="${kind} ${a.fresh ? 'fresh' : ''}"><span class="cell">${esc(a.ts.replace('yesterday', 'yday'))}</span>
+      <span class="cell wtcell"><span class="wt" title="${esc(a.log.worktree)}">${esc(a.log.key)}</span></span>
+      <span class="cell tool" title="${esc(who)}">${esc(who)}</span>
+      <span class="txt ${text ? '' : 'none'}">${text || '(no description)'}${tags}</span></li>`;
+  }
+
+  function renderLogTab() {
+    const f = view.logFilter;
+    const tools = [...new Set(onLogs().flatMap(l => S.states[l.key].activity.filter(isToolRow).map(a => a.tool)))].sort();
+    document.getElementById('main').innerHTML = `
+      <div class="tab-head"><h1>Tool log</h1><span class="meta" id="log-count"></span></div>
+      <section class="panel">
+        <div class="filters">
+          ${scopeSelect('log-scope', f.scope)}
+          <select id="log-tool" aria-label="Tool"><option value="all">all tools</option>${tools.map(t => `<option ${f.tool === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+          <label><input type="checkbox" id="log-agents" ${f.hideAgents ? 'checked' : ''}>hide subagents</label>
+          <label><input type="checkbox" id="log-files" ${f.filesOnly ? 'checked' : ''}>files only</label>
+          <label><input type="checkbox" id="log-events" ${f.events ? 'checked' : ''}>+ ernie events</label>
+        </div>
+        <ul class="feed" id="feed"></ul>
+      </section>`;
+    renderFeed();
+  }
+
+  function renderFeed() {
+    const feed = document.getElementById('feed');
+    if (!feed) return;
+    const rows = mergedRows();
+    feed.innerHTML = `<li class="head"><span>time</span><span>worktree</span><span>tool</span><span>what</span></li>`
+      + (rows.map(rowHtml).join('') || '<li><span></span><span></span><span></span><span class="txt none">nothing matches</span></li>');
+    document.getElementById('log-count').textContent = `${rows.length} rows · newest first · Bash shows its description, never the command`;
+  }
+
+  // ---------- Empty tabs ----------
+  function renderEmpty() {
+    document.getElementById('main').innerHTML = `<div class="canvas"><h1>Home</h1><p>empty</p></div>`;
+  }
+
+  function renderAll() {
+    renderTabs();
+    if (view.active === 'planning') renderPlanning();
+    else if (view.active === 'issues') renderIssues();
+    else if (view.active === 'facts') renderFacts();
+    else if (view.active === 'log') renderLogTab();
+    else renderEmpty();
+    Object.values(S.states).forEach(st => st.activity.forEach(a => { a.fresh = false; }));
+  }
+
+  function openTab(key) {
+    view.active = key;
+    if (key === 'log') view.logUnseen = 0;
+    history.replaceState(null, '', key === 'home' ? location.pathname : `#${key}`);
+    renderAll();
+  }
+
+  // ---------- Events ----------
+  document.addEventListener('click', e => {
+    const t = e.target;
+    const tab = t.closest('[data-tab]');
+    if (tab) return openTab(tab.dataset.tab);
+
+    const phaseOpen = t.closest('[data-phase-open]');
+    if (phaseOpen) { view.selectedPhase = phaseOpen.dataset.phaseOpen; return renderAll(); }
+    const beadOpen = t.closest('[data-bead-open]');
+    if (beadOpen) {
+      const [logKey, phaseId] = beadOpen.dataset.beadOpen.split('|');
+      view.planWorktree = logKey;
+      view.selectedPhase = `${logKey}|${phaseId}`;
+      view.selectedBead = beadOpen.dataset.beadOpen;
+      return renderAll();
+    }
+    const issueJump = t.closest('[data-issue-jump]');
+    if (issueJump) {
+      view.issuesScope = 'all';
+      view.selectedIssue = issueJump.dataset.issueJump;
+      return openTab('issues');
+    }
+    const research = t.closest('[data-research]');
+    if (research) return startResearch(research.dataset.research);
+    const factKindPill = t.closest('[data-fact-kind]');
+    if (factKindPill) {
+      const kind = factKindPill.dataset.factKind;
+      view.factsKind = view.factsKind === kind ? 'all' : kind;
+      return renderAll();
+    }
+    const issueOpen = t.closest('[data-issue-open]');
+    if (issueOpen) { view.selectedIssue = issueOpen.dataset.issueOpen; return renderAll(); }
+    const issueSet = t.closest('[data-issue-set]');
+    if (issueSet) return setIssue(issueSet.dataset.issueSet, issueSet.dataset.to);
+    const copy = t.closest('[data-copy]');
+    if (copy) {
+      navigator.clipboard?.writeText(copy.dataset.copy).catch(() => {});
+      view.copied = copy.dataset.copy;
+      return renderAll();
+    }
+    const method = t.closest('[data-method]');
+    if (method) {
+      const k = method.dataset.method;
+      view.shownMethods.has(k) ? view.shownMethods.delete(k) : view.shownMethods.add(k);
+      return renderAll();
+    }
+    const dismiss = t.closest('[data-dismiss]');
+    if (dismiss) {
+      // Page action `fact dismiss`: goes to that session's Claude on its next prompt
+      const [key, id] = dismiss.dataset.dismiss.split('|');
+      const st = S.states[key];
+      const fact = st.facts.find(f => f.id === id);
+      st.facts = st.facts.filter(f => f !== fact);
+      view.queued.push({ key, label: `dismissed ${id}` });
+      st.activity.unshift({ ts: clock(), by: 'user', t: 'fact', op: 'dismiss', text: `dismissed ${id} "${fact.text}"`, fresh: true });
+      return renderAll();
+    }
+  });
+
+  document.addEventListener('change', e => {
+    const f = view.logFilter;
+    const id = e.target.id;
+    if (id === 'facts-scope') { view.factsScope = e.target.value; return renderAll(); }
+    if (id === 'issues-scope') { view.issuesScope = e.target.value; return renderAll(); }
+    if (id === 'plan-worktree') { view.planWorktree = e.target.value; return renderAll(); }
+    if (id === 'log-scope') f.scope = e.target.value;
+    else if (id === 'log-tool') f.tool = e.target.value;
+    else if (id === 'log-agents') f.hideAgents = e.target.checked;
+    else if (id === 'log-files') f.filesOnly = e.target.checked;
+    else if (id === 'log-events') f.events = e.target.checked;
+    else return;
+    renderFeed();
+  });
+
+  // Planning keys: [ ] prev/next bead, { } prev/next phase. Issues keys: [ ] prev/next, a approve. Ignored while typing.
+  document.addEventListener('keydown', e => {
+    if (e.target.closest?.('input, select, textarea') || e.metaKey || e.ctrlKey) return;
+    if (view.active === 'planning') {
+      const step = { '[': () => stepBead(-1), ']': () => stepBead(1), '{': () => stepPhase(-1), '}': () => stepPhase(1) }[e.key];
+      return step?.();
+    }
+    if (view.active !== 'issues') return;
+    if (e.key === '[') return stepIssue(-1);
+    if (e.key === ']') return stepIssue(1);
+    if (e.key !== 'a' || !view.selectedIssue) return;
+    const [key, id] = view.selectedIssue.split('|');
+    if (S.states[key].issues.find(i => i.id === id)?.status === 'explained') setIssue(view.selectedIssue, 'approved');
+  });
+
+  // ---------- Simulated liveness: the working session keeps calling tools (PostToolUse → tool run / file touch) ----------
+  // Reason: the mock clock continues from the sample's newest row so new rows sort against sample times
+  let simSeconds = 14 * 3600 + 21 * 60 + 8;
+  const clock = () => { simSeconds += 4; return new Date(simSeconds * 1000).toISOString().slice(11, 19); };
+  const LIVE_ROWS = [
+    { t: 'tool', tool: 'Read', text: 'loader/hash.py' },
+    { t: 'tool', tool: 'Grep', text: 'page_location', agent: 'Explore' },
+    { t: 'file', tool: 'Edit', text: 'sql/views/sessions.sql' },
+    { t: 'tool', tool: 'Bash', text: 'Re-run dedupe probe after normalizing' },
+    { t: 'tool', tool: 'Glob', text: 'sql/views/*.sql', agent: 'Explore' },
+    { t: 'tool', tool: 'Bash', text: '' },
+    { t: 'tool', tool: 'Bash', text: 'Compare September session counts before and after' },
+  ];
+  let liveIndex = 0;
+  setInterval(() => {
+    const row = LIVE_ROWS[liveIndex++ % LIVE_ROWS.length];
+    onLogs().filter(l => l.session.state === 'working').forEach(log => {
+      const st = S.states[log.key];
+      st.activity.unshift({ ts: clock(), by: 'hook', op: row.t === 'file' ? 'touch' : 'run', ...row, fresh: true });
+      st.activity.length = Math.min(st.activity.length, 350);
+      log.session.lastEventAgo = '0s';
+    });
+    if (view.active === 'log') renderFeed();
+    else { view.logUnseen += 1; renderTabs(); }
+    Object.values(S.states).forEach(st => st.activity.forEach(a => { a.fresh = false; }));
+  }, 4000);
+
+  // Theme
+  const root = document.documentElement;
+  const currentTheme = () => root.dataset.theme || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  document.getElementById('theme-toggle').addEventListener('click', () => {
+    root.dataset.theme = currentTheme() === 'dark' ? 'light' : 'dark';
+  });
+
+  // Deep link: #planning, #issues, #facts or #log
+  const hashKey = decodeURIComponent(location.hash.slice(1));
+  if (isTab(hashKey)) openTab(hashKey); else renderAll();
+</script>
+</body>
+</html>
