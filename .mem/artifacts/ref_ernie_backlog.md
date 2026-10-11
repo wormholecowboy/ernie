@@ -83,6 +83,18 @@ Walked one at a time. None decided yet. ✓ = read in spec/docs, ~ = inferred.
 - C. ernie owns the writing, `.mem` stays the store: `ernie mem add gotcha …` writes straight into `.mem/long.md` (tag + dedupe) and logs an event. Drops mem-ops subagent and delta/synced cursor (A30). Cost: ernie must learn `.mem` format rules now in the mem skill.
 - Recommendation: C. Note Beads has its own memory (`bd remember` / `bd prime`) → third memory path unless one is picked (ties to C3).
 
+### C1 — DECIDED 2026-10-10: C, extended
+- Repo memory = ernie primitive. ernie writes it directly; no separate mem skill, no mem-ops subagent.
+- `.mem/` moves inside `.ernie/` (repo root). Current mem skill retired as its own skill; triggers (`*um`, `*mr`, `/mem`, `*op`, `*ar`) rework into ernie skill/CLI.
+- Drops: D9 queue mirroring, `mem delta` / `mem synced` + cursor (A9, A24, A30, A48), mem-ops handoff.
+- Beads memory (`bd remember` / `bd prime`) not used.
+- Scope (2026-10-11): memory per worktree/branch everywhere (matches D4 log scope, user's work habit). New worktree starts empty; nothing copied from main.
+- Init once per repo: `ernie init` stores repo kind in `git config` (shared across worktrees; `extensions.worktreeConfig` unset ✓). Per-worktree mem dir + log created lazily on first session.
+- Personal repos: committed at `.ernie/mem/<branch>/` → feature merge adds a folder, no conflicts; old feature memory stays readable.
+- Work repos: `.ernie/` excluded via `.git/info/exclude`, set manually by user; memory dies with worktree.
+- Migration of old `.mem/` dirs: manual, user triggers when ernie memory lands; mem skill runs until then.
+- Open: can a feature worktree read main's memory (gotchas/arch), or fully isolated? Default isolated, revisit later.
+
 ### C2 — what `ernie init` installs — deferred to next session
 - Today (D12 + A112): hooks global in dotfiles `claude/.claude/settings.json`, skill in dotfiles; `init` = log + `CLAUDE.local.md` rules block. Hooks fire in every repo, exit early with no log.
 - A. Keep D12.

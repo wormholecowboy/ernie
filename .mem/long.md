@@ -39,6 +39,9 @@
 - [ernie] "phase" renamed "Epic" everywhere (= Beads epic bead) (2026-10-10)
 - [beads] issues = review findings in Beads (C3, 2026-10-10): bug bead, `discovered-from:<reviewed bead>`, label `review:rN`, fields in `metadata`; `human` gate = awaiting your approval (keeps it out of `bd ready`); fixed/dismissed → close + `metadata.resolution=fixed|dismissed`. ernie keeps question/decision/fact/diagram/example/note. No `bd setup`/`bd prime` (clashes w/ .mem) → ref_ernie_beads.md
 - [beads] beads storage per repo kind, chosen by `ernie init` prompt (2026-10-10): personal → git-backed Dolt remote on origin + `dolt.auto-push`; work → no git tracking (stealth, outside repo)
+- [ernie] C1 decided (2026-10-11): repo memory = ernie primitive, ernie writes it directly; mem skill + mem-ops retired as separate pieces; Beads memory (`bd remember`/`bd prime`) unused → ref_ernie_backlog.md "C1 — DECIDED"
+- [ernie] memory scope = worktree/branch everywhere (matches D4 log scope); new worktree starts empty; personal repos commit `.ernie/mem/<branch>/` (merge adds a folder, no conflicts); work repos exclude `.ernie/` via `.git/info/exclude` (user sets manually)
+- [ernie] `ernie init` once per repo, repo kind in `git config` (lives in common dir, e.g. .bare/config, shared across worktrees while `extensions.worktreeConfig` unset ✓ checked); per-worktree pieces created lazily
 - [beads] use `bd` (Go, MIT), not `br` (license rider excludes anyone acting for Anthropic; no metadata JSON; no change feed) (2026-10-10)
 - [beads] auto-push only fires at end of a `bd` write, ≥5 min apart → `/gtg` + `*um` run `bd dolt push` to flush (2026-10-10)
 ## reference
