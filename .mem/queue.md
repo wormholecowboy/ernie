@@ -2,13 +2,17 @@
 updated: 2026-10-11
 ---
 ## next
-- [ernie] next session: P2 planning flow (where PRD lives, review/lifecycle state, PRD → beads breakdown)
+- [ernie] next session: P4 data model for state
+- [ernie] spec amendment P3: top worktree picker, `wt:<branch>` label on beads, `ernie archive` + `.archived` marker + folder-gone flag, `meta init` worktree path, `sid` on events → ref_ernie_backlog.md "P3 tab scopes — DECIDED"
+- [ernie] 00-template.html: replace per-tab scopeSelect with one top worktree picker (grouped by repo, Archived (N), folder-gone flag); Tool log session sub-filter; Issues grouped by epic + Ad hoc; Planning counts test beads separately
+- [beads] decide + verify how every bead gets `wt:<branch>` (ernie wrapper vs hook rewrite ✗); verify `bd ready --label` / `bd list --label` filter
+- [ernie] spec amendment P2: planning flow (epic states, gates, fresh breakdown + polish rounds, per-bead review stop rule) → ref_ernie_backlog.md "P2 planning flow — DECIDED"
+- [ernie] write own ernie prompts (PRD review, breakdown, polish, bead review) from flywheel ideas; catalog → ref_agent_flywheel.md
+- [beads] verify bd 1.3.1: `spec_id` flag, epic close-eligible helper, does `bd close` refuse when blocked by open finding
 - [ernie] priorities in order, one at a time (full list + notes → .mem/artifacts/ref_ernie_backlog.md):
-- [ernie] P2 planning flow: generate → review (2–5 fresh-context) → advance → build; plans have many steps. Settled: PRD markdown + beads (long.md arch); left: where PRD lives, its review/lifecycle state, PRD → beads breakdown step
-- [ernie] P3 tab scopes: session vs issue vs project vs worktree; dropdown placement + filtering (may reopen D4)
 - [ernie] P4 data model for state
 - [ernie] P5 UI tabs
-- [ernie] P6 review visualization (code + plan review issues; new tabs or Planning)
+- [ernie] P6 review visualization (code + plan review issues; new tabs or Planning); inputs: P2 review flow, P3 Q2 issues grouped by epic + Ad hoc
 - [ernie] P7 v1 / phase 1 scope; gate cleared (C1–C4 settled 2026-10-11)
 - [beads] design approval guard: Claude can't `bd gate resolve`/close an unapproved finding (PreToolUse deny? ernie wrapper?); page Approve → main agent / subagent sets `execution_agent_type`
 - [beads] required finding fields (cause/impact/owner/confidence/method in metadata): enforce via ernie wrapper or `bd lint`?

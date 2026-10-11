@@ -23,6 +23,7 @@
 - [beads] no plan/phase object: phase = `epic` bead, children `--parent` (≤3 levels), deps `blocks`; `set-state <id> review=2` (`=` not `:`) → label `review:2`
 - [beads] embedded Dolt: parallel writers queue (20/20 ok), ~0.33 s/cmd alone, ~0.55 s/write contended
 - [beads] backup: data only leaves disk on `bd dolt push` → hidden ref `refs/dolt/data` (+ branch `__dolt_remote_info__`) on git origin; `git push` does NOT carry it; fresh clone needs `bd bootstrap`; auto-push off by default (`dolt.auto-push`, 5m; docs: concurrent pushers can corrupt remote); also `backup.enabled` / `backup.git-repo` (spike 2026-10-10)
+- [ernie] agentic_coding_flywheel_setup repo (agent-flywheel) is MIT + OpenAI/Anthropic rider (like br) → paraphrase only, never copy its prompts verbatim; write own prompts from ideas
 ## gotchas
 - [beads] `bd init` in a git repo (non-stealth) makes its own commit (.beads/ config + 5 git hooks, .gitignore) and sets `core.hooksPath=.beads/hooks` → overrides existing repo hooks (spike 2026-10-10)
 - [beads] every `bd` cmd outside a git repo prints 3-line `beads.role not configured` stderr warning → token noise; set `beads.role` or filter
@@ -48,6 +49,8 @@
 - [ernie] C2 decided (2026-10-11): `ernie update` = pull origin/main in ~/things/myc/ernie/main → go build → install → `ernie setup`; refuses if dirty / not on main → ref_ernie_backlog.md "C2 — DECIDED"
 - [ernie] deferred to v2 (2026-10-11): page `*um` button (C4); fact research trigger (design: fresh headless `claude -p`, not `--resume`) → ref_ernie_backlog.md
 - [beads] page buttons run `bd` directly from ernie server (no Claude, no queue); dismiss finding = resolution=dismissed + close; review dedup = prompt-only, round N reviewer gets dismissed findings of that bead only (2026-10-11)
+- [ernie] P2 planning flow decided (2026-10-11): PRD in .ernie/mem/<branch>/artifacts; epic at draft, Beads tracks plan state/reviews/findings; fresh-agent breakdown → 2–3 fresh polish rounds (reread PRD) → user approves via audit report; per-bead code review min 2/cap 5 → ref_ernie_backlog.md "P2 planning flow — DECIDED"
+- [ernie] P3 tab scopes decided (2026-10-11): one top picker at worktree level (grouped by repo); worktree → epic | ad hoc model, finding source = parent; Beads one store/repo + `wt:<branch>` label; explicit archive + folder-gone flag; events carry `sid`, session filter on Tool log only → ref_ernie_backlog.md "P3 tab scopes — DECIDED"
 ## reference
 - [ernie] spec → .mem/artifacts/spec_ernie.md
 - [ernie] build plan (phases, tasks, amendments A1–A114) → .mem/artifacts/plan_ernie_build.md
@@ -60,3 +63,4 @@
 - [ernie] Beads research (P1: data model, storage, integration, risks, mapping to ernie types) → .mem/artifacts/ref_ernie_beads.md
 - [ernie] backlog from notes dump: priorities P1–P7, conflicts C1–C4 + discussion/recs, features by area → .mem/artifacts/ref_ernie_backlog.md
 - [beads] beads_rust (`br`) research + spike: SQLite+JSONL-in-git port, license rider vs Anthropic → .mem/artifacts/ref_ernie_beads_rust.md
+- [ernie] agent-flywheel guide research (PRD→beads, bead polishing, 42-prompt catalog as paraphrase; MIT+Anthropic rider → no verbatim) → .mem/artifacts/ref_agent_flywheel.md
