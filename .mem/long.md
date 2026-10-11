@@ -18,7 +18,11 @@
 - [claude-hooks] live hook probes: nested `claude -p` under `env -i` (min env) + `--setting-sources project --strict-mcp-config`; allow rules via `--settings` (untrusted dir)
 - [ernie] -p denies anything not pre-allowed; interactive mode prompts instead → flow-test F2/F5 (dropped calls, heredoc) are prompts, not losses, in real use
 - [ernie] live flow verdict: plumbing (lock, delivery, ids, guards) holds; risk is what Claude logs (prose-only Qs, retries drop calls, issues not closed)
+- [beads] integrate via `bd … --json` + `bd events tail --since <seq> --follow` (~0.66 s); Go lib needs cgo + ICU for embedded Dolt, 48–144 MB → don't link (spike 2026-10-10)
+- [beads] no plan/phase object: phase = `epic` bead, children `--parent` (≤3 levels), deps `blocks`; `set-state <id> review=2` (`=` not `:`) → label `review:2`
+- [beads] embedded Dolt: parallel writers queue (20/20 ok), ~0.33 s/cmd alone, ~0.55 s/write contended
 ## gotchas
+- [beads] every `bd` cmd outside a git repo prints 3-line `beads.role not configured` stderr warning → token noise; set `beads.role` or filter
 - [claude-hooks] hook exit code 2 = blocking error, and Go panics exit 2 → Go hook handlers must recover and exit 0
 - [claude-hooks] dotfiles hooks calling ernie must guard on the binary (`[ -x … ] && … || true`); ~/things/myc isn't synced by dotfiles, missing binary = hook error every tool call
 - [ernie] `git rev-parse` ≈12 ms → hooks miss 10 ms budget unless they skip git (A96); fold 50k = 67 ms, 75% allocs = activity buffer (A109)
@@ -37,4 +41,5 @@
 - [ernie] scratch flow test report (works/fails, spike results, A95–A111 folded) → .mem/artifacts/ref_ernie_flow_test.md
 - [ernie] 10 page view variation mocks (shared sample data, index.html) → .mem/artifacts/ref_ernie_views/
 - [ernie] working page template (tabs built piece by piece; header comment lists each piece) → .mem/artifacts/ref_ernie_views/00-template.html
-- [ernie] backlog from notes dump: priorities P1–P7, conflicts C1–C4, features by area → .mem/artifacts/ref_ernie_backlog.md
+- [ernie] Beads research (P1: data model, storage, integration, risks, mapping to ernie types) → .mem/artifacts/ref_ernie_beads.md
+- [ernie] backlog from notes dump: priorities P1–P7, conflicts C1–C4 + discussion/recs, features by area → .mem/artifacts/ref_ernie_backlog.md
