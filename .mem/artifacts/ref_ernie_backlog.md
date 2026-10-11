@@ -21,9 +21,9 @@ User's original order: data model, UI tabs, tab scopes, review visualization, v1
 | # | Note | Conflicts with | Question |
 |---|------|----------------|----------|
 | C1 | "We will build a memory system similar to .mem/. We will use ernie going forward for mem." | D9: `.mem` is the git-tracked home; ernie mirrors open items into `queue.md`; `.mem` never depends on ernie | Does ernie replace `.mem`, or keep feeding it? |
-| C2 | "Init installs skills and hooks and claude.local.md" | D12: hooks are global in dotfiles `claude/.claude/settings.json`; `init` only creates the log. A112 already has `init` write `CLAUDE.local.md` | Should `init` install skills + hooks per repo (new), or stay log + `CLAUDE.local.md` only? |
+| C2 | "Init installs skills and hooks and claude.local.md" | D12: hooks are global in dotfiles `claude/.claude/settings.json`; `init` only creates the log. A112 already has `init` write `CLAUDE.local.md` | DECIDED 2026-10-11: C + `ernie update` (see below) |
 | C3 | "Ernie must use beads to track issues" | ernie's own `issue` and `plan` event types; template's own "bead" (atomic task in a phase) naming | Beads replaces, backs, or sits beside ernie's issues/plans? Rename template beads if they differ? (answered by priority 1) |
-| C4 | "There should be a button in UI to trigger `*um`" | v1 page can't start a turn; page actions wait for the next prompt. Channels (v2) can push into a live session | Button queues until next prompt (v1), or needs channels / headless `claude -p`? Same problem as the fact-research trigger question |
+| C4 | "There should be a button in UI to trigger `*um`" | v1 page can't start a turn; page actions wait for the next prompt. Channels (v2) can push into a live session | DEFERRED to v2 2026-10-11 (no button in v1; see below) |
 
 ## Planning
 
@@ -103,6 +103,16 @@ Walked one at a time. None decided yet. ✓ = read in spec/docs, ~ = inferred.
 - Recommendation: C.
 - User reply: hadn't considered hooks/skills going stale. Idea to discuss: an `ernie update` command that pulls from the main ernie repo.
 
+### C2 — DECIDED 2026-10-11: C + `ernie update`
+- `ernie setup` (once per machine): writes guarded hook entries (`[ -x … ] && ernie hook || true`, every event → `ernie hook`, binary routes on `hook_event_name`) + stub skill to `~/.claude` (symlinked into dotfiles ✓ → shows as dotfiles diff, commit it). Idempotent, prints diff.
+- Stub skill: frontmatter description + `allowed-tools: Bash(ernie skill:*)`; body = `` !`ernie skill` `` → rules text comes from binary at load. No settings allow rule needed.
+- `ernie update`: pull source → `go build` → install `~/.local/bin` → `ernie setup`.
+- `ernie init` (once per repo): repo kind in `git config` + `CLAUDE.local.md` rules block.
+- Still stale-able: skill description (read before load), hook entries on new event types → both rewritten by `setup`.
+- Probe (2.1.287, Haiku -p, 2026-10-11) ✓: `` !`cmd` `` in SKILL.md runs at load, output replaces the line; works on `/skill` and model-invoked Skill; frontmatter `allowed-tools` alone suffices, even in untrusted dir; no permission → not run (model sees "requires approval"; slash → empty reply). Claude itself makes no Bash call.
+- CLAUDE.local.md block (decided 2026-10-11, option b): block carries a version stamp; SessionStart hook compares stamp vs binary version, rewrites block when older → each repo self-heals on next session; stays visible/editable. Rejected: a (SessionStart inject, no file → invisible), c (registry walked by `update` → extra state, breaks on moved repos).
+- `ernie update` source (decided 2026-10-11, option a): pull `origin/main` into `~/things/myc/ernie/main` → build. Refuses (with message) if that worktree is dirty or not on `main`. Installed binary = pushed code. Rejected: b (build checked-out, drifts from origin), c (a + `--here` for feature worktrees; revisit if needed).
+
 ### C3 — Beads vs ernie issue/plan types — options presented, not answered
 - Research: ref_ernie_beads.md.
 - A. Beads owns plans + issues (issue = bug bead + `human` gate + cause/fix/impact in `metadata`); ernie keeps question, decision, fact, diagram, example, note; page reads Beads via events journal or Go lib. Template "bead" naming stays.
@@ -119,4 +129,23 @@ Walked one at a time. None decided yet. ✓ = read in spec/docs, ~ = inferred.
 ### C3 — DECIDED 2026-10-10
 - Beads holds plans (epics → beads, PRD markdown stays ernie/.mem side) AND issues (review findings, `human` gate for approval, `metadata.resolution` for fixed/dismissed). ernie keeps question, decision, fact, diagram, example, note. No `bd prime`. Details → ref_ernie_beads.md.
 
-### C4 — `*um` button trigger — not discussed yet
+### C4 — DEFERRED to v2 (2026-10-11)
+- No `*um` button in v1 page. Revisit with v2 channels ("Send now", spec v2 section).
+- Options as presented: A queue till next prompt (UPS hook), B channels push (research preview, dev-flag warning each launch, org `channelsEnabled`), C headless `claude -p --resume` (✗ interleaves transcript, TUI blind), D split: ernie writes mechanical items now (C1 makes it possible), judgment part queued. Rec was A now, B in v2.
+
+### Fact research trigger — DEFERRED to v2 (2026-10-11)
+- v1: no research trigger from the page.
+- v2 design (headless, fresh session, NOT `--resume`): page "research" click → ernie server spawns `claude -p --model sonnet --allowedTools "WebSearch WebFetch Read Bash(ernie fact set:*)" "<prompt template embedded in binary + fact text + id>"` in the worktree → child writes `ernie fact set <id> --confidence … --method …` → page updates from log. Fresh session fits: fact research needs no convo context; own transcript, live session untouched.
+- Guard — inbox theft (~ inferred): global hooks fire in child; its UPS would deliver pending page notes to the headless run. Server sets `ERNIE_HEADLESS=1`; hooks skip Inbox delivery (+ turn marks) when set.
+- Guard — permissions: `-p` denies non-allowed ✓; allowlist = read-only research + `ernie fact set` only, no edits.
+- **Security (must address before shipping):** POST that spawns a process >> POST that appends a log line. Any website can POST to localhost (CSRF / DNS rebinding) → research endpoint must sit behind the spec's existing POST checks (Host allowlist, same Origin, per-start token via `hello` frame; spec_ernie.md ~L226) — already planned for v1 PostOps, so reuse, don't add; cap concurrent runs; per-run timeout + kill; fact text goes into a prompt → treat as untrusted (prompt injection from fact content/web pages; allowlist limits blast radius to `ernie fact set`); log spawned runs (who/when/fact id). Spend: each click = full session on user's subscription.
+- Needs: CLI to update fact confidence/method/text (queued spec amendment).
+
+### Open qs walk (2026-10-11)
+- **Q1 page bead/issue buttons — DECIDED: direct.** ernie server runs `bd` itself on click (no Claude, no queue), behind existing POST checks (Host/Origin/token). Must-have: **dismiss issue** button (nits, low-priority findings) → `bd update <id> --set-metadata resolution=dismissed` then `bd close <id> --reason "dismissed: <optional note>"` (both ✓ spike). Spawns a process per click (unlike log-append PostOps) → allowlist fixed `bd` subcommands + id validation, no free text into argv beyond the note.
+- **Progressive reviews must not restate dismissed findings** (user req). Round N reviewer gets dismissed findings for the reviewed bead (`bd dep tree <bead> --direction=up` → closed + `resolution=dismissed`; or `bd list --all --metadata-field resolution=dismissed`) in its prompt; told not to re-report them.
+  - Dedup mechanism — DECIDED: prompt only (v1). Reviewer prompt lists dismissed findings (summary, file, close reason) + "don't re-report". No fingerprint fields / ernie-side matching (rejected for v1; revisit if reworded repeats get through).
+  - Dismissal scope — DECIDED: this bead only. Round N prompt gets dismissed findings `discovered-from` the reviewed bead only. Rejected: whole epic; repo-level "never report this kind" preference list (revisit if same-kind nits recur across beads).
+- **Q2 Planning tab placement — DECIDED (for now):** 2nd after Home, as in 00-template.html (Home · Planning · Issues · Facts & decisions · Tool log). User will adjust UI later.
+- **Q3 feature worktree reads main's memory? — DECIDED: fully isolated.** New worktree starts empty; no live read of main's durable sections, no copy at creation. Note (~): personal repos commit `.ernie/mem/main/`, so a feature checkout carries main's memory as of branch point → ernie loads only `.ernie/mem/<own branch>/`, ignores other branch dirs.
+- **Q4 `/` in branch names for mem dirs — DECIDED: escape like logs.** `.ernie/mem/feat%2Flogin/` (`%`→`%25`, `/`→`%2F`, spec_ernie.md:82, plan 1.3); one shared escape func for log file + mem dir. Rejected: nested dirs (branch vs namespace ambiguity, second rule), `--` replace (collision, lossy).
