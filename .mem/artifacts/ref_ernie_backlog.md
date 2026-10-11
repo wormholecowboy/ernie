@@ -74,6 +74,9 @@ Walked one at a time. None decided yet. ✓ = read in spec/docs, ~ = inferred.
 - Middle path offered: activity stream (tool rows, turn marks) stays local; durable items (plans, decisions, facts, issues) tracked — as `.mem` markdown (C1 option C) or in Beads (syncs via hidden `refs/dolt/data`, doesn't dirty the tree ✓ docs, not run).
 - Asked user what they want from tracking: (1) backup / other machines, (2) task history, (3) other agents / teammates read it, (4) other. User deferred.
 
+### Git-track the JSONL log — DECIDED 2026-10-10: no
+- Tool rows only matter live; durable items reach git via .mem (decisions/facts) and Beads (plans/issues).
+
 ### C1 — ernie replaces .mem or feeds it — deferred (waits on git-tracking question)
 - A. Feed (D9 as spec'd): ernie log → `*um` → `ernie mem delta` → main thread judges → mem-ops writes `.mem` → `ernie mem synced`.
 - B. Replace: memory lives only in ernie JSONL under ~/.local/state; `.mem` retired. Leaves git, other machines, other agents; `/mem`, `*mr`, mem-ops rebuilt.
@@ -100,5 +103,8 @@ Walked one at a time. None decided yet. ✓ = read in spec/docs, ~ = inferred.
 - Spike ran (bd 1.3.1, stealth, scratchpad) → results in ref_ernie_beads.md "Hands-on spike". Settles: parallel writers queue, don't fail (20/20, ~0.55 s/write); events follow ~0.66 s; Go lib not viable (embedded Dolt needs cgo + ICU; 48–144 MB) → shell out to `bd --json` + `bd events tail --follow`.
 - That session's split (presented as its "A"): Beads = plans, phases, beads, review counts, approved fixes; ernie JSONL = questions, decisions, facts, **explained issues**, examples, diagrams, notes. ≈ option B above + approved fixes become beads. Needs reconciling with A above (where do explained issues + approval gate live?).
 - Beads has no plan/phase object: phase = `epic` bead, children via `--parent` (≤3 levels), plan = the graph. Plan-as-document lifecycle (draft → reviewed ×N → approved → building) is ours to model (ernie, or Beads labels/`metadata`) → settle in P2.
+
+### C3 — DECIDED 2026-10-10
+- Beads holds plans (epics → beads, PRD markdown stays ernie/.mem side) AND issues (review findings, `human` gate for approval, `metadata.resolution` for fixed/dismissed). ernie keeps question, decision, fact, diagram, example, note. No `bd prime`. Details → ref_ernie_beads.md.
 
 ### C4 — `*um` button trigger — not discussed yet

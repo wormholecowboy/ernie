@@ -21,17 +21,26 @@
 - [beads] integrate via `bd … --json` + `bd events tail --since <seq> --follow` (~0.66 s); Go lib needs cgo + ICU for embedded Dolt, 48–144 MB → don't link (spike 2026-10-10)
 - [beads] no plan/phase object: phase = `epic` bead, children `--parent` (≤3 levels), deps `blocks`; `set-state <id> review=2` (`=` not `:`) → label `review:2`
 - [beads] embedded Dolt: parallel writers queue (20/20 ok), ~0.33 s/cmd alone, ~0.55 s/write contended
+- [beads] backup: data only leaves disk on `bd dolt push` → hidden ref `refs/dolt/data` (+ branch `__dolt_remote_info__`) on git origin; `git push` does NOT carry it; fresh clone needs `bd bootstrap`; auto-push off by default (`dolt.auto-push`, 5m; docs: concurrent pushers can corrupt remote); also `backup.enabled` / `backup.git-repo` (spike 2026-10-10)
 ## gotchas
+- [beads] `bd init` in a git repo (non-stealth) makes its own commit (.beads/ config + 5 git hooks, .gitignore) and sets `core.hooksPath=.beads/hooks` → overrides existing repo hooks (spike 2026-10-10)
 - [beads] every `bd` cmd outside a git repo prints 3-line `beads.role not configured` stderr warning → token noise; set `beads.role` or filter
 - [claude-hooks] hook exit code 2 = blocking error, and Go panics exit 2 → Go hook handlers must recover and exit 0
 - [claude-hooks] dotfiles hooks calling ernie must guard on the binary (`[ -x … ] && … || true`); ~/things/myc isn't synced by dotfiles, missing binary = hook error every tool call
 - [ernie] `git rev-parse` ≈12 ms → hooks miss 10 ms budget unless they skip git (A96); fold 50k = 67 ms, 75% allocs = activity buffer (A109)
 - [ernie] dump has no notes → page notes vanish after /clear/compaction unless promoted (A106)
 ## arch
+- [ernie] ernie JSONL log stays untracked (~/.local/state); durable items reach git via .mem (decisions, facts) and Beads (plans, issues) (2026-10-10)
 - [ernie] source here (~/things/myc/ernie), built to ~/.local/bin. Dotfiles holds only Claude-side pieces: hooks in claude/.claude/settings.json, ernie skill, mem/gtg/handoff edits, install.txt entry
 - [docs] spec + build plan live in .mem/artifacts/ (D10), not docs/
 - [ernie] writing rules live in CLAUDE.local.md block written by `ernie init` (A112), not the skill; skill holds only ernie-specific rules
 - [ernie] attribution: by=claude iff Claude Bash env var set (A53); no cmd text in v1 (A62); every tool call → `tool run` activity row, Bash shows description only (A114)
+- [ernie] planning = PRD + beads: PRD + plan narrative stay markdown (reviewed 2–5×); approved plan breaks into Beads epic → beads, each bead `--description` (what) / `--design` (how) / `--acceptance` (done-when), linked to PRD via `spec_id` (2026-10-10)
+- [ernie] "phase" renamed "Epic" everywhere (= Beads epic bead) (2026-10-10)
+- [beads] issues = review findings in Beads (C3, 2026-10-10): bug bead, `discovered-from:<reviewed bead>`, label `review:rN`, fields in `metadata`; `human` gate = awaiting your approval (keeps it out of `bd ready`); fixed/dismissed → close + `metadata.resolution=fixed|dismissed`. ernie keeps question/decision/fact/diagram/example/note. No `bd setup`/`bd prime` (clashes w/ .mem) → ref_ernie_beads.md
+- [beads] beads storage per repo kind, chosen by `ernie init` prompt (2026-10-10): personal → git-backed Dolt remote on origin + `dolt.auto-push`; work → no git tracking (stealth, outside repo)
+- [beads] use `bd` (Go, MIT), not `br` (license rider excludes anyone acting for Anthropic; no metadata JSON; no change feed) (2026-10-10)
+- [beads] auto-push only fires at end of a `bd` write, ≥5 min apart → `/gtg` + `*um` run `bd dolt push` to flush (2026-10-10)
 ## reference
 - [ernie] spec → .mem/artifacts/spec_ernie.md
 - [ernie] build plan (phases, tasks, amendments A1–A114) → .mem/artifacts/plan_ernie_build.md
@@ -43,3 +52,4 @@
 - [ernie] working page template (tabs built piece by piece; header comment lists each piece) → .mem/artifacts/ref_ernie_views/00-template.html
 - [ernie] Beads research (P1: data model, storage, integration, risks, mapping to ernie types) → .mem/artifacts/ref_ernie_beads.md
 - [ernie] backlog from notes dump: priorities P1–P7, conflicts C1–C4 + discussion/recs, features by area → .mem/artifacts/ref_ernie_backlog.md
+- [beads] beads_rust (`br`) research + spike: SQLite+JSONL-in-git port, license rider vs Anthropic → .mem/artifacts/ref_ernie_beads_rust.md

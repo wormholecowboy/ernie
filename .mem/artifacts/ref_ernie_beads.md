@@ -65,6 +65,46 @@ Source: github.com/gastownhall/beads (README, ROADMAP, docs/core-concepts/issues
   - `bd` binary itself: 144 MB.
 - ~ Conclusion: ernie should shell out to `bd … --json` and follow `bd events tail --follow`, not link the library.
 
+## Review findings as Beads issues (spike 2026-10-10)
+
+Ran in the same scratch workspace. One finding from reviewing bead `proj-d7k.2`:
+
+```
+bd create "Retry drops 429s" -t bug -p 1 -l review,review:r1 --deps discovered-from:proj-d7k.2 \
+  --description … --design … --acceptance … \
+  --metadata '{"cause":…,"impact":…,"owner":"us","confidence":"inferred","method":…}'   # → proj-7aq
+bd gate create --type=human --blocks proj-7aq --reason "approve fix"                   # → proj-30e
+```
+
+- ✓ Finding stored with type bug, priority, labels, the 3 text fields, and `metadata` JSON round-tripped intact.
+- ✓ Gate open → finding NOT in `bd ready`. `bd gate resolve proj-30e --reason "approved, fix it"` → finding enters `bd ready`.
+- ✓ Findings for a reviewed bead: `bd dep tree <bead> --direction=up` lists the `discovered-from` children. (`bd show --json` `dependents` came back empty; `dep tree` default direction shows only what the bead depends on.)
+- ✓ Findings across all work: `bd list --label review`.
+- ✓ Dismiss trivial: `bd q "…" -t bug -l review` then `bd close <id> --reason "dismissed: trivial"` → `status: closed`, `close_reason` kept. No separate "dropped" status; dismissed vs fixed differ only by close reason (or a label).
+- ✓ Comments: `bd comment <id> "…"`, `bd comments <id>` → place for reviewer 2..N to agree/disagree.
+- ✓ Other relevant: `bd defer <id> [--until …]` (postpone, leaves `bd ready`); `bd q` quick capture prints only the id; `--external-ref gh-42` for PR-level findings with no bead; `bd find-duplicates` (same title/description/design/acceptance) for merging overlapping findings from several reviewers; `bd lint` warns when a bug lacks Steps to Reproduce / Acceptance Criteria.
+
+### No auto-fix; what drives agents (spike 2026-10-10)
+
+- ✓ Beads runs no agents. The only "auto" is `bd prime` (installed by `bd setup claude` as a SessionStart hook) telling the agent: use beads for ALL tracking, create an issue before coding, `bd ready` → `--claim` → `bd close`. Skip `bd setup`/`bd prime` → nothing picks up work on its own.
+- ✓ `bd prime` (4.9 KB) also says "Do NOT use MEMORY.md files", "Prohibited: TodoWrite, TaskCreate, markdown files for task tracking", "use `bd remember`" → clashes with `.mem`. ernie should write its own guidance, not install `bd prime`.
+- ✓ `bd gate` is native (bd 1.3.1 CLI reference + ran it). An open gate keeps the finding out of `bd ready`, so even an agent following `bd prime` won't grab an unapproved finding.
+- ✓ Metadata: `bd update --metadata '{…}'` MERGES keys (not replace); also `--set-metadata k=v`, `--unset-metadata k`. Filter: `bd list --all --metadata-field resolution=dismissed` (plain `bd list` hides closed).
+- ✓ Documented metadata convention `execution_agent_type` / `execution_suggested_model` (docs/core-concepts/metadata.md) → can carry the page's "send to main agent vs subagent" choice.
+
+### ernie issue → Beads mapping
+
+| ernie issue | Beads |
+|---|---|
+| `explained` | open bug + open `human` gate |
+| `approved` | gate resolved |
+| `fixed` | bug closed (reason = fix / commit) |
+| `dropped` | bug closed + `metadata.resolution = dismissed` (fixed → `resolution = fixed`); close reason stays free text |
+| cause, impact, owner, confidence, method, example | `metadata` keys (no schema, nothing required) |
+| fix | `--design` |
+| Nth review round | label `review:rN` |
+| "Claude can't approve without your words" (A105), "can't mark fixed before approved" (A89), required fields (A88–A91) | **nothing** — anyone, Claude included, can `bd gate resolve` or `bd close`. ✗ Enforcement would need ernie: page/ernie CLI as the only approve path, or a PreToolUse hook denying Claude's `bd gate resolve` |
+
 ## Mapping to ernie types
 
 | ernie today | Beads equivalent | Fit |
@@ -77,3 +117,34 @@ Source: github.com/gastownhall/beads (README, ROADMAP, docs/core-concepts/issues
 | `decision`, `fact` (confidence/method), terms | `bd remember` memories | weak; no confidence/method |
 | `diagram`, `example`, `note` | none | — |
 | inter-agent messaging (backlog v2) | message type, `--thread`, `bd mail` | possible later |
+
+## Backup and sync (spike 2026-10-10, scratch repo `bdsync/` with a local bare remote)
+
+- ✓ `bd init` (non-stealth, `--skip-agents`) in a git repo with `origin`: wired Dolt remote `origin` = `git+file://…/remote.git`; made its own git commit "bd init: initialize beads issue tracking" (10 files: `.beads/.gitignore`, README, config.yaml, metadata.json, 5 hooks in `.beads/hooks/`, root `.gitignore`); set `core.hooksPath=.beads/hooks`. Dolt data (`.beads/embeddeddolt/`) is git-ignored.
+- ✓ After `bd create` nothing left the machine. `bd dolt push` → remote gained `refs/dolt/data` and branch `refs/heads/__dolt_remote_info__`.
+- ✓ Created a 2nd bead, then plain `git push` → `refs/dolt/data` unchanged. git push does not sync beads.
+- ✓ Fresh `git clone` + `bd bootstrap` → restored the 1st bead only (the unpushed 2nd was lost).
+- ✓ Docs (docs/reference/configuration.md): `dolt.auto-push` default `false`, `auto-push-interval` 5m, `auto-push-timeout` 30s; "opt-in because concurrent pushes to git-protocol Dolt remotes can corrupt or strand remote history when multiple writers race". `backup.enabled` (default false, 15m, to `.beads/backup/`), `backup.git-repo` (separate local repo), `backup.git-push`, `export.auto` (JSONL export, not sync). Post-write order: auto-commit → auto-backup → auto-push.
+
+## Intended git workflow — web research + spike (2026-10-10)
+
+### History (why it's weird)
+- ✓ ≤ v0.49 (early 2026): SQLite local DB + `.beads/issues.jsonl` **committed to git with the code** (needed a sync branch + daemon for worktrees). (github.com/steveyegge/beads/discussions/2332, /1836)
+- ✓ v0.50+ switched to Dolt; v0.56.1 (2026-02-22) server-only; v0.63.0 (2026-03-29) embedded back as default; v1.0.0 (2026-04-02) stable. JSONL demoted to an export.
+- ✓ Why Dolt (maintainer-side answer, disc. 1836): concurrent multi-agent writes (SQLite WAL contention), per-mutation version history (`dolt_log`/`dolt_diff`), SQL queries, cell-level merge across clones. Same answer admits: "If you're running one agent on one project, v0.49.6 SQLite is genuinely simpler and sufficient."
+- ✓ Users in disc. 2332 were just as confused ("I have absolutely no idea how I'm supposed to use beads now"); docs called LLM-generated and stale.
+
+### Intended model now
+- `.beads/` config tracked in git; Dolt data (`.beads/embeddeddolt/`) git-ignored, local only.
+- Sync/backup = Dolt remote, separate from code: `bd dolt push/pull`. Remote can be DoltHub, a filesystem path, or the **same git origin** (data under `refs/dolt/data`, a non-branch ref plain clone skips). `bd init` auto-wires origin as the Dolt remote; fresh clone → `bd bootstrap`.
+- Git-backed Dolt remote trade-offs (disc. 2332): no tablefile compaction, no GC of `refs/dolt/data`, slower than native Dolt remotes; fine for a few hundred issues (single-digit MB). Prune: `git reflog expire` + `git gc` on that ref.
+
+### Spike: JSONL committed with the code (`export.auto` + `export.git-add`)
+- ✓ `bd config set export.auto true`, `export.git-add true`, `export.interval 0s` → `.beads/issues.jsonl` written, but left **untracked / unstaged** (git-add didn't stage it).
+- ✓ Committed it by hand. bd's pre-commit hook re-exported during the commit ("Exported 3 issues") but the commit kept the **stale 2-issue file**; working copy then lagged the DB too (3 in JSONL, 4 in DB). → export lags writes; needs an explicit `bd export` + `git add` right before each commit.
+- ✓ Fresh clone, Dolt ref present → `bd bootstrap` restored from `refs/dolt/data` and ignored the committed JSONL.
+- ✓ Fresh clone, Dolt ref deleted → `bd bootstrap` imported from committed `issues.jsonl` ("Imported 2 issues"). So committed JSONL works as a fallback backup. Import is upsert-only (can't see deletions).
+- Fresh clone without bootstrap: `bd list` → "no beads database found".
+
+### Other
+- beads_rust (github.com/Dicklesworthstone/beads_rust): Rust port keeping the old model (SQLite + JSONL export for git). Not evaluated.
