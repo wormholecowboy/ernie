@@ -1,3 +1,5 @@
+## goals
+- [ernie] build ernie with ernie (dogfood); needs robust debug logging from the start
 ## learnings
 - [claude-hooks] UserPromptSubmit + SessionStart: plain stdout (exit 0) → added to Claude context. SessionStart matchers: startup|resume|clear|compact|fork (docs, 2026-10-02)
 - [claude-hooks] Stop payload (2.1.287) has last_assistant_message + stop_hook_active (false; true on the stop after a block); block = top-level {"decision":"block","reason":"…"}, continues same turn (same prompt_id), ~2 s (probe 2026-10-09)
@@ -35,3 +37,4 @@
 - [ernie] scratch flow test report (works/fails, spike results, A95–A111 folded) → .mem/artifacts/ref_ernie_flow_test.md
 - [ernie] 10 page view variation mocks (shared sample data, index.html) → .mem/artifacts/ref_ernie_views/
 - [ernie] working page template (tabs built piece by piece; header comment lists each piece) → .mem/artifacts/ref_ernie_views/00-template.html
+- [ernie] backlog from notes dump: priorities P1–P7, conflicts C1–C4, features by area → .mem/artifacts/ref_ernie_backlog.md
