@@ -1,5 +1,6 @@
 ## goals
 - [ernie] build ernie with ernie (dogfood); needs robust debug logging from the start
+- [ernie] personal repos: ernie state must sync between 2 machines via git (2026-10-11)
 ## learnings
 - [claude-hooks] UserPromptSubmit + SessionStart: plain stdout (exit 0) → added to Claude context. SessionStart matchers: startup|resume|clear|compact|fork (docs, 2026-10-02)
 - [claude-hooks] Stop payload (2.1.287) has last_assistant_message + stop_hook_active (false; true on the stop after a block); block = top-level {"decision":"block","reason":"…"}, continues same turn (same prompt_id), ~2 s (probe 2026-10-09)
@@ -32,7 +33,7 @@
 - [ernie] `git rev-parse` ≈12 ms → hooks miss 10 ms budget unless they skip git (A96); fold 50k = 67 ms, 75% allocs = activity buffer (A109)
 - [ernie] dump has no notes → page notes vanish after /clear/compaction unless promoted (A106)
 ## arch
-- [ernie] ernie JSONL log stays untracked (~/.local/state); durable items reach git via .mem (decisions, facts) and Beads (plans, issues) (2026-10-10)
+- [ernie] ernie JSONL log stays untracked (~/.local/state); durable items reach git via .mem (decisions, facts) and Beads (plans, issues) (2026-10-10) · may reopen in P4 Q1 (split log)
 - [ernie] source here (~/things/myc/ernie), built to ~/.local/bin. `ernie setup` writes Claude-side pieces into ~/.claude (symlinked → dotfiles): guarded hooks (every event → `ernie hook`), stub skill; dotfiles also holds gtg/handoff edits, install.txt entry (C2, 2026-10-11)
 - [docs] spec + build plan live in .mem/artifacts/ (D10), not docs/
 - [ernie] writing rules live in CLAUDE.local.md block written by `ernie init` (A112), not the skill; skill holds only ernie-specific rules; block version-stamped, SessionStart rewrites it when older than binary (C2)
@@ -64,3 +65,4 @@
 - [ernie] backlog from notes dump: priorities P1–P7, conflicts C1–C4 + discussion/recs, features by area → .mem/artifacts/ref_ernie_backlog.md
 - [beads] beads_rust (`br`) research + spike: SQLite+JSONL-in-git port, license rider vs Anthropic → .mem/artifacts/ref_ernie_beads_rust.md
 - [ernie] agent-flywheel guide research (PRD→beads, bead polishing, 42-prompt catalog as paraphrase; MIT+Anthropic rider → no verbatim) → .mem/artifacts/ref_agent_flywheel.md
+- [ernie] P4 store map (log / memory / Beads), Q1–Q6, drive-loss analysis → .mem/artifacts/ref_ernie_backlog.md "P4 data model for state"

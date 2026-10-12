@@ -169,3 +169,44 @@ D4 (one log per repo + branch) stands. Stores after P2: ernie log = repo+branch;
 - **Q3 Beads worktree scoping — DECIDED: one shared Beads store per repo + label `wt:<branch>` on every bead (epics, children, findings).** Page: `bd list --label wt:<branch>`; Claude told to `bd ready --label wt:<branch>`. Keeps decided personal-repo backup (Dolt remote on origin, auto-push); repo-wide view still possible. Enforcement of label on every bead TBD in spec: ernie wrapper for `bd create`, or hook adding it (✗ whether PreToolUse can rewrite the command), or at least a page "unlabelled beads" bucket. Rejected: per-worktree BEADS_DIR (all stores push same hidden ref `refs/dolt/data` → overwrite ~; per-worktree ref scheme ✗ unchecked).
 - **Q4 register/deregister — DECIDED: explicit archive + "folder gone" flag.** `ernie init` registers (log exists → in picker under its repo). `ernie archive` (CLI) or page Archive button writes `<branch>.archived` marker next to log, implies off; hidden from picker; log, memory, beads kept; picker "Archived (N)" entry to view/restore (restore = remove marker). Page flags `<branch> · folder gone` when the worktree folder no longer exists, with Archive button; never auto-hides. Project leaves picker when all its worktrees archived. `off` (pause logging, still visible, greyed) stays distinct from archive (finished, hidden). Spec addition: `meta init` records the worktree folder path. Rejected: auto-archive (hides by mistake on rename/move; server polling git), archive without flag.
 - **Q5 sessions — DECIDED: record `sid` on every event; session sub-filter only on the Tool log.** Source: hook payload `session_id` ✓, Claude Bash `CLAUDE_CODE_SESSION_ID` ✓. Page/user events carry no sid. Tool log sub-filter: All sessions / <sid> (state). Issues, Planning, Facts stay worktree-wide. Rejected: no filter in v1; session filter on every tab (cuts across Q2 model).
+
+### P4 data model for state — IN PROGRESS 2026-10-11
+**What P4 is:** one map of where every piece of state lives, and how the page + `ernie dump` join them. Why now: C1, C3, P2, P3 split state over 3 stores; spec still describes one log with `plan`/`issue`/`mem` types (spec_ernie.md:105).
+
+**Example traced — decision "use bd, not br" touches all 3 stores:**
+1. Claude runs `ernie decide "use bd" --why license` → `d3` in JSONL (untracked).
+2. Durable → also belongs in `.ernie/mem/main/long.md` arch (committed).
+3. It shaped epic `ernie-7k2` in Beads → link?
+
+**Store map (proposed, from decisions already made; ✗ = overlap still open)** — user asked to keep this table:
+
+| Store | Where | Git | Holds |
+|---|---|---|---|
+| Log | `~/.local/state/ernie/<slug>/<branch>.jsonl` | no | question, decision, fact, diagram, example, note, file, tool, turn, meta (+ `sid`) |
+| Memory | `.ernie/mem/<branch>/` | personal only | ops, learnings, gotchas, arch, ref, tags, daily, artifacts (PRDs); queue ✗ |
+| Beads | one store/repo, `wt:<branch>` label | via Dolt ref | epics, beads, findings |
+
+Dropped from log: `plan`, `issue`, `mem sync`.
+
+**Questions (one at a time):**
+- Q1 how does a log decision/fact become durable / reach git? (OPEN — see below)
+- Q2 `queue.md` fate: "next" overlaps ad hoc beads; "qs" overlaps ernie questions
+- Q3 cross-store links: `ref` field (decision → bead id; memory line → log id)
+- Q4 server assembly: log fold + Beads snapshot (`wt:` filtered, kept fresh by `bd events tail`) → one SSE state
+- Q5 `ernie dump`: what Claude gets from each store
+- Q6 envelope/op changes: `sid`, `fact set` (confidence/method/text), drop dead types
+
+**Q1 options as presented:**
+1. `*um` = Claude judges, runs `ernie mem add <section> "…" --from d3`; log stays transient; memory line carries source id. (was recommended)
+2. Auto: every decision / verified fact auto-copies to memory → noise (many decisions branch-local)
+3. Memory arch/learnings rendered from log → lost, log untracked
+4. (added) **Split log:** activity file stays local (`tool`, `file`, `turn` — the noisy rows); durable file git-tracked, e.g. `.ernie/mem/<branch>/items.jsonl` (questions, decisions, facts, notes — rare writes). Makes Q1 mostly moot (decisions already in git; memory could be rendered from them). Cost: tracked file changes whenever Claude logs a decision → commits carry those lines; reopens D1 (one log = source of truth) + fold.
+
+**Drive-loss analysis (if the machine's disk dies):**
+- JSONL log gone; nothing rebuilds it; long.md doesn't recreate it (it's a separate durable record).
+- Survives (personal, only if pushed): memory via `git push`; Beads via `bd dolt push` (auto-push ≥5 min apart → last minutes at risk ✓ spike).
+- Lost: open questions (real loss — today they live in git-tracked queue.md), decisions/facts never promoted, diagrams/examples/notes, tool log (fine).
+- Work repos: lose all (`.ernie/` excluded, Beads stealth, no remote) → work-repo backup TBD.
+- Risk = gap between "logged" and "promoted"; option 1 only closes it if `*um` runs often.
+
+**User direction (2026-10-11):** "we need a way to put some of it in git. Maybe the split log idea." User works between 2 machines on personal repos → ernie state must transfer via git. Leaning option 4 (split log). Not yet decided. Resume here next session.
