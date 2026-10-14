@@ -170,7 +170,7 @@ D4 (one log per repo + branch) stands. Stores after P2: ernie log = repo+branch;
 - **Q4 register/deregister — DECIDED: explicit archive + "folder gone" flag.** `ernie init` registers (log exists → in picker under its repo). `ernie archive` (CLI) or page Archive button writes `<branch>.archived` marker next to log, implies off; hidden from picker; log, memory, beads kept; picker "Archived (N)" entry to view/restore (restore = remove marker). Page flags `<branch> · folder gone` when the worktree folder no longer exists, with Archive button; never auto-hides. Project leaves picker when all its worktrees archived. `off` (pause logging, still visible, greyed) stays distinct from archive (finished, hidden). Spec addition: `meta init` records the worktree folder path. Rejected: auto-archive (hides by mistake on rename/move; server polling git), archive without flag.
 - **Q5 sessions — DECIDED: record `sid` on every event; session sub-filter only on the Tool log.** Source: hook payload `session_id` ✓, Claude Bash `CLAUDE_CODE_SESSION_ID` ✓. Page/user events carry no sid. Tool log sub-filter: All sessions / <sid> (state). Issues, Planning, Facts stay worktree-wide. Rejected: no filter in v1; session filter on every tab (cuts across Q2 model).
 
-### P4 data model for state — IN PROGRESS 2026-10-11
+### P4 data model for state — DECIDED 2026-10-13 (started 2026-10-11)
 **What P4 is:** one map of where every piece of state lives, and how the page + `ernie dump` join them. Why now: C1, C3, P2, P3 split state over 3 stores; spec still describes one log with `plan`/`issue`/`mem` types (spec_ernie.md:105).
 
 **Example traced — decision "use bd, not br" touches all 3 stores:**
@@ -183,7 +183,7 @@ D4 (one log per repo + branch) stands. Stores after P2: ernie log = repo+branch;
 | Store | Where | Git | Holds |
 |---|---|---|---|
 | Log | `~/.local/state/ernie/<slug>/<branch>.jsonl` | no | question, decision, fact, diagram, example, note, file, tool, turn, meta (+ `sid`) |
-| Memory | `.ernie/mem/<branch>/` | personal only | ops, learnings, gotchas, arch, ref, tags, daily, artifacts (PRDs); queue ✗ |
+| Memory | `.ernie/mem/<branch>/` | personal only | ops, learnings, gotchas, arch, ref, tags, daily, artifacts (PRDs); queue.md retired (Q2) |
 | Beads | one store/repo, `wt:<branch>` label | via Dolt ref | epics, beads, findings |
 
 Dropped from log: `plan`, `issue`, `mem sync`.
@@ -210,3 +210,37 @@ Dropped from log: `plan`, `issue`, `mem sync`.
 - Risk = gap between "logged" and "promoted"; option 1 only closes it if `*um` runs often.
 
 **User direction (2026-10-11):** "we need a way to put some of it in git. Maybe the split log idea." User works between 2 machines on personal repos → ernie state must transfer via git. Leaning option 4 (split log). Not yet decided. Resume here next session.
+
+**Q1 — DECIDED 2026-10-13: option 4, split log.** Activity (`tool`, `file`, `turn`, `meta`) → `~/.local/state/ernie/<slug>/<branch>.jsonl` (local). Durable items (question, decision, fact, diagram, example, note + their set/answer/dismiss) → `.ernie/mem/<branch>/items.jsonl` (git-tracked, personal repos). `*um` stays as curation into long.md, not transport. D1 rewords: two append-only files, each event type in exactly one. User confirmed: one machine at a time per branch, pull before work.
+- **F1 id collisions — DECIDED:** keep short sequential ids (`d4`). Fold rule (spec:287) changes: `add` on existing id with same text → no-op (retry); other text → kept as `d4′` + `State.Warnings "d4 collided"` → page banner + dump line; user renames by hand. Rejected: random ids (tokens, typing), machine-suffixed ids.
+- **F2 inbox ordering — DECIDED:** `turn mark` carries a cursor = `items.jsonl` line count (`turn mark {n:7, items:40}`), written to the activity file. Inbox = `by:user` InboxOps in items lines past the cursor. Pulled lines from the other machine past the cursor → delivered next prompt (intended). Cursor > file length (rebase/checkout) → nothing pending, next mark resets. One lock file in `~/.local/state` covers both files (keeps spec:87 single-lock rule). Rejected: ts merge-sort (pulled answers land before the mark, never delivered), turn mark in items.jsonl (git noise every prompt).
+  - F2 seed mark (2026-10-13): activity file created (disk loss, new machine, fresh clone) → first write = `turn mark {items: <current line count>}` before any delivery; else no mark → inbox replays every past answer (spec:296). Loss = only unpushed answers on the dead machine.
+  - F2 known limit (accepted 2026-10-13): forgot pull + unpushed items + `pull --rebase` → rebase puts remote lines first → cursor redelivers own answers once, misses the other machine's. Rejected fix: cursor = delivered event keys (more state).
+- **F3 git merges — DECIDED:** `ernie init` (personal) writes `.ernie/mem/**/items.jsonl merge=union` to `.gitattributes` (`**`, since `*` doesn't cross `/`). Scratch test git 2.47.1 ✓: no attr → conflict (merge + pull --rebase); union → no conflict, all lines kept; merge order = ours then theirs, rebase/`pull --rebase` = upstream then local → line order ≠ time order; byte-identical lines collapse to one (ms `ts` keeps events unique); missing final `\n` never glues records (writer's A51 newline fix covers the rest).
+
+**Q2 — DECIDED 2026-10-13: retire `queue.md`.** "qs" → ernie questions (`ernie ask` → `items.jsonl`, age from `ts`); "next" → ad hoc beads (`bd create … -l wt:<branch>`, no epic); ordering → `blocks` deps; `[tag]` → Beads labels; vague backlog lines → `deferred` beads. Resume reads `ernie dump` (open questions + `bd ready`). Work repos: beads stealth, no remote → machine-local (same as `.mem/` today). Store map: memory row drops "queue ✗".
+
+**Q3 — DECIDED 2026-10-13: links stored on the ernie side only.** `--ref <id>` on ernie items (`ernie decide set d3 --ref ernie-7k2`) → `set` event in items.jsonl; server builds the reverse index (bead ← d3) → chips both ways on page + in dump. Memory lines carry a source suffix `(d3)`. Plus: when Claude adds a ref to a bead, it also writes a one-line `--design` pointer on that bead ("why: see d3") so `bd show` / non-ernie agents see it. Validation: unknown ernie id → exit 1; bead id → format check only (no `bd show`, ~0.3 s). Refs are branch-scoped (ernie ids per branch; bead ids repo-unique). Why not the Beads side: Beads has no decision object — `--external-ref` is meant for gh-style refs (maybe single-valued ✗), costs an extra bd call per link, can't be validated by ernie.
+
+**Q4 — DECIDED 2026-10-13: server assembly.**
+- A. two watchers per branch (activity + items.jsonl), same 250 ms stat poll (spec:241). Plus content check: watcher keeps the last line read; if bytes before `offset` no longer match → full refold (covers git rewriting items.jsonl in place, e.g. `pull --rebase` puts remote lines first). Whether git rewrites in place or replaces the file ✗ unchecked; check makes it moot.
+- B. Beads: start = `bd list --json --all -l wt:<branch>` snapshot; then one `bd events tail --since <seq> --follow` per repo (events carry full bead snapshot, no `bd show`); "truncated" error (7-day journal) → re-snapshot. `ernie init` sets `events-journal true` (off by default).
+- C. one SSE state `{items, activity, beads[], refs}`; `refs` = Q3 reverse index.
+
+**Q5 `ernie dump`:**
+- (1/2) DECIDED: dump calls `bd list --json` itself, 1 s timeout, only in SessionStart + `ernie dump` (per-prompt hooks never call bd); timeout/error → `BEADS unavailable — run bd ready`. Rejected: server-cached snapshot file (server often not running), skip Beads.
+- Proposed sections: OPS · EPIC (was PLAN) · READY (ad hoc beads, was queue next) · FINDINGS (was ISSUES) · OPEN · DECIDED (+ `→ bead` refs) · FACTS/TERMS/NOTES/EXAMPLES. Cap-cut priority: OPS, OPEN, FINDINGS awaiting user, active epic bead, READY, then spec:196 order.
+- (2/2) DECIDED: ops stay per branch (C1 isolation holds; re-add ops in each worktree; rejected repo-level `_repo/ops.md` and moving ops to CLAUDE.md). OPS = first dump section, full text (replaces `/mem` applying ops once mem skill retires). `*op`/`*um`/`*mr` triggers move into the one `ernie` skill (no separate skill); `*op` → `ernie mem op "…"`.
+
+**Q5 — DECIDED 2026-10-13.**
+
+**Q6 — DECIDED 2026-10-13: event schema changes (spec:107–123).**
+- File per type: `items.jsonl` (git) = decision, question, fact, note, diagram, example. Activity (local) = tool, file, turn, meta.
+- Drop: `plan` (→ Beads epics/beads), `issue` (→ Beads findings), `mem sync` + `upto`.
+- Add `fact set` (`text?`, `confidence?`, `method?`). Add `ref?` to decision, question, fact (note has it).
+- `turn mark` + `items` cursor (F2); seed mark on activity-file creation.
+- `meta init` + `path` (worktree, P3); lives in activity file, rewritten with seed mark; items.jsonl has no header line.
+- `sid` on activity events only (Tool log is the only session filter, P3; keeps session ids out of git).
+- Fold: F1 collision rule replaces spec:287. `tag` vocabulary → `.ernie/mem/<branch>/tags.md`.
+
+**P4 store map (final):** Log split = activity (local) + items.jsonl (git, personal) · Memory `.ernie/mem/<branch>/` (no queue.md) · Beads (epics, beads, findings, ad hoc next). Next: spec amendment for P4 (D1 reword, split log, F1–F3, Q2–Q6).

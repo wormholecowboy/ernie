@@ -25,6 +25,7 @@
 - [beads] embedded Dolt: parallel writers queue (20/20 ok), ~0.33 s/cmd alone, ~0.55 s/write contended
 - [beads] backup: data only leaves disk on `bd dolt push` → hidden ref `refs/dolt/data` (+ branch `__dolt_remote_info__`) on git origin; `git push` does NOT carry it; fresh clone needs `bd bootstrap`; auto-push off by default (`dolt.auto-push`, 5m; docs: concurrent pushers can corrupt remote); also `backup.enabled` / `backup.git-repo` (spike 2026-10-10)
 - [ernie] agentic_coding_flywheel_setup repo (agent-flywheel) is MIT + OpenAI/Anthropic rider (like br) → paraphrase only, never copy its prompts verbatim; write own prompts from ideas
+- [git] `merge=union` (git 2.47.1, scratch test 2026-10-13): no-attr append on both sides → conflict; union → all lines kept; merge order ours→theirs, rebase/`pull --rebase` upstream→local (line order ≠ time order); byte-identical lines collapse to one; gitattributes `*` doesn't cross `/` → use `**`
 ## gotchas
 - [beads] `bd init` in a git repo (non-stealth) makes its own commit (.beads/ config + 5 git hooks, .gitignore) and sets `core.hooksPath=.beads/hooks` → overrides existing repo hooks (spike 2026-10-10)
 - [beads] every `bd` cmd outside a git repo prints 3-line `beads.role not configured` stderr warning → token noise; set `beads.role` or filter
@@ -33,7 +34,8 @@
 - [ernie] `git rev-parse` ≈12 ms → hooks miss 10 ms budget unless they skip git (A96); fold 50k = 67 ms, 75% allocs = activity buffer (A109)
 - [ernie] dump has no notes → page notes vanish after /clear/compaction unless promoted (A106)
 ## arch
-- [ernie] ernie JSONL log stays untracked (~/.local/state); durable items reach git via .mem (decisions, facts) and Beads (plans, issues) (2026-10-10) · may reopen in P4 Q1 (split log)
+- [ernie] P4 decided (2026-10-13): split log — activity (tool/file/turn/meta, `sid`) local `~/.local/state`; durable items (question/decision/fact/note/diagram/example) → `.ernie/mem/<branch>/items.jsonl`, git-tracked (personal), `merge=union`; queue.md retired (qs → ernie questions, next → ad hoc beads); cross-store links ernie-side `--ref` → backlog "P4 … DECIDED"
+- [ernie] ops stay per branch (C1 isolation kept; re-add per worktree); `ernie dump` prints OPS first; `*op`/`*um`/`*mr` triggers move into the one `ernie` skill (2026-10-13)
 - [ernie] source here (~/things/myc/ernie), built to ~/.local/bin. `ernie setup` writes Claude-side pieces into ~/.claude (symlinked → dotfiles): guarded hooks (every event → `ernie hook`), stub skill; dotfiles also holds gtg/handoff edits, install.txt entry (C2, 2026-10-11)
 - [docs] spec + build plan live in .mem/artifacts/ (D10), not docs/
 - [ernie] writing rules live in CLAUDE.local.md block written by `ernie init` (A112), not the skill; skill holds only ernie-specific rules; block version-stamped, SessionStart rewrites it when older than binary (C2)
@@ -65,4 +67,4 @@
 - [ernie] backlog from notes dump: priorities P1–P7, conflicts C1–C4 + discussion/recs, features by area → .mem/artifacts/ref_ernie_backlog.md
 - [beads] beads_rust (`br`) research + spike: SQLite+JSONL-in-git port, license rider vs Anthropic → .mem/artifacts/ref_ernie_beads_rust.md
 - [ernie] agent-flywheel guide research (PRD→beads, bead polishing, 42-prompt catalog as paraphrase; MIT+Anthropic rider → no verbatim) → .mem/artifacts/ref_agent_flywheel.md
-- [ernie] P4 store map (log / memory / Beads), Q1–Q6, drive-loss analysis → .mem/artifacts/ref_ernie_backlog.md "P4 data model for state"
+- [ernie] P4 decisions (split log, F1–F3, Q1–Q6, final store map, drive-loss analysis) → .mem/artifacts/ref_ernie_backlog.md "P4 data model for state — DECIDED"

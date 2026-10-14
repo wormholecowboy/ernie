@@ -1,8 +1,10 @@
 ---
-updated: 2026-10-11
+updated: 2026-10-13
 ---
 ## next
-- [ernie] next session: resume P4 at Q1 — evaluate split log (activity local, durable items.jsonl tracked) for 2-machine sync → backlog "P4 data model for state — IN PROGRESS"
+- [ernie] next session: write P4 spec amendment into spec_ernie.md (D1 reword → split log, F1–F3, Q2–Q6) → backlog "P4 data model for state — DECIDED"
+- [ernie] `ernie init` (personal) also writes `.gitattributes` line `.ernie/mem/**/items.jsonl merge=union` + sets bd `events-journal true` (P4 F3/Q4)
+- [ernie] when ernie memory lands: user migrates old `.mem/queue.md` items → ernie questions (qs) + ad hoc beads (next) (P4 Q2)
 - [ernie] spec amendment P3: top worktree picker, `wt:<branch>` label on beads, `ernie archive` + `.archived` marker + folder-gone flag, `meta init` worktree path, `sid` on events → ref_ernie_backlog.md "P3 tab scopes — DECIDED"
 - [ernie] 00-template.html: replace per-tab scopeSelect with one top worktree picker (grouped by repo, Archived (N), folder-gone flag); Tool log session sub-filter; Issues grouped by epic + Ad hoc; Planning counts test beads separately
 - [beads] decide + verify how every bead gets `wt:<branch>` (ernie wrapper vs hook rewrite ✗); verify `bd ready --label` / `bd list --label` filter
@@ -10,7 +12,6 @@ updated: 2026-10-11
 - [ernie] write own ernie prompts (PRD review, breakdown, polish, bead review) from flywheel ideas; catalog → ref_agent_flywheel.md
 - [beads] verify bd 1.3.1: `spec_id` flag, epic close-eligible helper, does `bd close` refuse when blocked by open finding
 - [ernie] priorities in order, one at a time (full list + notes → .mem/artifacts/ref_ernie_backlog.md):
-- [ernie] P4 data model for state
 - [ernie] P5 UI tabs
 - [ernie] P6 review visualization (code + plan review issues; new tabs or Planning); inputs: P2 review flow, P3 Q2 issues grouped by epic + Ad hoc
 - [ernie] P7 v1 / phase 1 scope; gate cleared (C1–C4 settled 2026-10-11)
@@ -30,5 +31,3 @@ updated: 2026-10-11
 - [ernie] spec amendment page buttons: server runs `bd` directly (fixed subcommand allowlist, id validation); Issues-tab dismiss = `--set-metadata resolution=dismissed` + `bd close --reason`; review round N prompt lists that bead's dismissed findings → backlog "Open qs walk"
 - [ernie] spec v2 amendment: `*um` page button (C4) + fact research via fresh headless `claude -p` (ERNIE_HEADLESS guard, tool allowlist, run cap/timeout, prompt-injection note) → backlog "Fact research trigger"
 - [ernie] 00-template.html: add dismiss button on Issues tab; header "view-only" note for Planning revisit
-## qs
-- [ernie] P4 Q1: how does durable ernie state reach git (2 machines, personal)? split log (opt 4) vs *um promotion (opt 1) (asked 2026-10-11)
