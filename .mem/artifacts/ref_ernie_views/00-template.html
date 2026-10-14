@@ -7,10 +7,12 @@
     an "Archived (N)" group. A banner above each tab: archived → Restore; folder gone → Archive (never auto-hidden);
     off → logging paused; an id collision (P4 F1) → "d1 collided … kept as d1′, rename by hand".
   Pieces so far:
-    - Home tab: open questions for the picked worktree (items.jsonl, P4 Q1; replaces queue.md "qs", P4 Q2), each as a card
-      with Q<n>/<total>, context, impact, linked example, choices with the recommended one starred, "need more context"
-      (`question answer {more: true}`, stays open, A88) and an "other answer…" box (not on `assume` yes/no checks, A113).
-      An answer queues for the session's next prompt with Undo until then.
+    - Home tab: open questions for the picked worktree (items.jsonl, P4 Q1; replaces queue.md "qs", P4 Q2) as a focus list
+      (picked from qcard-d): one line each with Q<n>, the question and its status (★ recommended, asked for more context,
+      sent); the selected one opens with Context / If wrong / Example / Answer in a left gutter. Answer row: numbered
+      choices, "need more context" (`question answer {more: true}`, stays open, A88) and an "other answer…" box (not on
+      `assume` yes/no checks, A113). An answer queues for the session's next prompt with Undo until then.
+      Keys: j/k move, 1–9 answer, m more context, u undo.
       Top strip: Session (state, sid, turn, last event, the live tool), Where work is (active epic + bar, active bead, up
       to 3 `bd ready` beads: todo with every dep done), Sync (work repo → stays on this machine; personal → items.jsonl
       uncommitted/unpushed + Beads auto-push window, the P4 drive-loss gap; view-only numbers).
@@ -19,15 +21,16 @@
     - Planning tab (view-only data: `epics` + `adhoc` in _sample_state.js; Beads fields not final): three columns. Left,
       the worktree's epics with a done/total bar, then ◇ Ad hoc (beads with no epic; replaces queue.md "next", P4 Q2);
       middle, the selected epic's goal, beads, epic done-when checks and its PRD-review findings; right, the selected bead:
-      status stepper todo → active → done (or blocked, naming the unfinished deps), what, notes, done-when checklist,
-      depends on / unblocks (click to jump, across epics), linked ids, files, commit. Linked also shows the reverse links
-      the page computes (P4 Q3): decisions whose `ref` is this bead, findings from this bead's code review.
+      labels in a gutter, content capped at ~62ch: Status (text todo → active → done, or blocked naming the unfinished deps) ·
+      What · Notes · Done when · Depends on / Unblocks (click to jump, across epics) · Linked · Files · Commit. Linked also
+      shows the reverse links the page computes (P4 Q3): decisions whose `ref` is this bead, findings from its code review.
       Keys: [ ] prev/next bead, { } prev/next epic.
     - Issues tab (from 03 Issue Workbench): findings (Beads bugs) grouped by epic, then Ad hoc (P3 Q2); waiting-for-approval
       first. Each row and worksheet names its source = parent: PRD review (epic), code review · <bead>, or ad hoc; the
-      source pill opens it on Planning. Worksheet: explained → approved → fixed stepper with Approve / Dismiss / Undo
-      (dismiss = close with resolution=dismissed), then example → cause → fix → impact → how sure → linked notes and terms.
-      Keys: [ ] prev/next, a approve.
+      source pill opens it on Planning. Worksheet: labels in a gutter (same layout as Home's open questions): Status (text
+      explained → approved → fixed) · Example (first: lead with an example) · Cause · Fix · If skipped · How sure · Linked ·
+      Decide, always the last row: keyed Approve / Dismiss / Undo (dismiss = close with resolution=dismissed).
+      Keys: [ ] prev/next, a approve, d dismiss, u undo.
     - Facts & decisions tab: left column glossary then decisions (text + why + a `→ bead` chip from `ref`, P4 Q3; a
       "collided" tag on F1 collisions); right column facts with ✓ ~ ✗ badges (tap for the method, × to dismiss).
       Facts panel opens with filter pills that use the badge labels: All · ✓ verified · ~ inferred · ✗ unknown (data value
@@ -215,7 +218,7 @@
   .is-row { width: 100%; display: grid; grid-template-columns: 14px auto minmax(0, 1fr) auto; gap: 7px; align-items: baseline; border: 0; border-radius: 6px;
     background: none; padding: 7px 6px; text-align: left; cursor: pointer; }
   .is-row:hover { background: var(--bg-recessed); } .is-row.sel { background: var(--accent-soft); }
-  .is-row .t { font-size: 13px; overflow-wrap: anywhere; }
+  .is-row .t { font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
   .is-row .t .wt { margin: 4px 0 0; display: inline-block; }
   .is-row.st-fixed .t, .is-row.st-dropped .t { color: var(--text-dim); }
   .is-row.st-dropped .t { text-decoration: line-through; }
@@ -225,30 +228,17 @@
   .legend { margin-top: 12px; font: 10.5px var(--mono); color: var(--text-dim); line-height: 1.8; padding: 0 4px; }
   .ws { max-width: 780px; }
   .ws-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font: 11.5px var(--mono); color: var(--text-dim); }
-  .ws h2 { font-size: 21px; line-height: 1.25; margin: 6px 0 12px; letter-spacing: -.01em; overflow-wrap: break-word; }
+  .ws h2 { font-size: 22px; line-height: 1.3; margin: 8px 0 22px; letter-spacing: -.01em; overflow-wrap: break-word; }
   .ws h2 .id { font: 13px var(--mono); color: var(--text-dim); margin-right: 4px; }
   .pill { font: 11px var(--mono); padding: 1px 8px; border-radius: 10px; white-space: nowrap; }
   .p-ours { background: var(--info-bg); color: var(--info-fg); } .p-other { background: var(--warn-bg); color: var(--warn-fg); }
   .p-src { background: var(--bg-raised); color: var(--text-dim); border: 1px solid var(--border); cursor: pointer; }
   .p-src:hover { border-color: var(--accent); }
   .is-row .src { display: block; font: 10.5px var(--mono); color: var(--text-dim); margin-top: 2px; }
-  .gate { border: 1px solid var(--border-accent); border-radius: 10px; background: var(--bg-card); padding: 12px 14px; margin-bottom: 18px; }
-  .stepper { list-style: none; display: flex; margin: 0 0 10px; padding: 0; gap: 4px; }
-  .stepper li { flex: 1; display: flex; align-items: center; gap: 7px; font: 12px var(--mono); color: var(--text-dim); padding: 6px 8px; border-radius: 6px; background: var(--bg-recessed); min-width: 0; }
-  .stepper li span { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid currentColor; display: grid; place-items: center; font-size: 10px; flex: none; }
-  .stepper li.done { color: var(--success); } .stepper li.done span { background: var(--success); color: var(--bg); border-color: var(--success); }
-  .stepper li.now { color: var(--text-accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--border-accent); }
-  .stepper.dropped li { opacity: .4; text-decoration: line-through; }
-  .gate-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  .gate-msg { font-size: 13px; color: var(--text-dim); flex: 1 1 220px; }
   .quote { margin-top: 8px; font: 12px var(--mono); color: var(--text-accent); }
   .btn { font: 12px var(--mono); padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-card); cursor: pointer; }
   .btn:hover { border-color: var(--accent); } .btn--primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
   .btn--danger:hover { border-color: var(--error); color: var(--error); }
-  .sec { margin: 0 0 18px; }
-  .sec h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font: 11px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); font-weight: 400; }
-  .sec h3 b { width: 18px; height: 18px; border-radius: 4px; background: var(--bg-raised); border: 1px solid var(--border); display: grid; place-items: center; font-size: 10px; color: var(--text-accent); font-weight: 400; }
-  .sec p { margin: 0; overflow-wrap: break-word; }
   .tbl-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); }
   .tbl-wrap table { border-collapse: collapse; width: 100%; font: 12px var(--mono); }
   .tbl-wrap th, .tbl-wrap td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
@@ -268,22 +258,43 @@
   /* Home: open questions */
   .home-grid { display: grid; gap: 16px; align-items: start; grid-template-columns: minmax(0, 1fr) minmax(0, 320px); }
   @media (max-width: 900px) { .home-grid { grid-template-columns: minmax(0, 1fr); } }
-  .q-list { display: grid; gap: 14px; max-width: 820px; }
-  .q-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; min-width: 0; }
-  .q-card.waiting { border-color: var(--border-accent); box-shadow: inset 3px 0 0 var(--accent); }
-  .q-card.sent { opacity: .75; border-style: dashed; }
-  .q-head { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; font: 11.5px var(--mono); color: var(--text-dim); margin-bottom: 4px; }
-  .q-card h2 { font-size: 17px; line-height: 1.3; margin: 0 0 10px; overflow-wrap: break-word; }
-  .q-card h2 .assume { font: 12px var(--mono); color: var(--text-dim); display: block; margin-bottom: 2px; }
-  .q-card .sec { margin-bottom: 10px; }
-  .q-card .sec p { font-size: 13px; }
-  .choices { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
-  .choice { position: relative; }
-  .choice.rec { border-color: var(--accent); }
-  .choice .star { font: 10px var(--mono); color: var(--text-accent); margin-left: 6px; }
-  .other { display: flex; gap: 6px; flex: 1 1 220px; min-width: 0; }
-  .other input { flex: 1; min-width: 0; font: 12px var(--mono); padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-recessed); color: var(--text); }
-  .followup { font: 12px var(--mono); color: var(--warning); margin-top: 8px; }
+  /* Open questions: focus list (one line each, the selected one opens; labels in a left gutter) */
+  .qf-hint { font: 11.5px var(--mono); color: var(--text-dim); margin: 0 0 10px; }
+  .qf-item { border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); margin-bottom: 10px; overflow: hidden; min-width: 0; }
+  .qf-item.sel { border-color: var(--border-accent); box-shadow: inset 3px 0 0 var(--accent); }
+  .qf-line { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 14px; align-items: baseline; width: 100%; padding: 14px 18px;
+    border: 0; background: none; text-align: left; cursor: pointer; }
+  .qf-line .n { font: 13px var(--mono); color: var(--text-dim); }
+  .qf-line .t { font-size: 16px; font-weight: 600; line-height: 1.4; overflow-wrap: break-word; min-width: 0; }
+  .qf-line .s { font: 12px var(--mono); color: var(--text-dim); white-space: nowrap; }
+  .qf-line .s.rec { color: var(--text-accent); } .qf-line .s.warn { color: var(--warning); }
+  @media (max-width: 640px) { .qf-line { grid-template-columns: 28px minmax(0, 1fr); } .qf-line .s { grid-column: 2; white-space: normal; } }
+  .qf-body { padding: 4px 18px 20px 66px; }
+  @media (max-width: 640px) { .qf-body { padding-left: 18px; } }
+  /* Detail gutter (questions, findings, beads): labels in a left column, content capped at a reading measure */
+  .gut { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 18px 18px; margin: 0; }
+  @media (max-width: 640px) { .gut { grid-template-columns: minmax(0, 1fr); gap: 4px; } .gut dd { margin-bottom: 12px; } }
+  .gut dt { font: 11px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); padding-top: 4px; }
+  .gut dd { margin: 0; max-width: 62ch; font-size: 15px; line-height: 1.6; min-width: 0; overflow-wrap: break-word; }
+  .gut dd.wide { max-width: none; }
+  .gut dd.impact { color: var(--warning); }
+  .gut dd .dim { color: var(--text-dim); }
+  .gut dd .cmd { margin-top: 6px; }
+  .steps { font: 13px var(--mono); color: var(--text-dim); }
+  .steps b { font-weight: 400; color: var(--text-accent); background: var(--accent-soft); padding: 1px 7px; border-radius: 5px; }
+  .steps .past { color: var(--success); }
+  .steps.off { text-decoration: line-through; }
+  .kbtns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .kbtn { display: inline-flex; align-items: center; gap: 8px; font: 600 14px var(--sans); padding: 7px 14px; border-radius: 8px;
+    border: 1.5px solid var(--border); background: var(--bg-recessed); cursor: pointer; }
+  .kbtn:hover, .kbtn.rec { border-color: var(--accent); }
+  .kbtn.danger:hover { border-color: var(--error); color: var(--error); }
+  .kbtn kbd { font: 11px var(--mono); padding: 0 5px; border-radius: 4px; border: 1px solid var(--border); color: var(--text-dim); }
+  .kbtn small { font: 400 11px var(--mono); color: var(--text-accent); }
+  .kbtns .msg { font-size: 14px; color: var(--text-dim); flex: 1 1 220px; }
+  .qf-sent { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font: 13px var(--mono); color: var(--warning); }
+  .other { display: flex; gap: 6px; min-width: 0; margin-top: 10px; max-width: 460px; }
+  .other input { flex: 1; min-width: 0; font: 13px var(--mono); padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-recessed); color: var(--text); }
   .home-strip { display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 16px; }
   @media (max-width: 1000px) { .home-strip { grid-template-columns: minmax(0, 1fr); } }
   .kv { display: grid; gap: 5px; font-size: 13px; overflow-wrap: anywhere; }
@@ -314,7 +325,7 @@
   .ph-row:hover, .bd-row:hover { background: var(--bg-recessed); }
   .ph-row.sel, .bd-row.sel { background: var(--accent-soft); }
   .ph-row .id, .bd-row .id { font: 11px var(--mono); color: var(--text-dim); }
-  .ph-row .t, .bd-row .t { font-size: 13px; overflow-wrap: anywhere; min-width: 0; }
+  .ph-row .t, .bd-row .t { font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; min-width: 0; }
   .ph-row .t b { font-weight: 600; display: block; }
   .bd-row.st-done .t { color: var(--text-dim); }
   .bd-row .why { display: block; font: 10.5px var(--mono); color: var(--warning); margin-top: 2px; }
@@ -322,7 +333,7 @@
   .bar { display: flex; align-items: center; gap: 6px; margin-top: 4px; font: 10.5px var(--mono); color: var(--text-dim); }
   .bar i { flex: 1; height: 4px; border-radius: 2px; background: var(--bg-raised); border: 1px solid var(--border); overflow: hidden; display: block; }
   .bar i b { display: block; height: 100%; background: var(--success); }
-  .ph-goal { font-size: 13px; color: var(--text-dim); margin: 0 4px 10px; overflow-wrap: break-word; }
+  .ph-goal { font-size: 14px; color: var(--text-dim); margin: 0 4px 10px; overflow-wrap: break-word; }
   .checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
   .checks li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 6px; overflow-wrap: anywhere; }
   .checks li::before { content: '☐'; color: var(--text-dim); font-family: var(--mono); }
@@ -399,6 +410,7 @@
     wt: null, // the one worktree every tab shows (P3 Q1); null → first with a working session
     factsKind: 'all', // pill filter: all / verified / inferred / unchecked
     research: {}, // "<log key>|<fact id>" → { stage: queued | running | found | none, note, oldText, from }
+    selectedQuestion: null, // "<log key>|<question id>"; Home's focus list opens one at a time
     selectedIssue: null, // "<log key>|<issue id>"
     selectedEpic: null, // "<log key>|<epic id>", or "<log key>|adhoc"
     selectedBead: null, // "<log key>|<epic id or adhoc>|<bead id>"
@@ -670,9 +682,6 @@
     const deps = (b.deps || []).map(id => all.find(x => x.b.id === id)).filter(Boolean);
     const unblocks = all.filter(x => (x.b.deps || []).includes(b.id));
     const openDeps = deps.filter(x => x.b.status !== 'done');
-    const steps = ['todo', 'active', 'done'];
-    // Steps before `reached` show ✓; a done bead ticks all three, a blocked one sits on todo
-    const reached = { blocked: 0, todo: 0, active: 1, done: 3 }[b.status];
     const checks = b.doneWhen || [];
     const checksDone = checks.filter(c => c.done).length;
     // P4 Q3: links are stored on the ernie side; the reverse ones (decision → this bead, finding from this bead's review) are computed
@@ -682,28 +691,24 @@
       ...st.issues.filter(i => i.parent === b.id && !own.includes(i.id)).map(i => [i.id, 'found in code review of this bead']),
     ];
     const linked = [...own.map(r => linkHTML(logKey, r)), ...reverse.map(([r, why]) => linkHTML(logKey, r, why))];
+    const status = b.status === 'blocked'
+      ? `<span class="steps"><b>blocked</b></span>${openDeps.length ? ` <span class="dim">on ${openDeps.map(x => esc(x.b.id)).join(', ')}</span>` : ''}`
+      : stepsHTML(['todo', 'active', 'done'], b.status);
     return `<article class="ws">
-      <div class="ws-meta"><span>bead ${pos + 1}/${list.length}</span>
+      <div class="ws-meta"><span>bead ${pos + 1} of ${list.length}</span>
         <span class="pill p-ours">${esc(epicLabel(ep))}</span></div>
       <h2><span class="id">${esc(b.id)}</span>${esc(b.title)}</h2>
-      <div class="gate">
-        <ol class="stepper">${steps.map((s, i) =>
-          `<li class="${i < reached ? 'done' : ''} ${i === reached ? 'now' : ''}"><span>${i < reached ? '✓' : i + 1}</span>${s}</li>`).join('')}</ol>
-        ${b.status === 'blocked'
-          ? `<div class="blocked-msg">⊘ blocked${openDeps.length ? ` on ${openDeps.map(x => esc(x.b.id)).join(', ')}` : ''}</div>`
-          : ''}
-      </div>
-      <section class="sec"><h3><b>1</b>What</h3><p>${esc(b.what || '—')}</p></section>
-      ${b.notes ? `<section class="sec"><h3><b>2</b>Notes</h3><p>${esc(b.notes)}</p></section>` : ''}
-      <section class="sec"><h3><b>3</b>Done when${checks.length ? ` <span class="hint">${checksDone}/${checks.length}</span>` : ''}</h3>
-        ${checks.length ? checklist(checks) : '<p class="empty">No checks yet.</p>'}</section>
-      <section class="sec"><h3><b>4</b>Depends on</h3>
-        ${deps.length ? `<div class="chips">${deps.map(beadChip).join('')}</div>` : '<p class="empty">Nothing; can start any time.</p>'}</section>
-      <section class="sec"><h3><b>5</b>Unblocks</h3>
-        ${unblocks.length ? `<div class="chips">${unblocks.map(beadChip).join('')}</div>` : '<p class="empty">Nothing waits on this bead.</p>'}</section>
-      ${linked.length ? `<section class="sec"><h3><b>6</b>Linked</h3><div class="linked">${linked.join('')}</div></section>` : ''}
-      ${b.files?.length ? `<section class="sec"><h3><b>7</b>Files</h3><ul class="files">${b.files.map(f => `<li>${esc(f)}</li>`).join('')}</ul></section>` : ''}
-      ${b.commit ? `<section class="sec"><h3><b>8</b>Commit</h3><p><code>${esc(b.commit)}</code></p></section>` : ''}
+      <dl class="gut">
+        <dt>Status</dt><dd>${status}</dd>
+        <dt>What</dt><dd>${esc(b.what || '—')}</dd>
+        ${b.notes ? `<dt>Notes</dt><dd>${esc(b.notes)}</dd>` : ''}
+        <dt>Done when</dt><dd>${checks.length ? `${checklist(checks)}<div class="dim" style="font-size:13px;margin-top:4px">${checksDone} of ${checks.length} done</div>` : '<span class="dim">No checks yet.</span>'}</dd>
+        <dt>Depends on</dt><dd class="wide">${deps.length ? `<div class="chips">${deps.map(beadChip).join('')}</div>` : '<span class="dim">Nothing; can start any time.</span>'}</dd>
+        <dt>Unblocks</dt><dd class="wide">${unblocks.length ? `<div class="chips">${unblocks.map(beadChip).join('')}</div>` : '<span class="dim">Nothing waits on this bead.</span>'}</dd>
+        ${linked.length ? `<dt>Linked</dt><dd><div class="linked">${linked.join('')}</div></dd>` : ''}
+        ${b.files?.length ? `<dt>Files</dt><dd><ul class="files">${b.files.map(f => `<li>${esc(f)}</li>`).join('')}</ul></dd>` : ''}
+        ${b.commit ? `<dt>Commit</dt><dd><code>${esc(b.commit)}</code></dd>` : ''}
+      </dl>
       <footer class="ws-foot">
         ${prev ? `<button class="btn" type="button" data-bead-open="${esc(prev.key)}">‹ ${esc(prev.b.id)}</button>` : '<span></span>'}
         <span>[ ] bead · { } epic</span>
@@ -825,55 +830,61 @@
       ${ex.run ? `<div class="run">see for yourself: <code>${esc(ex.run)}</code> · shown, never run</div>` : ''}`;
   }
 
+  // Status as one line of text: past steps green, the current one highlighted. `off` strikes it through (dismissed)
+  function stepsHTML(steps, current, off = false) {
+    const at = steps.indexOf(current);
+    return `<span class="steps ${off ? 'off' : ''}">${steps.map((s, i) =>
+      i === at ? `<b>${s}</b>` : i < at ? `<span class="past">${s}</span>` : s).join(' → ')}</span>`;
+  }
+
+  // Finding detail: labels in a gutter, the example first (lead with an example), Decide always the last row
   function worksheetHTML(entry, list) {
     const { iss, log } = entry;
     const st = S.states[log.key];
     const pos = list.findIndex(x => x.key === entry.key);
     const prev = list[pos - 1], next = list[pos + 1];
-    const steps = ['explained', 'approved', 'fixed'];
-    const reached = steps.indexOf(iss.status);
     const ex = iss.example && st.examples.find(e => e.name === iss.example);
     const blob = [iss.title, iss.cause, iss.fix, iss.impact].join(' ');
     const terms = st.facts.filter(f => f.kind === 'term' && (new RegExp(`\\b${f.term}\\b`).test(blob) || new RegExp(`\\b${iss.id}\\b`).test(f.text)));
     const notes = st.notes.filter(n => n.ref === iss.id);
     const k = esc(entry.key);
+    const btn = (to, key, label, cls = '') => `<button class="kbtn ${cls}" type="button" data-issue-set="${k}" data-to="${to}"><kbd>${key}</kbd>${label}</button>`;
     // Dismiss = close the finding with metadata.resolution = dismissed; a later review round sees it and won't re-raise it
-    const gate = {
-      explained: [`<button class="btn btn--primary" type="button" data-issue-set="${k}" data-to="approved">Approve</button>
-        <button class="btn btn--danger" type="button" data-issue-set="${k}" data-to="dismissed">Dismiss</button>`, 'Claude can\'t fix this until you approve it.'],
-      approved: [`<button class="btn" type="button" data-issue-set="${k}" data-to="explained">Undo</button>
-        <button class="btn btn--danger" type="button" data-issue-set="${k}" data-to="dismissed">Dismiss</button>`, 'Approved. Claude can fix it after your next prompt.'],
+    const decide = {
+      explained: [btn('approved', 'a', 'Approve', 'rec') + btn('dismissed', 'd', 'Dismiss', 'danger'), 'Claude can\'t fix this until you approve it.'],
+      approved: [btn('explained', 'u', 'Undo') + btn('dismissed', 'd', 'Dismiss', 'danger'), 'Approved. Claude can fix it after your next prompt.'],
       fixed: ['', 'Fixed by Claude. Nothing for you to do.'],
-      dismissed: [`<button class="btn" type="button" data-issue-set="${k}" data-to="explained">Undo</button>`, 'Dismissed. Claude won\'t act on it, and later reviews skip it.'],
+      dismissed: [btn('explained', 'u', 'Undo'), 'Dismissed. Claude won\'t act on it, and later reviews skip it.'],
     }[iss.status];
     const src = entry.src;
     const srcAttr = src.bead ? `data-bead-open="${esc(src.bead.key)}"` : src.epic ? `data-epic-open="${esc(log.key)}|${esc(src.epic.id)}"` : '';
     const srcPill = srcAttr
       ? `<button class="pill p-src" type="button" ${srcAttr} title="open on the Planning tab">${esc(src.label)}${src.epic ? ` · ${esc(src.epic.id)}` : ''}</button>`
       : `<span class="pill p-src">ad hoc</span>`;
+    const status = iss.status === 'dismissed'
+      ? `${stepsHTML(['explained', 'approved', 'fixed'], 'explained', true)} <span class="steps"><b>dismissed</b></span>`
+      : stepsHTML(['explained', 'approved', 'fixed'], iss.status);
     return `<article class="ws">
-      <div class="ws-meta"><span>issue ${pos + 1}/${list.length}</span>
+      <div class="ws-meta"><span>finding ${pos + 1} of ${list.length}</span>
         <span class="pill ${iss.owner === 'us' ? 'p-ours' : 'p-other'}">${iss.owner === 'us' ? 'ours' : 'platform / other'}</span>
         ${srcPill}</div>
       <h2><span class="id">${esc(iss.id)}</span>${esc(iss.title)}</h2>
-      <div class="gate">
-        <ol class="stepper ${iss.status === 'dismissed' ? 'dropped' : ''}">${steps.map((s, i) =>
-          `<li class="${i < reached ? 'done' : ''} ${i === reached ? 'now' : ''}"><span>${i < reached ? '✓' : i + 1}</span>${s}</li>`).join('')}</ol>
-        <div class="gate-row">${gate[0]}<span class="gate-msg">${gate[1]}</span></div>
-        ${iss.quote ? `<div class="quote">approved in chat: “${esc(iss.quote)}”</div>` : ''}
-      </div>
-      <section class="sec"><h3><b>1</b>Example</h3>${ex ? exampleHTML(ex) : '<p class="empty">No example attached to this issue.</p>'}</section>
-      <section class="sec"><h3><b>2</b>Cause</h3><p>${esc(iss.cause)}</p></section>
-      <section class="sec"><h3><b>3</b>Fix</h3><p>${esc(iss.fix)}</p></section>
-      <section class="sec"><h3><b>4</b>Impact if skipped</h3><p class="impact">${esc(iss.impact)}</p></section>
-      <section class="sec"><h3><b>5</b>How sure</h3>${confBadge(iss, `${entry.key}:method`)}
-        ${iss.method ? `<div class="cmd"><pre>${esc(iss.method)}</pre><button class="btn" type="button" data-copy="${esc(iss.method)}">${view.copied === iss.method ? 'copied' : 'copy'}</button></div>` : '<p class="empty">No method given.</p>'}</section>
-      ${notes.length || terms.length ? `<section class="sec"><h3><b>6</b>Linked</h3><div class="linked">
-        ${notes.map(n => `<div><b>${esc(n.id)}</b>${esc(n.text)}</div>`).join('')}
-        ${terms.map(f => `<div><b>${esc(f.term)}</b>${esc(f.text)}</div>`).join('')}</div></section>` : ''}
+      <dl class="gut">
+        <dt>Status</dt><dd>${status}${iss.quote ? `<div class="quote">approved in chat: “${esc(iss.quote)}”</div>` : ''}</dd>
+        <dt>Example</dt><dd class="wide">${ex ? exampleHTML(ex) : '<span class="dim">No example attached.</span>'}</dd>
+        <dt>Cause</dt><dd>${esc(iss.cause)}</dd>
+        <dt>Fix</dt><dd>${esc(iss.fix)}</dd>
+        <dt>If skipped</dt><dd class="impact">${esc(iss.impact)}</dd>
+        <dt>How sure</dt><dd>${confBadge(iss, `${entry.key}:method`)}
+          ${iss.method ? `<div class="cmd"><pre>${esc(iss.method)}</pre><button class="btn" type="button" data-copy="${esc(iss.method)}">${view.copied === iss.method ? 'copied' : 'copy'}</button></div>` : '<span class="dim">No method given.</span>'}</dd>
+        ${notes.length || terms.length ? `<dt>Linked</dt><dd><div class="linked">
+          ${notes.map(n => `<div><b>${esc(n.id)}</b>${esc(n.text)}</div>`).join('')}
+          ${terms.map(f => `<div><b>${esc(f.term)}</b>${esc(f.text)}</div>`).join('')}</div></dd>` : ''}
+        <dt>Decide</dt><dd class="wide"><div class="kbtns">${decide[0]}<span class="msg">${decide[1]}</span></div></dd>
+      </dl>
       <footer class="ws-foot">
         ${prev ? `<button class="btn" type="button" data-issue-open="${esc(prev.key)}">‹ ${esc(prev.iss.id)}</button>` : '<span></span>'}
-        <span>[ ] prev/next · a approve</span>
+        <span>[ ] prev/next · a approve · d dismiss · u undo</span>
         ${next ? `<button class="btn" type="button" data-issue-open="${esc(next.key)}">${esc(next.iss.id)} ›</button>` : '<span></span>'}
       </footer></article>`;
   }
@@ -1008,34 +1019,64 @@
   // ---------- Home tab: open questions ----------
   // Questions live in items.jsonl (P4 Q1) and replace queue.md "qs" (P4 Q2). An answer is a page op `question answer`
   // that reaches Claude with this session's next prompt; "need more context" sends `{more: true}` and keeps it open (A88)
-  const isOpen = q => !q.answer || q.more;
+  // Reason: an answer still waiting for the next prompt keeps its card (with Undo) until it's delivered
+  const isOpen = q => !q.answer || q.more || view.queued.some(x => x.questionKey === `${view.wt}|${q.id}`);
 
-  function questionCard(q, pos, total) {
-    const k = `${view.wt}|${q.id}`;
-    const sent = view.queued.find(x => x.questionKey === k);
-    const ex = q.example && cur().examples.find(e => e.name === q.example);
-    const title = q.kind === 'assume'
-      ? `<span class="assume">I assumed:</span>${esc(q.text)}. True?`
-      : esc(q.text);
-    const choiceBtn = c => `<button class="btn choice ${c === q.recommended ? 'rec' : ''}" type="button" data-answer="${esc(k)}" data-text="${esc(c)}"
-      ${sent ? 'disabled' : ''}>${esc(c)}${c === q.recommended ? '<span class="star">★ recommended</span>' : ''}</button>`;
-    // Reason: assumption checks are yes/no only (A113), so they get no free-text box
-    const other = q.kind === 'assume' ? '' : `<form class="other" data-answer-form="${esc(k)}">
-      <input name="text" placeholder="other answer…" aria-label="Other answer for ${esc(q.id)}" ${sent ? 'disabled' : ''}>
-      <button class="btn" type="submit" ${sent ? 'disabled' : ''}>Send</button></form>`;
-    const action = sent
-      ? `<div class="choices"><span class="queued" style="margin:0">→ ${esc(sent.label)} · goes with your next prompt</span>
-          <button class="btn" type="button" data-answer-undo="${esc(k)}">Undo</button></div>`
-      : `<div class="choices">${(q.choices || []).map(choiceBtn).join('')}
-          <button class="btn" type="button" data-answer="${esc(k)}" data-more="1">need more context</button>${other}</div>`;
-    return `<article class="q-card ${sent ? 'sent' : 'waiting'}">
-      <div class="q-head"><span>Q${pos}/${total}</span><span class="item-id">${esc(q.id)}</span>${q.ref ? `<span class="hint">re ${esc(q.ref)}</span>` : ''}</div>
-      <h2>${title}</h2>
-      ${q.context ? `<section class="sec"><h3><b>1</b>Context</h3><p>${esc(q.context)}</p></section>` : ''}
-      ${q.impact ? `<section class="sec"><h3><b>2</b>Impact</h3><p class="impact">${esc(q.impact)}</p></section>` : ''}
-      ${ex ? `<section class="sec"><h3><b>3</b>Example</h3>${exampleHTML(ex)}</section>` : ''}
-      ${q.more ? `<div class="followup">you asked for more context · waiting for Claude to add it</div>` : ''}
-      ${action}</article>`;
+  // Open questions as a focus list: one line each with its status; the selected question opens with Context /
+  // If wrong / Example / Answer in a left gutter. Keys on Home: j/k move, 1–9 answer, m need more context, u undo
+  function questionList(open) {
+    if (!open.some(q => `${view.wt}|${q.id}` === view.selectedQuestion)) view.selectedQuestion = open[0] ? `${view.wt}|${open[0].id}` : null;
+    return `<p class="qf-hint">j / k move · 1–9 answer · m need more context · u undo · click a line to open it</p>`
+      + open.map((q, i) => {
+        const k = `${view.wt}|${q.id}`;
+        const on = k === view.selectedQuestion;
+        const sent = view.queued.find(x => x.questionKey === k);
+        const choices = q.choices || [];
+        const title = `${q.kind === 'assume' ? 'I assumed ' : ''}${esc(q.text)}${q.kind === 'assume' ? '. True?' : ''}`;
+        const status = sent ? `<span class="s warn">sent · ${esc(sent.label)}</span>`
+          : q.more ? '<span class="s warn">asked for more context</span>'
+          : q.recommended ? `<span class="s rec">★ ${esc(q.recommended)}</span>`
+          : `<span class="s">${choices.map(esc).join(' / ')}</span>`;
+        const ex = q.example && cur().examples.find(e => e.name === q.example);
+        // Reason: assumption checks are yes/no only (A113), so they get no free-text box
+        const other = q.kind === 'assume' ? '' : `<form class="other" data-answer-form="${esc(k)}">
+          <input name="text" placeholder="other answer…" aria-label="Other answer for ${esc(q.id)}"><button class="btn" type="submit">Send</button></form>`;
+        const answerRow = sent
+          ? `<div class="qf-sent">→ ${esc(sent.label)} · goes with your next prompt <button class="btn" type="button" data-answer-undo="${esc(k)}">Undo</button></div>`
+          : `<div class="kbtns">${choices.map((c, n) => `<button class="kbtn ${c === q.recommended ? 'rec' : ''}" type="button" data-answer="${esc(k)}" data-text="${esc(c)}">
+              <kbd>${n + 1}</kbd>${esc(c)}${c === q.recommended ? '<small>recommended</small>' : ''}</button>`).join('')}
+            <button class="kbtn" type="button" data-answer="${esc(k)}" data-more="1"><kbd>m</kbd>need more context</button></div>${other}`;
+        const body = !on ? '' : `<div class="qf-body"><dl class="gut">
+          ${q.context ? `<dt>Context</dt><dd>${esc(q.context)}</dd>` : ''}
+          ${q.impact ? `<dt>If wrong</dt><dd class="impact">${esc(q.impact)}</dd>` : ''}
+          ${ex ? `<dt>Example</dt><dd>${exampleHTML(ex)}</dd>` : ''}
+          ${q.ref ? `<dt>About</dt><dd>${esc(q.ref)}</dd>` : ''}
+          <dt>Answer</dt><dd>${answerRow}</dd></dl></div>`;
+        return `<div class="qf-item ${on ? 'sel' : ''}"><button class="qf-line" type="button" data-question="${esc(k)}">
+          <span class="n">Q${i + 1}</span><span class="t">${title}</span>${status}</button>${body}</div>`;
+      }).join('');
+  }
+
+  function stepQuestion(delta) {
+    const open = cur().questions.filter(isOpen);
+    const pos = open.findIndex(q => `${view.wt}|${q.id}` === view.selectedQuestion);
+    const next = open[pos + delta];
+    if (!next) return;
+    view.selectedQuestion = `${view.wt}|${next.id}`;
+    renderAll();
+  }
+
+  // Home keys act on the selected question
+  function questionKey(key) {
+    const k = view.selectedQuestion;
+    if (!k) return;
+    const sent = view.queued.some(x => x.questionKey === k);
+    if (key === 'u') return sent && undoAnswer(k);
+    if (sent) return;
+    if (key === 'm') return answerQuestion(k, '', true);
+    const [logKey, id] = k.split('|');
+    const choice = (S.states[logKey].questions.find(q => q.id === id)?.choices || [])[+key - 1];
+    if (choice) answerQuestion(k, choice, false);
   }
 
   // Session: state, turn, last event, and the tool the live session is running now
@@ -1122,8 +1163,8 @@
         <span class="meta">${open.length} open question${open.length === 1 ? '' : 's'} · ${answered.length} answered</span></div>
       <div class="home-strip">${sessionCard()}${workCard()}${syncCard()}</div>
       <div class="home-grid">
-        <div class="q-list">${open.length
-          ? open.map((q, i) => questionCard(q, i + 1, open.length)).join('')
+        <div>${open.length
+          ? questionList(open)
           : '<div class="canvas" style="min-height:200px"><p>No open questions for this worktree.</p></div>'}</div>
         <div class="fd-col">${inboxPanel()}${notePanel()}${opsPanel()}${panel('Answered', answered.length, answeredList)}</div>
       </div>`;
@@ -1222,6 +1263,8 @@
       view.factsKind = view.factsKind === kind ? 'all' : kind;
       return renderAll();
     }
+    const question = t.closest('[data-question]');
+    if (question) { view.selectedQuestion = question.dataset.question; return renderAll(); }
     const answer = t.closest('[data-answer]');
     if (answer) return answerQuestion(answer.dataset.answer, answer.dataset.text, !!answer.dataset.more);
     const answerUndo = t.closest('[data-answer-undo]');
@@ -1286,9 +1329,13 @@
     renderFeed();
   });
 
-  // Planning keys: [ ] prev/next bead, { } prev/next epic. Issues keys: [ ] prev/next, a approve. Ignored while typing.
+  // Home keys: j/k, 1–9, m, u (open questions). Planning keys: [ ] prev/next bead, { } prev/next epic. Issues keys: [ ] prev/next, a approve, d dismiss, u undo. Ignored while typing.
   document.addEventListener('keydown', e => {
     if (e.target.closest?.('input, select, textarea') || e.metaKey || e.ctrlKey) return;
+    if (view.active === 'home') {
+      if (e.key === 'j' || e.key === 'k') return stepQuestion(e.key === 'j' ? 1 : -1);
+      return questionKey(e.key);
+    }
     if (view.active === 'planning') {
       const step = { '[': () => stepBead(-1), ']': () => stepBead(1), '{': () => stepEpic(-1), '}': () => stepEpic(1) }[e.key];
       return step?.();
@@ -1296,9 +1343,16 @@
     if (view.active !== 'issues') return;
     if (e.key === '[') return stepIssue(-1);
     if (e.key === ']') return stepIssue(1);
-    if (e.key !== 'a' || !view.selectedIssue) return;
+    if (!view.selectedIssue) return;
     const [key, id] = view.selectedIssue.split('|');
-    if (S.states[key].issues.find(i => i.id === id)?.status === 'explained') setIssue(view.selectedIssue, 'approved');
+    const status = S.states[key].issues.find(i => i.id === id)?.status;
+    // Same moves as the Decide row's buttons for that status
+    const to = {
+      a: status === 'explained' && 'approved',
+      d: (status === 'explained' || status === 'approved') && 'dismissed',
+      u: (status === 'approved' || status === 'dismissed') && 'explained',
+    }[e.key];
+    if (to) setIssue(view.selectedIssue, to);
   });
 
   // ---------- Simulated liveness: the working session keeps calling tools (PostToolUse → tool run / file touch) ----------
