@@ -5,3 +5,4 @@
 - [beads] Beads (`bd`) issue tracker: behavior, integration with ernie
 - [claude-skills] Claude Code skill loading / SKILL.md behavior
 - [git] git behavior: merges, attributes, hooks
+- [ui] ernie page design + layout preferences
