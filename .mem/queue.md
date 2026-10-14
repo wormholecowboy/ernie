@@ -2,7 +2,7 @@
 updated: 2026-10-13
 ---
 ## next
-- [ernie] next session: write P4 spec amendment into spec_ernie.md (D1 reword → split log, F1–F3, Q2–Q6) → backlog "P4 data model for state — DECIDED"
+- [ernie] next session: P5 UI tabs → backlog. P4 amendments A115–A123 in plan §0 (not folded); fold later in one pass w/ C1, C2, P2, P3, page buttons, Beads type drop (plan Open #11)
 - [ernie] `ernie init` (personal) also writes `.gitattributes` line `.ernie/mem/**/items.jsonl merge=union` + sets bd `events-journal true` (P4 F3/Q4)
 - [ernie] when ernie memory lands: user migrates old `.mem/queue.md` items → ernie questions (qs) + ad hoc beads (next) (P4 Q2)
 - [ernie] spec amendment P3: top worktree picker, `wt:<branch>` label on beads, `ernie archive` + `.archived` marker + folder-gone flag, `meta init` worktree path, `sid` on events → ref_ernie_backlog.md "P3 tab scopes — DECIDED"
