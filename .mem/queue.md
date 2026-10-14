@@ -6,7 +6,6 @@ updated: 2026-10-13
 - [ernie] `ernie init` (personal) also writes `.gitattributes` line `.ernie/mem/**/items.jsonl merge=union` + sets bd `events-journal true` (P4 F3/Q4)
 - [ernie] when ernie memory lands: user migrates old `.mem/queue.md` items → ernie questions (qs) + ad hoc beads (next) (P4 Q2)
 - [ernie] spec amendment P3: top worktree picker, `wt:<branch>` label on beads, `ernie archive` + `.archived` marker + folder-gone flag, `meta init` worktree path, `sid` on events → ref_ernie_backlog.md "P3 tab scopes — DECIDED"
-- [ernie] 00-template.html: replace per-tab scopeSelect with one top worktree picker (grouped by repo, Archived (N), folder-gone flag); Tool log session sub-filter; Issues grouped by epic + Ad hoc; Planning counts test beads separately
 - [beads] decide + verify how every bead gets `wt:<branch>` (ernie wrapper vs hook rewrite ✗); verify `bd ready --label` / `bd list --label` filter
 - [ernie] spec amendment P2: planning flow (epic states, gates, fresh breakdown + polish rounds, per-bead review stop rule) → ref_ernie_backlog.md "P2 planning flow — DECIDED"
 - [ernie] write own ernie prompts (PRD review, breakdown, polish, bead review) from flywheel ideas; catalog → ref_agent_flywheel.md
@@ -22,12 +21,10 @@ updated: 2026-10-13
 - [ernie] spec amendment for C1 (memory → ernie, `.ernie/mem/<branch>/`; drops D9, mem delta/synced, mem-ops) → ref_ernie_backlog.md "C1 — DECIDED"
 - [ernie] when ernie memory lands: update global ~/.claude/CLAUDE.md §7 (Memory) + retire mem skill/mem-ops; user migrates old `.mem/` dirs manually
 - [beads] `/gtg` + `*um` run `bd dolt push` (personal repos) to flush writes held by the 5-min auto-push window; update gtg + mem skills when ernie lands
-- [ernie] rename phases → Epics in 00-template.html + _sample_state.js `phases` (align w/ Beads)
-- [ernie] continue 00-template.html: Home tab left (Planning bead 0.4); then pick it as the phase 3 target
+- [ernie] 00-template.html: Home has open questions only (more Home content = P5); then pick the template as the phase 3 target
 - [ernie] spec amendments the template now needs: phases/beads model (plan is flat), page op `fact research` in PostOps, CLI to update a fact's confidence/method/text (only add/dismiss today)
 - [ernie] phase 1 build per .mem/artifacts/plan_ernie_build.md — not started; blocked until P7. Order: 1.1 bootstrap (git init done; go mod, install.sh, README, .gitignore left) → 1.1s hook spike (must finish before 1.6, A28) → rest
 - [ernie] 1.1s spike remaining: A58 (CLAUDECODE leak into own panes/! mode), A67 interactive (! / queued / interactive slash), cwd follows cd, fork source, SessionStart on clear, A114 item 9 (`*` covers MCP/Agent, tool_input fields, failing Bash → PostToolUseFailure?); fixtures → testdata/hooks (A76). Settled ones: ref_ernie_flow_test.md
 - [ernie] spec amendment C2: replace D12 → `ernie setup` (global guarded hooks + stub skill, body `!`ernie skill``), `ernie update` (pull origin/main → build → setup; refuse dirty / not on main), `init` = repo kind + version-stamped CLAUDE.local.md block, SessionStart rewrites stale block → ref_ernie_backlog.md "C2 — DECIDED"
 - [ernie] spec amendment page buttons: server runs `bd` directly (fixed subcommand allowlist, id validation); Issues-tab dismiss = `--set-metadata resolution=dismissed` + `bd close --reason`; review round N prompt lists that bead's dismissed findings → backlog "Open qs walk"
 - [ernie] spec v2 amendment: `*um` page button (C4) + fact research via fresh headless `claude -p` (ERNIE_HEADLESS guard, tool allowlist, run cap/timeout, prompt-injection note) → backlog "Fact research trigger"
-- [ernie] 00-template.html: add dismiss button on Issues tab; header "view-only" note for Planning revisit

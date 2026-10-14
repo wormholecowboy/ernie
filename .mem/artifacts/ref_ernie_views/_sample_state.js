@@ -286,12 +286,13 @@ const ERNIE_SAMPLE = {
   },
 };
 
-// view-only: phases → beads for the Planning tab (00-template). The spec's `plan` is a flat list; nothing logs phases yet.
-// A bead is one atomic task inside a phase. status: todo / active / done / blocked.
+// view-only: epics → beads for the Planning tab (00-template). Epics and beads live in Beads (P2/P4), not the ernie log;
+// the spec's `plan` (flat list, kept for the older views) is being dropped (A123).
+// A bead is one atomic task inside an epic. status: todo / active / done / blocked.
 // `links` ids that match a decision, issue or fact in the same state resolve to its text on the page.
-ERNIE_SAMPLE.states['glue/CDIT-2631-ga4-dedupe'].phases = [
+ERNIE_SAMPLE.states['glue/CDIT-2631-ga4-dedupe'].epics = [
   {
-    id: 'P1', title: 'Investigate', status: 'done',
+    id: 'E1', title: 'Investigate', status: 'done',
     goal: 'Know why sessions double-count on Dealer Spike hosts.',
     doneWhen: [{ text: 'Cause named and shown on one host', done: true }],
     beads: [
@@ -304,7 +305,7 @@ ERNIE_SAMPLE.states['glue/CDIT-2631-ga4-dedupe'].phases = [
     ],
   },
   {
-    id: 'P2', title: 'Fix', status: 'active',
+    id: 'E2', title: 'Fix', status: 'active',
     goal: 'New and old rows dedupe to one key per listing view.',
     doneWhen: [{ text: 'Probe query returns 0 duplicate keys for 90 days', done: false }],
     beads: [
@@ -326,7 +327,7 @@ ERNIE_SAMPLE.states['glue/CDIT-2631-ga4-dedupe'].phases = [
     ],
   },
   {
-    id: 'P3', title: 'Ship', status: 'todo',
+    id: 'E3', title: 'Ship', status: 'todo',
     goal: 'Stage numbers checked and a PR open.',
     doneWhen: [{ text: 'PR open with before/after session counts', done: false }],
     beads: [
@@ -338,9 +339,9 @@ ERNIE_SAMPLE.states['glue/CDIT-2631-ga4-dedupe'].phases = [
   },
 ];
 
-ERNIE_SAMPLE.states['ernie/main'].phases = [
+ERNIE_SAMPLE.states['ernie/main'].epics = [
   {
-    id: 'P0', title: 'Design', status: 'active',
+    id: 'E0', title: 'Design', status: 'active',
     goal: 'Spec, build plan and page views agreed before any Go is written.',
     doneWhen: [
       { text: 'spec_ernie.md + plan_ernie_build.md reviewed', done: true },
@@ -367,7 +368,7 @@ ERNIE_SAMPLE.states['ernie/main'].phases = [
     ],
   },
   {
-    id: 'P1', title: 'Core', status: 'todo',
+    id: 'E1', title: 'Core', status: 'todo',
     goal: 'A working CLI that writes and folds logs. No hooks, no server.',
     doneWhen: [
       { text: 'go vet, go test -race ./..., gofmt -l . all clean', done: false },
@@ -421,7 +422,7 @@ ERNIE_SAMPLE.states['ernie/main'].phases = [
     ],
   },
   {
-    id: 'P2', title: 'Hooks', status: 'todo',
+    id: 'E2', title: 'Hooks', status: 'todo',
     goal: 'Hooks log tool calls, deliver the inbox and remind on the narrow Stop cases.',
     beads: [
       { id: '2.1', title: 'hook.Run', status: 'todo', deps: ['1.11'], what: 'recover → exit 0; never builds the cobra tree.' },
@@ -434,7 +435,7 @@ ERNIE_SAMPLE.states['ernie/main'].phases = [
     ],
   },
   {
-    id: 'P3', title: 'Server + page', status: 'todo',
+    id: 'E3', title: 'Server + page', status: 'todo',
     goal: 'ernie serve streams folded state to the page; page ops post back.',
     beads: [
       { id: '3.1', title: 'ernie serve', status: 'todo', deps: ['1.11'], what: 'Bind 127.0.0.1:${ERNIE_PORT:-7477}.' },
@@ -446,7 +447,7 @@ ERNIE_SAMPLE.states['ernie/main'].phases = [
     ],
   },
   {
-    id: 'P4', title: '.mem integration', status: 'todo',
+    id: 'E4', title: '.mem integration', status: 'todo',
     goal: '*um and /mem read ernie state; dotfiles bookkeeping done.',
     beads: [
       { id: '4.1', title: 'ernie mem delta', status: 'todo', deps: ['1.11'], links: ['A24', 'A30'], what: 'Diff two folds since the last mem sync.' },
@@ -455,3 +456,86 @@ ERNIE_SAMPLE.states['ernie/main'].phases = [
     ],
   },
 ];
+
+// ---------- view-only: P3 + P4 data for 00-template (additive; the older views ignore these fields) ----------
+
+// P3 Q4: worktrees that are archived (`<branch>.archived` marker, hidden from the picker) or whose folder is gone.
+// Kept out of `logs` so the older views don't list them; 00-template merges them into its picker.
+ERNIE_SAMPLE.lifecycleLogs = [
+  {
+    key: 'glue/CDIT-2610-consent-probe', repo: 'glue', branch: 'CDIT-2610-consent-probe', on: true, folderGone: true,
+    worktree: '~/things/myc/glue/CDIT-2610-consent-probe', // meta init `path` (A123); folder no longer exists
+    session: { id: null, state: 'idle', lastEventAgo: '3d' },
+  },
+  {
+    key: 'glue/CDIT-2598-utm-casing', repo: 'glue', branch: 'CDIT-2598-utm-casing', on: false, archived: true,
+    worktree: '~/things/myc/glue/CDIT-2598-utm-casing', session: { id: null, state: 'off', lastEventAgo: '12d' },
+  },
+  {
+    key: 'ernie/spike-hooks', repo: 'ernie', branch: 'spike-hooks', on: false, archived: true,
+    worktree: '~/things/myc/ernie/spike-hooks', session: { id: null, state: 'off', lastEventAgo: '6d' },
+  },
+];
+{ // block scope: keeps the helper out of the globals the older views share
+  const emptyState = () => ({ turn: 0, plan: [], decisions: [], questions: [], issues: [], examples: [], facts: [], notes: [], diagrams: [], activity: [], pending: [], inboxText: '', warnings: 0 });
+  ERNIE_SAMPLE.states['glue/CDIT-2610-consent-probe'] = {
+    ...emptyState(), turn: 4,
+    facts: [{ id: 'f1', text: 'Consent mode v2 is on for all Dealer Spike containers', confidence: 'inferred', method: 'GTM changelog' }],
+    activity: [{ ts: '3d 16:40', by: 'hook', t: 'tool', op: 'run', tool: 'Bash', text: 'Probe consent flags on 5 hosts', sid: '0be41f2c' }],
+  };
+  ERNIE_SAMPLE.states['glue/CDIT-2598-utm-casing'] = {
+    ...emptyState(), turn: 11,
+    decisions: [{ id: 'd1', text: 'Lower-case utm_source in the view, not the loader', why: 'fixes old rows without a backfill' }],
+  };
+  ERNIE_SAMPLE.states['ernie/spike-hooks'] = { ...emptyState(), turn: 6 };
+}
+
+// P3 Q2 / P4: findings are Beads bugs. Source = parent: an epic id (PRD review), a bead id (code review) or none (ad hoc).
+// `dropped` in the older views reads as `dismissed` here (closed with metadata.resolution = dismissed).
+Object.assign(ERNIE_SAMPLE.states['glue/CDIT-2631-ga4-dedupe'].issues.find(i => i.id === 'i1'), { parent: '1.2' });
+Object.assign(ERNIE_SAMPLE.states['glue/CDIT-2631-ga4-dedupe'].issues.find(i => i.id === 'i2'), { parent: 'E2' });
+Object.assign(ERNIE_SAMPLE.states['glue/CDIT-2631-ga4-dedupe'].issues.find(i => i.id === 'i4'), { parent: '2.1' });
+
+// P4 Q2: ad hoc beads (no epic, label wt:<branch>) replace queue.md "next".
+ERNIE_SAMPLE.states['glue/CDIT-2631-ga4-dedupe'].adhoc = [
+  { id: 'k3m', title: 'Ask platform for GTM read access', status: 'todo', what: 'Needed to check i3 and f3 ourselves.', links: ['n1', 'i3'] },
+  { id: 'p8q', title: 'Check Dealer Inspire hosts after the fix', status: 'todo', deps: ['2.1'], what: 'q4 is still open; rerun the probe on 3 DI hosts once 2.1 lands.' },
+];
+ERNIE_SAMPLE.states['ernie/main'].adhoc = [
+  { id: 'w2c', title: 'Verify bd 1.3.1: spec_id flag, close refuses when blocked', status: 'todo', what: 'Three checks from the P2 planning flow.' },
+  { id: 'r7d', title: 'Rename phases → Epics in the template', status: 'done', what: 'Align the page with Beads (P2).', files: ['.mem/artifacts/ref_ernie_views/00-template.html'] },
+];
+
+// P4 Q3: cross-store links live on the ernie side (`ref`); the page builds the reverse index (bead ← decision).
+ERNIE_SAMPLE.states['glue/CDIT-2631-ga4-dedupe'].decisions.find(d => d.id === 'd1').ref = '2.1';
+ERNIE_SAMPLE.states['ernie/main'].decisions.find(d => d.id === 'd1').ref = '2.2';
+
+// P4 F1: id collision after a forgot-to-pull merge. The second `add d1` with other text is kept as d1′ + a warning.
+ERNIE_SAMPLE.states['ernie/main'].decisions.push(
+  { id: 'd1′', text: 'Tool log filters by session, other tabs stay worktree-wide', why: 'sessions are a filter, not a container (P3)', collidedWith: 'd1' });
+ERNIE_SAMPLE.states['ernie/main'].collisions = ['d1'];
+
+// P3 Q5 / P4 Q6: `sid` on activity events only (tool, file, turn, meta). Claude's and your item events carry none.
+// The dedupe worktree had an earlier session before 14:10.
+['glue/CDIT-2631-ga4-dedupe', 'glue/CDIT-2627-gsc-backfill', 'ernie/main'].forEach(key => {
+  const log = ERNIE_SAMPLE.logs.find(l => l.key === key);
+  ERNIE_SAMPLE.states[key].activity.forEach(a => {
+    if (!['tool', 'file', 'turn', 'meta'].includes(a.t)) return;
+    a.sid = key === 'glue/CDIT-2631-ga4-dedupe' && a.ts < '14:10' ? '1c80a3b9' : log.session.id;
+  });
+});
+
+// ---------- view-only: Home tab extras for 00-template ----------
+
+// Repo kind is chosen once by `ernie init` and kept in git config (C1/C2). Work repos keep `.ernie/` and Beads off git.
+ERNIE_SAMPLE.repoKinds = { glue: 'work', ernie: 'personal', dotfiles: 'personal' };
+
+// Memory `## ops` per worktree (.ernie/mem/<branch>/long.md); ops stay per branch (P4 Q5)
+ERNIE_SAMPLE.states['ernie/main'].ops = [
+  'Run `bd dolt push` before /gtg (auto-push waits ≥5 min)',
+  'Spec changes go in as plan §0 amendment rows first, folded later',
+];
+ERNIE_SAMPLE.states['glue/CDIT-2631-ga4-dedupe'].ops = ['Read-only queries on stagePublic unless asked'];
+
+// Sync risk (personal repos only): what a dead disk would lose right now. P4 drive-loss analysis
+ERNIE_SAMPLE.states['ernie/main'].sync = { itemsUncommitted: 3, itemsUnpushed: 1, beadsUnpushedMin: 4 };

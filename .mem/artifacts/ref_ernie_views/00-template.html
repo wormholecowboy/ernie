@@ -1,28 +1,45 @@
 <!DOCTYPE html>
 <!--
   TEMPLATE · shell taken from 01 Mission Control, filled one piece at a time.
-  Tabs: ⌂ Home · ▤ Planning · ◎ Issues · ◆ Facts & decisions · ≡ Tool log. No per-worktree tabs; each tab picks its worktree.
+  Tabs: ⌂ Home · ▤ Planning · ◎ Issues · ◆ Facts & decisions · ≡ Tool log.
+  Worktree picker (P3 Q1, Q4): one select in the top bar picks the worktree every tab shows; no per-tab pickers, no "all".
+    Grouped by repo; a worktree reads "· folder gone", "· off" or "· needs you" after its branch. Archived worktrees sit in
+    an "Archived (N)" group. A banner above each tab: archived → Restore; folder gone → Archive (never auto-hidden);
+    off → logging paused; an id collision (P4 F1) → "d1 collided … kept as d1′, rename by hand".
   Pieces so far:
-    - Planning tab (new, view-only data: `phases` in _sample_state.js): three columns. Shows one worktree at a time (no
-      "all" option; defaults to the first with an active phase). Left, phases with a done/total bar; middle, the selected phase's goal, beads and phase done-when checks; right, the
-      selected bead: status stepper todo → active → done (or blocked, naming the unfinished deps), what, notes, done-when
-      checklist, depends on / unblocks (click to jump, across phases), linked ids (decisions, facts and issues resolve to
-      their text; issues open the Issues tab), files, commit. Keys: [ ] prev/next bead, { } prev/next phase.
-    - Issues tab (from 03 Issue Workbench): list grouped ours / platform-other, waiting-for-approval first; the selected
-      issue opens as a worksheet: explained → approved → fixed stepper with Approve / Drop / Undo, then example → cause →
-      fix → impact → how sure (method, copyable) → linked notes and terms. Keys: [ ] prev/next, a approve.
-    - Facts & decisions tab: left column glossary then decisions (text + why); right column facts with ✓ ~ ✗ badges
-      (tap for the method, × to dismiss).
+    - Home tab: open questions for the picked worktree (items.jsonl, P4 Q1; replaces queue.md "qs", P4 Q2), each as a card
+      with Q<n>/<total>, context, impact, linked example, choices with the recommended one starred, "need more context"
+      (`question answer {more: true}`, stays open, A88) and an "other answer…" box (not on `assume` yes/no checks, A113).
+      An answer queues for the session's next prompt with Undo until then.
+      Top strip: Session (state, sid, turn, last event, the live tool), Where work is (active epic + bar, active bead, up
+      to 3 `bd ready` beads: todo with every dep done), Sync (work repo → stays on this machine; personal → items.jsonl
+      uncommitted/unpushed + Beads auto-push window, the P4 drive-loss gap; view-only numbers).
+      Right column: Next prompt delivers (inbox preview: sample `pending` + page-queued events), Add a note (`note add`),
+      Ops (memory `## ops`, read-only, per branch), Answered.
+    - Planning tab (view-only data: `epics` + `adhoc` in _sample_state.js; Beads fields not final): three columns. Left,
+      the worktree's epics with a done/total bar, then ◇ Ad hoc (beads with no epic; replaces queue.md "next", P4 Q2);
+      middle, the selected epic's goal, beads, epic done-when checks and its PRD-review findings; right, the selected bead:
+      status stepper todo → active → done (or blocked, naming the unfinished deps), what, notes, done-when checklist,
+      depends on / unblocks (click to jump, across epics), linked ids, files, commit. Linked also shows the reverse links
+      the page computes (P4 Q3): decisions whose `ref` is this bead, findings from this bead's code review.
+      Keys: [ ] prev/next bead, { } prev/next epic.
+    - Issues tab (from 03 Issue Workbench): findings (Beads bugs) grouped by epic, then Ad hoc (P3 Q2); waiting-for-approval
+      first. Each row and worksheet names its source = parent: PRD review (epic), code review · <bead>, or ad hoc; the
+      source pill opens it on Planning. Worksheet: explained → approved → fixed stepper with Approve / Dismiss / Undo
+      (dismiss = close with resolution=dismissed), then example → cause → fix → impact → how sure → linked notes and terms.
+      Keys: [ ] prev/next, a approve.
+    - Facts & decisions tab: left column glossary then decisions (text + why + a `→ bead` chip from `ref`, P4 Q3; a
+      "collided" tag on F1 collisions); right column facts with ✓ ~ ✗ badges (tap for the method, × to dismiss).
       Facts panel opens with filter pills that use the badge labels: All · ✓ verified · ~ inferred · ✗ unknown (data value
       `unchecked`, or no confidence), each with its count; tapping the active pill goes back to All.
-      Each inferred / unknown fact has a ⌕ research pill (new page op `fact research`, not in the spec yet): queued for that
+      Each inferred / unknown fact has a ⌕ research pill (page op `fact research`, deferred to v2): queued for that
       session's next prompt → Claude spawns a subagent (Agent row + its tool calls land in the Tool log) → the answer updates
-      the row (badge → verified, method, corrected text with the old wording kept) or leaves a "no answer" note + retry.
-      Mock: the next prompt is simulated 3 s after the click; outcomes come from RESEARCH_OUTCOMES.
-      Scope: all worktrees or one, picked at the top of the tab.
-    - Tool log tab: every tool call across worktrees, newest first (A114: Bash shows its description only),
-      filters for worktree, tool, hide subagents, files only, + ernie events. A new row lands every ~4 s on the working session.
-  Data: _sample_state.js, loaded from this folder (same data as the 10 variations).
+      the row (`fact set`, A123: badge → verified, method, corrected text with the old wording kept) or leaves a
+      "no answer" note + retry. Mock: the next prompt is simulated 3 s after the click; outcomes come from RESEARCH_OUTCOMES.
+    - Tool log tab: the picked worktree's tool calls, newest first (A114: Bash shows its description only). Filters:
+      session (P3 Q5; activity rows carry `sid`, Claude's and your item events don't, A123), tool, hide subagents,
+      files only, + ernie events. A new row lands every ~4 s on the working session.
+  Data: _sample_state.js, loaded from this folder (same data as the 10 variations; P3/P4 additions at the end).
 -->
 <html lang="en">
 <head>
@@ -119,12 +136,21 @@
   .canvas h1 { margin: 0; font: 800 20px var(--sans); letter-spacing: -.02em; overflow-wrap: anywhere; }
   .canvas p { margin: 0; font: 12px var(--mono); color: var(--text-dim); overflow-wrap: anywhere; }
 
-  /* Tab header: title + scope picker */
+  /* Tab header: title + meta */
   .tab-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px; margin: 2px 0 14px; }
   .tab-head h1 { margin: 0; font: 800 22px var(--sans); letter-spacing: -.02em; }
   .tab-head .meta { font: 12px var(--mono); color: var(--text-dim); }
-  select.scope, .filters select { max-width: 100%; font: 12px var(--mono); background: var(--bg-card); color: var(--text);
+  select.wt-pick, .filters select { max-width: 100%; font: 12px var(--mono); background: var(--bg-card); color: var(--text);
     border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; }
+
+  /* Worktree picker (top bar) + worktree banners */
+  .wt-pick-wrap { padding-bottom: 6px; flex: none; max-width: 340px; min-width: 0; }
+  select.wt-pick { font-weight: 600; border-color: var(--border-accent); width: 100%; }
+  .wt-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 14px; padding: 8px 12px; border-radius: 8px;
+    font: 12px var(--mono); border: 1px solid var(--border); background: var(--bg-card); overflow-wrap: anywhere; }
+  .wt-banner.warn { border-color: var(--warning); background: var(--warn-bg); color: var(--warn-fg); }
+  .wt-banner.dim { color: var(--text-dim); border-style: dashed; }
+  .wt-banner span { flex: 1 1 260px; }
 
   /* Panels (from 01) */
   .panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; min-width: 0; }
@@ -138,6 +164,8 @@
   .sub { font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); margin: 14px 0 6px; }
   .sub:first-child { margin-top: 0; }
   .wt { font: 10.5px var(--mono); color: var(--text-accent); background: var(--accent-soft); border-radius: 4px; padding: 0 6px; margin-right: 6px; white-space: nowrap; }
+  .collided { font: 10.5px var(--mono); color: var(--warn-fg); background: var(--warn-bg); border-radius: 4px; padding: 0 6px; margin-left: 6px; white-space: nowrap; }
+  .dec .refs { margin-top: 4px; }
 
   /* Facts & decisions */
   .fd-grid { display: grid; gap: 16px; align-items: start; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
@@ -201,6 +229,9 @@
   .ws h2 .id { font: 13px var(--mono); color: var(--text-dim); margin-right: 4px; }
   .pill { font: 11px var(--mono); padding: 1px 8px; border-radius: 10px; white-space: nowrap; }
   .p-ours { background: var(--info-bg); color: var(--info-fg); } .p-other { background: var(--warn-bg); color: var(--warn-fg); }
+  .p-src { background: var(--bg-raised); color: var(--text-dim); border: 1px solid var(--border); cursor: pointer; }
+  .p-src:hover { border-color: var(--accent); }
+  .is-row .src { display: block; font: 10.5px var(--mono); color: var(--text-dim); margin-top: 2px; }
   .gate { border: 1px solid var(--border-accent); border-radius: 10px; background: var(--bg-card); padding: 12px 14px; margin-bottom: 18px; }
   .stepper { list-style: none; display: flex; margin: 0 0 10px; padding: 0; gap: 4px; }
   .stepper li { flex: 1; display: flex; align-items: center; gap: 7px; font: 12px var(--mono); color: var(--text-dim); padding: 6px 8px; border-radius: 6px; background: var(--bg-recessed); min-width: 0; }
@@ -234,7 +265,43 @@
   .linked { display: grid; gap: 6px; font-size: 13px; } .linked b { font: 12px var(--mono); color: var(--text-accent); margin-right: 6px; font-weight: 400; }
   .ws-foot { display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid var(--border); padding-top: 12px; font: 12px var(--mono); color: var(--text-dim); align-items: center; flex-wrap: wrap; }
 
-  /* Planning: phases | beads | bead detail */
+  /* Home: open questions */
+  .home-grid { display: grid; gap: 16px; align-items: start; grid-template-columns: minmax(0, 1fr) minmax(0, 320px); }
+  @media (max-width: 900px) { .home-grid { grid-template-columns: minmax(0, 1fr); } }
+  .q-list { display: grid; gap: 14px; max-width: 820px; }
+  .q-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; min-width: 0; }
+  .q-card.waiting { border-color: var(--border-accent); box-shadow: inset 3px 0 0 var(--accent); }
+  .q-card.sent { opacity: .75; border-style: dashed; }
+  .q-head { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; font: 11.5px var(--mono); color: var(--text-dim); margin-bottom: 4px; }
+  .q-card h2 { font-size: 17px; line-height: 1.3; margin: 0 0 10px; overflow-wrap: break-word; }
+  .q-card h2 .assume { font: 12px var(--mono); color: var(--text-dim); display: block; margin-bottom: 2px; }
+  .q-card .sec { margin-bottom: 10px; }
+  .q-card .sec p { font-size: 13px; }
+  .choices { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+  .choice { position: relative; }
+  .choice.rec { border-color: var(--accent); }
+  .choice .star { font: 10px var(--mono); color: var(--text-accent); margin-left: 6px; }
+  .other { display: flex; gap: 6px; flex: 1 1 220px; min-width: 0; }
+  .other input { flex: 1; min-width: 0; font: 12px var(--mono); padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-recessed); color: var(--text); }
+  .followup { font: 12px var(--mono); color: var(--warning); margin-top: 8px; }
+  .home-strip { display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 16px; }
+  @media (max-width: 1000px) { .home-strip { grid-template-columns: minmax(0, 1fr); } }
+  .kv { display: grid; gap: 5px; font-size: 13px; overflow-wrap: anywhere; }
+  .kv .k { font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); margin-right: 6px; }
+  .sess { display: inline-flex; align-items: center; gap: 6px; font: 600 12px var(--mono); }
+  .sess::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); }
+  .sess.s-working { color: var(--success); } .sess.s-working::before { background: var(--success); animation: pulse 1.8s infinite; }
+  .sess.s-waiting { color: var(--warning); } .sess.s-waiting::before { background: var(--warning); }
+  .sess.s-idle, .sess.s-off { color: var(--text-dim); }
+  .sync-ok { color: var(--success); } .sync-risk { color: var(--warning); }
+  .inbox pre { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--bg-recessed); border: 1px solid var(--border); font: 12px var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .ops { margin: 0; padding-left: 20px; font-size: 13px; display: grid; gap: 4px; overflow-wrap: anywhere; }
+  .note-form { display: flex; gap: 6px; }
+  .note-form input { flex: 1; min-width: 0; font: 12px var(--mono); padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-recessed); color: var(--text); }
+  .answered { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 13px; }
+  .answered li { overflow-wrap: anywhere; } .answered .a { color: var(--success); font-family: var(--mono); font-size: 12px; }
+
+  /* Planning: epics | beads | bead detail */
   .pl-grid { display: grid; gap: 16px; align-items: start; grid-template-columns: minmax(0, 220px) minmax(0, 320px) minmax(0, 1fr); }
   @media (max-width: 1100px) { .pl-grid { grid-template-columns: minmax(0, 190px) minmax(0, 270px) minmax(0, 1fr); } }
   @media (max-width: 900px) { .pl-grid { grid-template-columns: minmax(0, 1fr); } }
@@ -277,7 +344,7 @@
     font: 11.5px var(--mono); color: var(--text-dim); }
   .filters label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
   .feed { list-style: none; margin: 0; padding: 4px 0; font: 12px var(--mono); }
-  .feed li { display: grid; grid-template-columns: 70px minmax(0, 210px) 96px minmax(0, 1fr); gap: 10px; padding: 5px 14px;
+  .feed li { display: grid; grid-template-columns: 70px 76px 96px minmax(0, 1fr); gap: 10px; padding: 5px 14px;
     border-bottom: 1px solid var(--border); color: var(--text-dim); align-items: baseline; }
   .feed li.head { font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; border-bottom-color: var(--border-accent); }
   .feed .cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -285,6 +352,7 @@
   .feed .txt { overflow-wrap: anywhere; color: var(--text); }
   .feed .txt.none { color: var(--text-dim); font-style: italic; }
   .feed li.file .tool { color: var(--warning); }
+  .feed .sid { color: var(--text-dim); } .feed .sid.now { color: var(--success); }
   .feed li.ev .tool { color: var(--accent); } .feed li.ev.by-user .tool { color: var(--success); }
   .tag { font-size: 10px; padding: 0 5px; margin-left: 6px; border-radius: 4px; background: var(--info-bg); color: var(--info-fg); white-space: nowrap; }
   .tag.file { background: var(--warn-bg); color: var(--warn-fg); }
@@ -293,7 +361,7 @@
   @media (max-width: 720px) {
     .feed li { grid-template-columns: 62px minmax(0, 1fr); gap: 2px 8px; }
     .feed li.head { display: none; }
-    .feed .wtcell { grid-column: 2; grid-row: 1; }
+    .feed .sidcell { grid-column: 2; grid-row: 1; }
     .feed .tool { grid-column: 1; grid-row: 2; }
     .feed .txt { grid-column: 2; grid-row: 2; }
   }
@@ -304,6 +372,7 @@
 
 <header class="topbar">
   <div class="brand">ernie<span>.</span></div>
+  <div class="wt-pick-wrap" id="wt-pick-wrap"></div>
   <nav class="tabstrip" id="tabstrip" aria-label="Tabs"></nav>
   <div class="status"><span class="live">live</span><button class="icon-btn" id="theme-toggle" type="button">◐</button></div>
 </header>
@@ -314,6 +383,10 @@
 <script>
   // S stands in for the server's SSE frames; `view` holds view-only state.
   const S = structuredClone(ERNIE_SAMPLE);
+  // P3 Q4: archived and folder-gone worktrees join the picker; the older views never see them
+  S.logs.push(...S.lifecycleLogs);
+  // Findings closed with resolution=dismissed; the shared sample still says `dropped`
+  Object.values(S.states).forEach(st => st.issues.forEach(i => { if (i.status === 'dropped') i.status = 'dismissed'; }));
   const TABS = [
     { key: 'home', label: '⌂ Home' },
     { key: 'planning', label: '▤ Planning' },
@@ -323,24 +396,59 @@
   ];
   const view = {
     active: 'home',
-    factsScope: 'all',
+    wt: null, // the one worktree every tab shows (P3 Q1); null → first with a working session
     factsKind: 'all', // pill filter: all / verified / inferred / unchecked
     research: {}, // "<log key>|<fact id>" → { stage: queued | running | found | none, note, oldText, from }
-    issuesScope: 'all',
     selectedIssue: null, // "<log key>|<issue id>"
-    planWorktree: null, // one worktree at a time; null → first with an active phase
-    selectedPhase: null, // "<log key>|<phase id>"
-    selectedBead: null, // "<log key>|<phase id>|<bead id>"
+    selectedEpic: null, // "<log key>|<epic id>", or "<log key>|adhoc"
+    selectedBead: null, // "<log key>|<epic id or adhoc>|<bead id>"
     copied: null,
     shownMethods: new Set(),
     queued: [], // page events waiting for each session's next prompt: { key, label }
-    logFilter: { scope: 'all', tool: 'all', hideAgents: false, filesOnly: false, events: false },
+    logFilter: { session: 'all', tool: 'all', hideAgents: false, filesOnly: false, events: false },
     logUnseen: 0,
   };
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const logOf = key => S.logs.find(l => l.key === key);
   const isTab = key => TABS.some(p => p.key === key);
-  const onLogs = () => S.logs.filter(l => l.on && S.states[l.key]);
+  const curLog = () => logOf(view.wt);
+  const cur = () => S.states[view.wt];
+
+  // ---------- Worktree picker (P3 Q1, Q4) ----------
+  // Grouped by repo; archived worktrees sit in their own group so they can be viewed and restored
+  function pickWorktree() {
+    if (logOf(view.wt) && S.states[view.wt]) return;
+    const live = S.logs.filter(l => !l.archived);
+    view.wt = (live.find(l => l.session.state === 'working') || live.find(l => l.on) || live[0]).key;
+  }
+
+  function renderPicker() {
+    const optionLabel = l => l.branch
+      + (l.folderGone ? ' · folder gone' : '')
+      + (!l.on && !l.archived ? ' · off' : '')
+      + (l.session.state === 'waiting on you' ? ' · needs you' : '');
+    const option = l => `<option value="${esc(l.key)}" ${l.key === view.wt ? 'selected' : ''}>${esc(optionLabel(l))}</option>`;
+    const live = S.logs.filter(l => !l.archived);
+    const archived = S.logs.filter(l => l.archived);
+    // Reason: a repo leaves the picker once all its worktrees are archived
+    const repos = [...new Set(live.map(l => l.repo))];
+    document.getElementById('wt-pick-wrap').innerHTML = `<select class="wt-pick" id="wt-pick" aria-label="Worktree">
+      ${repos.map(r => `<optgroup label="${esc(r)}">${live.filter(l => l.repo === r).map(option).join('')}</optgroup>`).join('')}
+      ${archived.length ? `<optgroup label="Archived (${archived.length})">${archived.map(l => `<option value="${esc(l.key)}" ${l.key === view.wt ? 'selected' : ''}>${esc(l.key)}</option>`).join('')}</optgroup>` : ''}
+    </select>`;
+  }
+
+  // One line above every tab for the worktree's lifecycle: archived, folder gone, off, an id collision
+  function wtBanner() {
+    const l = curLog(), st = cur();
+    const lines = [];
+    if (l.archived) lines.push(['dim', `Archived · hidden from the picker; log, memory and beads kept.`, `<button class="btn" type="button" data-restore="${esc(l.key)}">Restore</button>`]);
+    else if (l.folderGone) lines.push(['warn', `Folder gone · ${esc(l.worktree)} no longer exists. Nothing is hidden until you archive it.`, `<button class="btn" type="button" data-archive="${esc(l.key)}">Archive</button>`]);
+    else if (!l.on) lines.push(['dim', 'ernie is off here (logging paused) · the page still shows what was logged.', '']);
+    (st.collisions || []).forEach(id => lines.push(['warn',
+      `⚠ ${esc(id)} collided · two machines logged a different ${esc(id)} (forgot to pull); the second is kept as ${esc(id)}′. Rename one by hand.`, '']));
+    return lines.map(([kind, text, action]) => `<div class="wt-banner ${kind}"><span>${text}</span>${action}</div>`).join('');
+  }
   // One label set for badges, filter pills and legends; `unchecked` stays the stored value
   const confGlyph = { verified: '✓ verified', inferred: '~ inferred', unchecked: '✗ unknown' };
   const FACT_PILLS = [{ key: 'all', label: 'All' }, ...['verified', 'inferred', 'unchecked'].map(key => ({ key, label: confGlyph[key] }))];
@@ -349,7 +457,7 @@
 
   // ---------- Tabs ----------
   function renderTabs() {
-    const toApprove = issueList('all').filter(x => x.iss.status === 'explained').length;
+    const toApprove = issueList().filter(x => x.iss.status === 'explained').length;
     document.getElementById('tabstrip').innerHTML = TABS.map(p => {
       let badge = '';
       if (p.key === 'log' && view.active !== 'log' && view.logUnseen) badge = `<span class="badge" title="new tool calls">${view.logUnseen}</span>`;
@@ -358,9 +466,10 @@
     }).join('');
   }
 
-  function scopeSelect(id, value, withAll = true) {
-    return `<select class="scope" id="${id}" aria-label="Worktree">${withAll ? '<option value="all">all worktrees</option>' : ''}
-      ${onLogs().map(l => `<option value="${esc(l.key)}" ${value === l.key ? 'selected' : ''}>${esc(l.key)}</option>`).join('')}</select>`;
+  // Page events for this worktree that its session's next prompt will deliver
+  function queuedLine() {
+    const queued = view.queued.filter(q => q.key === view.wt);
+    return queued.length ? `<div class="queued">queued for the next prompt: ${queued.map(q => esc(q.label)).join(' · ')}</div>` : '';
   }
 
   function panel(title, count, body, extraHead = '') {
@@ -375,31 +484,30 @@
   }
 
   function renderFacts() {
-    const scoped = onLogs().filter(l => view.factsScope === 'all' || l.key === view.factsScope);
-    const showWt = view.factsScope === 'all';
-    const wtTag = log => showWt ? `<span class="wt" title="${esc(log.worktree)}">${esc(log.branch)}</span>` : '';
-    // Reason: grouping by worktree keeps "which ticket is this from" visible without repeating a tag on every row
-    const grouped = (log, items, html) => items.length ? (showWt ? `<div class="sub">${esc(log.key)}</div>` : '') + items.map(html).join('') : '';
+    const l = curLog(), st = cur();
+    const collided = new Set(st.collisions || []);
+    // P4 Q3: a decision's `ref` points at the bead it shaped; the chip opens it on the Planning tab
+    const refChip = d => {
+      const bead = d.ref && beadsOf(l.key).find(x => x.b.id === d.ref);
+      return bead ? `<div class="refs chips">${beadChip(bead)}</div>` : '';
+    };
+    const decisions = st.decisions.map(d => `<div class="dec"><b><span class="item-id">${esc(d.id)}</span>${esc(d.text)}${
+      collided.has(d.id) || d.collidedWith ? `<span class="collided" title="id collision, see the banner">collided</span>` : ''}</b>
+      <span class="why">${esc(d.why)}</span>${refChip(d)}</div>`).join('');
+    const decisionCount = st.decisions.length;
 
-    const decisions = scoped.map(l => grouped(l, S.states[l.key].decisions, d =>
-      `<div class="dec"><b><span class="item-id">${d.id}</span>${esc(d.text)}</b><span class="why">${esc(d.why)}</span></div>`)).join('');
-    const decisionCount = scoped.reduce((n, l) => n + S.states[l.key].decisions.length, 0);
-
-    const factHtml = (l, f) => {
+    const factHtml = f => {
       const methodKey = `${l.key}:${f.id}`;
       const method = view.shownMethods.has(methodKey) ? `<div class="method">method: ${esc(f.method || 'none given')}</div>` : '';
       return `<li class="${f.fresh ? 'fresh' : ''}">${confBadge(f, methodKey)}<span class="item-id">${f.id}</span>${esc(f.text)}${researchHtml(l, f)}
         <button class="dismiss" type="button" data-dismiss="${esc(l.key)}|${f.id}" title="Dismiss">×</button>${method}${researchNote(l, f)}</li>`;
     };
-    const allFacts = scoped.flatMap(l => S.states[l.key].facts.filter(f => f.kind !== 'term'));
+    const allFacts = st.facts.filter(f => f.kind !== 'term');
     const factCount = allFacts.length;
     const kindMatch = f => view.factsKind === 'all' || factKind(f) === view.factsKind;
-    const facts = scoped.map(l => {
-      const items = S.states[l.key].facts.filter(f => f.kind !== 'term' && kindMatch(f));
-      if (!items.length) return '';
-      return (showWt ? `<div class="sub">${esc(l.key)}</div>` : '') + `<ul class="facts">${items.map(f => factHtml(l, f)).join('')}</ul>`;
-    }).join('');
-    const shownFactCount = allFacts.filter(kindMatch).length;
+    const shownFacts = allFacts.filter(kindMatch);
+    const facts = shownFacts.length ? `<ul class="facts">${shownFacts.map(factHtml).join('')}</ul>` : '';
+    const shownFactCount = shownFacts.length;
     const pills = `<div class="pills" role="group" aria-label="Filter facts">${FACT_PILLS.map(p => {
       const n = p.key === 'all' ? factCount : allFacts.filter(f => factKind(f) === p.key).length;
       const on = view.factsKind === p.key;
@@ -407,14 +515,11 @@
     }).join('')}</div>`;
     const noFacts = factCount ? '<div class="empty">No facts match this filter.</div>' : '<div class="empty">No facts pinned.</div>';
 
-    const terms = scoped.flatMap(l => S.states[l.key].facts.filter(f => f.kind === 'term').map(t => ({ t, l })));
-    const glossary = terms.length ? `<dl class="gloss">${terms.map(({ t, l }) => `<dt>${esc(t.term)}</dt><dd>${wtTag(l)}${esc(t.text)}</dd>`).join('')}</dl>` : '<div class="empty">No terms yet.</div>';
+    const terms = st.facts.filter(f => f.kind === 'term');
+    const glossary = terms.length ? `<dl class="gloss">${terms.map(t => `<dt>${esc(t.term)}</dt><dd>${esc(t.text)}</dd>`).join('')}</dl>` : '<div class="empty">No terms yet.</div>';
 
-    const queued = view.queued.filter(q => scoped.some(l => l.key === q.key));
-    const queuedLine = queued.length ? `<div class="queued">queued for the next prompt: ${queued.map(q => `${esc(q.label)} (${esc(logOf(q.key).branch)})`).join(' · ')}</div>` : '';
-
-    document.getElementById('main').innerHTML = `
-      <div class="tab-head"><h1>Facts & decisions</h1>${scopeSelect('facts-scope', view.factsScope)}
+    document.getElementById('main').innerHTML = `${wtBanner()}
+      <div class="tab-head"><h1>Facts & decisions</h1>
         <span class="meta">${decisionCount} decisions · ${factCount} facts · ${terms.length} terms</span></div>
       <div class="fd-grid">
         <div class="fd-col">
@@ -422,7 +527,7 @@
           ${panel('Decisions', decisionCount, decisions || '<div class="empty">No decisions yet.</div>')}
         </div>
         <div class="fd-col">
-          ${panel('Facts', shownFactCount === factCount ? factCount : `${shownFactCount}/${factCount}`, pills + (facts || noFacts) + queuedLine, '<span class="hint">tap a badge for its method · × to dismiss</span>')}
+          ${panel('Facts', shownFactCount === factCount ? factCount : `${shownFactCount}/${factCount}`, pills + (facts || noFacts) + queuedLine(), '<span class="hint">tap a badge for its method · × to dismiss</span>')}
         </div>
       </div>`;
   }
@@ -463,7 +568,9 @@
 
   function logRow(logKey, row) {
     const st = S.states[logKey];
-    st.activity.unshift({ ts: clock(), fresh: true, ...row });
+    const sid = isToolRow(row) ? logOf(logKey).session.id : undefined;
+    st.activity.unshift({ ts: clock(), fresh: true, sid, ...row });
+    if (logKey !== view.wt) return;
     if (view.active !== 'log' && (row.t === 'tool' || row.t === 'file')) view.logUnseen += 1;
   }
 
@@ -507,12 +614,22 @@
   }
 
   // ---------- Planning tab ----------
+  // Epics and beads come from Beads (label wt:<branch>); ad hoc beads have no epic (P3 Q2, P4 Q2)
   const BEAD_GLYPH = { todo: '○', active: '◐', done: '●', blocked: '⊘' };
+  const ADHOC = 'adhoc';
 
-  const phaseList = logKey => (S.states[logKey]?.phases || []).map(ph => ({ ph, key: `${logKey}|${ph.id}` }));
+  // The worktree's epics, then one "Ad hoc" entry holding the beads with no epic
+  function epicList(logKey) {
+    const st = S.states[logKey];
+    const epics = (st?.epics || []).map(ep => ({ ep, key: `${logKey}|${ep.id}` }));
+    if (!st?.adhoc?.length) return epics;
+    const adhoc = { id: ADHOC, title: 'Ad hoc', goal: 'Beads with no epic (what queue.md "next" used to hold).', beads: st.adhoc };
+    return [...epics, { ep: adhoc, key: `${logKey}|${ADHOC}` }];
+  }
 
-  // Every bead of one worktree with its phase, so deps can point across phases
-  const beadsOf = logKey => (S.states[logKey].phases || []).flatMap(ph => ph.beads.map(b => ({ b, ph, key: `${logKey}|${ph.id}|${b.id}` })));
+  // Every bead of one worktree with its epic, so deps can point across epics and into ad hoc
+  const beadsOf = logKey => epicList(logKey).flatMap(({ ep }) => ep.beads.map(b => ({ b, ep, key: `${logKey}|${ep.id}|${b.id}` })));
+  const epicLabel = ep => ep.id === ADHOC ? 'Ad hoc' : `${ep.id} · ${ep.title}`;
 
   function progressBar(beads) {
     const done = beads.filter(b => b.status === 'done').length;
@@ -523,23 +640,30 @@
   const checklist = items => `<ul class="checks">${items.map(c => `<li class="${c.done ? 'on' : ''}">${esc(c.text)}</li>`).join('')}</ul>`;
 
   function beadChip(entry) {
-    return `<button class="chip" type="button" data-bead-open="${esc(entry.key)}" title="${esc(entry.ph.id)} · ${entry.b.status}">
+    return `<button class="chip" type="button" data-bead-open="${esc(entry.key)}" title="${esc(epicLabel(entry.ep))} · ${entry.b.status}">
       <span class="g g--${entry.b.status}">${BEAD_GLYPH[entry.b.status]}</span>${esc(entry.b.id)} ${esc(entry.b.title)}</button>`;
   }
 
-  // Ids that match a decision, issue or fact in the same worktree show its text; issues open the Issues tab
-  function linkHTML(logKey, ref) {
+  function issueChip(logKey, issue) {
+    return `<button class="chip" type="button" data-issue-jump="${esc(logKey)}|${esc(issue.id)}"><span class="g g--${issue.status}">${STATUS_GLYPH[issue.status]}</span>${esc(issue.id)}</button>`;
+  }
+
+  // Ids that match a decision, finding, fact or note in the same worktree show its text; findings open the Issues tab.
+  // `why` labels links that come from the other side (a decision's ref, a finding's parent)
+  function linkHTML(logKey, ref, why = '') {
     const st = S.states[logKey];
+    const hint = why ? ` <span class="hint">${esc(why)}</span>` : '';
     const issue = st.issues.find(i => i.id === ref);
-    if (issue) return `<div><button class="chip" type="button" data-issue-jump="${esc(logKey)}|${esc(ref)}"><span class="g g--${issue.status}">${STATUS_GLYPH[issue.status]}</span>${esc(ref)}</button> ${esc(issue.title)}</div>`;
-    const known = st.decisions.find(d => d.id === ref) || st.facts.find(f => f.id === ref);
-    if (known) return `<div><b>${esc(ref)}</b>${esc(known.text)}</div>`;
+    if (issue) return `<div>${issueChip(logKey, issue)} ${esc(issue.title)}${hint}</div>`;
+    const known = st.decisions.find(d => d.id === ref) || st.facts.find(f => f.id === ref) || st.notes.find(n => n.id === ref);
+    if (known) return `<div><b>${esc(ref)}</b>${esc(known.text)}${hint}</div>`;
     return `<div><b>${esc(ref)}</b><span class="hint">not on this page</span></div>`;
   }
 
   function beadHTML(entry, list) {
-    const { b, ph } = entry;
+    const { b, ep } = entry;
     const logKey = entry.key.split('|')[0];
+    const st = S.states[logKey];
     const all = beadsOf(logKey);
     const pos = list.findIndex(x => x.key === entry.key);
     const prev = list[pos - 1], next = list[pos + 1];
@@ -551,10 +675,16 @@
     const reached = { blocked: 0, todo: 0, active: 1, done: 3 }[b.status];
     const checks = b.doneWhen || [];
     const checksDone = checks.filter(c => c.done).length;
+    // P4 Q3: links are stored on the ernie side; the reverse ones (decision → this bead, finding from this bead's review) are computed
+    const own = b.links || [];
+    const reverse = [
+      ...st.decisions.filter(d => d.ref === b.id && !own.includes(d.id)).map(d => [d.id, '← ref to this bead']),
+      ...st.issues.filter(i => i.parent === b.id && !own.includes(i.id)).map(i => [i.id, 'found in code review of this bead']),
+    ];
+    const linked = [...own.map(r => linkHTML(logKey, r)), ...reverse.map(([r, why]) => linkHTML(logKey, r, why))];
     return `<article class="ws">
       <div class="ws-meta"><span>bead ${pos + 1}/${list.length}</span>
-        <span class="pill p-ours">${esc(ph.id)} · ${esc(ph.title)}</span>
-        <span class="wt" title="${esc(logOf(logKey).worktree)}">${esc(logKey)}</span></div>
+        <span class="pill p-ours">${esc(epicLabel(ep))}</span></div>
       <h2><span class="id">${esc(b.id)}</span>${esc(b.title)}</h2>
       <div class="gate">
         <ol class="stepper">${steps.map((s, i) =>
@@ -571,40 +701,41 @@
         ${deps.length ? `<div class="chips">${deps.map(beadChip).join('')}</div>` : '<p class="empty">Nothing; can start any time.</p>'}</section>
       <section class="sec"><h3><b>5</b>Unblocks</h3>
         ${unblocks.length ? `<div class="chips">${unblocks.map(beadChip).join('')}</div>` : '<p class="empty">Nothing waits on this bead.</p>'}</section>
-      ${b.links?.length ? `<section class="sec"><h3><b>6</b>Linked</h3><div class="linked">${b.links.map(r => linkHTML(logKey, r)).join('')}</div></section>` : ''}
+      ${linked.length ? `<section class="sec"><h3><b>6</b>Linked</h3><div class="linked">${linked.join('')}</div></section>` : ''}
       ${b.files?.length ? `<section class="sec"><h3><b>7</b>Files</h3><ul class="files">${b.files.map(f => `<li>${esc(f)}</li>`).join('')}</ul></section>` : ''}
       ${b.commit ? `<section class="sec"><h3><b>8</b>Commit</h3><p><code>${esc(b.commit)}</code></p></section>` : ''}
       <footer class="ws-foot">
         ${prev ? `<button class="btn" type="button" data-bead-open="${esc(prev.key)}">‹ ${esc(prev.b.id)}</button>` : '<span></span>'}
-        <span>[ ] bead · { } phase</span>
+        <span>[ ] bead · { } epic</span>
         ${next ? `<button class="btn" type="button" data-bead-open="${esc(next.key)}">${esc(next.b.id)} ›</button>` : '<span></span>'}
       </footer></article>`;
   }
 
-  // Keeps the worktree, phase and bead selection valid: active phase first, then its active bead
+  // Keeps the epic and bead selection valid inside the picked worktree: active epic first, then its active bead
   function planSelection() {
-    if (!onLogs().some(l => l.key === view.planWorktree)) {
-      const withPhases = onLogs().filter(l => phaseList(l.key).length);
-      view.planWorktree = (withPhases.find(l => phaseList(l.key).some(x => x.ph.status === 'active')) || withPhases[0] || onLogs()[0])?.key ?? null;
+    const epics = epicList(view.wt);
+    if (!epics.some(x => x.key === view.selectedEpic)) {
+      view.selectedEpic = (epics.find(x => x.ep.status === 'active') || epics[0])?.key ?? null;
     }
-    const phases = phaseList(view.planWorktree);
-    if (!phases.some(x => x.key === view.selectedPhase)) {
-      view.selectedPhase = (phases.find(x => x.ph.status === 'active') || phases[0])?.key ?? null;
-    }
-    const phase = phases.find(x => x.key === view.selectedPhase);
-    const beads = phase ? phase.ph.beads.map(b => ({ b, ph: phase.ph, key: `${phase.key}|${b.id}` })) : [];
+    const epic = epics.find(x => x.key === view.selectedEpic);
+    const beads = epic ? epic.ep.beads.map(b => ({ b, ep: epic.ep, key: `${epic.key}|${b.id}` })) : [];
     if (!beads.some(x => x.key === view.selectedBead)) {
       view.selectedBead = (beads.find(x => x.b.status === 'active') || beads.find(x => x.b.status !== 'done') || beads[0])?.key ?? null;
     }
-    return { phases, phase, beads };
+    return { epics, epic, beads };
   }
 
   function renderPlanning() {
-    const { phases, phase, beads } = planSelection();
-    const phaseRow = x => `<button class="ph-row ${x.key === view.selectedPhase ? 'sel' : ''}" type="button" data-phase-open="${esc(x.key)}" title="${x.ph.status}">
-      <span class="g g--${x.ph.status}">${BEAD_GLYPH[x.ph.status]}</span><span class="id">${esc(x.ph.id)}</span>
-      <span class="t"><b>${esc(x.ph.title)}</b>${progressBar(x.ph.beads)}</span></button>`;
-    const phaseCol = phases.map(phaseRow).join('');
+    const { epics, epic, beads } = planSelection();
+    const st = cur();
+    const epicRow = x => {
+      const isAdhoc = x.ep.id === ADHOC;
+      const glyph = isAdhoc ? '◇' : BEAD_GLYPH[x.ep.status];
+      return `<button class="ph-row ${x.key === view.selectedEpic ? 'sel' : ''}" type="button" data-epic-open="${esc(x.key)}" title="${isAdhoc ? 'no epic' : x.ep.status}">
+        <span class="g g--${isAdhoc ? 'todo' : x.ep.status}">${glyph}</span><span class="id">${isAdhoc ? '' : esc(x.ep.id)}</span>
+        <span class="t"><b>${esc(x.ep.title)}</b>${progressBar(x.ep.beads)}</span></button>`;
+    };
+    const epicCol = epics.map(epicRow).join('');
 
     const blockedBy = entry => {
       const all = beadsOf(entry.key.split('|')[0]);
@@ -616,23 +747,29 @@
         <span class="g g--${x.b.status}">${BEAD_GLYPH[x.b.status]}</span><span class="id">${esc(x.b.id)}</span>
         <span class="t">${esc(x.b.title)}${waiting.length ? `<span class="why">needs ${waiting.map(esc).join(', ')}</span>` : ''}</span></button>`;
     };
-    const beadCol = phase ? `
-      <div class="is-group"><span>${esc(phase.ph.id)} · ${esc(phase.ph.title)}</span><span>${beads.length} beads</span></div>
-      <p class="ph-goal">${esc(phase.ph.goal || '')}</p>
+    // P3 Q2: PRD-review findings hang off the epic itself
+    const prdFindings = epic ? st.issues.filter(i => i.parent === epic.ep.id) : [];
+    const beadCol = epic ? `
+      <div class="is-group"><span>${esc(epicLabel(epic.ep))}</span><span>${beads.length} beads</span></div>
+      <p class="ph-goal">${esc(epic.ep.goal || '')}</p>
       ${beads.map(beadRow).join('')}
-      ${phase.ph.doneWhen?.length ? `<div class="ph-checks"><div class="sub">phase done when</div>${checklist(phase.ph.doneWhen)}</div>` : ''}
-      <div class="legend">${Object.entries(BEAD_GLYPH).map(([s, g]) => `${g} ${s}`).join(' ')}</div>` : '<div class="empty">No phase selected.</div>';
+      ${epic.ep.doneWhen?.length ? `<div class="ph-checks"><div class="sub">epic done when</div>${checklist(epic.ep.doneWhen)}</div>` : ''}
+      ${prdFindings.length ? `<div class="ph-checks"><div class="sub">PRD review findings</div><div class="chips">${prdFindings.map(i => issueChip(view.wt, i)).join('')}</div></div>` : ''}
+      <div class="legend">${Object.entries(BEAD_GLYPH).map(([s, g]) => `${g} ${s}`).join(' ')} ◇ ad hoc</div>` : '<div class="empty">No epic selected.</div>';
     const selected = beads.find(x => x.key === view.selectedBead);
-    const allBeads = phases.flatMap(x => x.ph.beads);
+    const epicBeads = (st.epics || []).flatMap(ep => ep.beads);
+    const adhocCount = (st.adhoc || []).length;
+    const allBeads = beadsOf(view.wt).map(x => x.b);
 
-    document.getElementById('main').innerHTML = `
-      <div class="tab-head"><h1>Planning</h1>${scopeSelect('plan-worktree', view.planWorktree, false)}
-        <span class="meta">${phases.length} phases · ${allBeads.length} beads · ${allBeads.filter(b => b.status === 'active').length} active · ${allBeads.filter(b => b.status === 'blocked').length} blocked</span></div>
-      ${phases.length ? `<div class="pl-grid">
-        <section class="panel pl-col pl-phases"><div class="panel-body">${phaseCol}</div></section>
+    document.getElementById('main').innerHTML = `${wtBanner()}
+      <div class="tab-head"><h1>Planning</h1>
+        <span class="meta">${(st.epics || []).length} epics · ${epicBeads.length} beads · ${adhocCount} ad hoc · ${allBeads.filter(b => b.status === 'active').length} active · ${allBeads.filter(b => b.status === 'blocked').length} blocked</span>
+        <span class="hint">view-only · Beads fields not final; revisit in P5</span></div>
+      ${epics.length ? `<div class="pl-grid">
+        <section class="panel pl-col pl-phases"><div class="panel-body">${epicCol}</div></section>
         <section class="panel pl-col"><div class="panel-body">${beadCol}</div></section>
-        <div>${selected ? beadHTML(selected, beads) : '<div class="canvas"><p>No beads in this phase.</p></div>'}</div>
-      </div>` : '<div class="canvas"><p>No phases logged for this worktree.</p></div>'}`;
+        <div>${selected ? beadHTML(selected, beads) : '<div class="canvas"><p>No beads in this epic.</p></div>'}</div>
+      </div>` : '<div class="canvas"><p>No epics or ad hoc beads for this worktree.</p></div>'}`;
   }
 
   function stepBead(delta) {
@@ -643,26 +780,37 @@
     renderAll();
   }
 
-  function stepPhase(delta) {
-    const { phases } = planSelection();
-    const next = phases[phases.findIndex(x => x.key === view.selectedPhase) + delta];
+  function stepEpic(delta) {
+    const { epics } = planSelection();
+    const next = epics[epics.findIndex(x => x.key === view.selectedEpic) + delta];
     if (!next) return;
-    view.selectedPhase = next.key;
+    view.selectedEpic = next.key;
     renderAll();
   }
 
   // ---------- Issues tab ----------
-  const STATUS_ORDER = { explained: 0, approved: 1, fixed: 2, dropped: 3 };
-  const STATUS_GLYPH = { explained: '○', approved: '◐', fixed: '●', dropped: '⊘' };
+  // Findings are Beads bugs (P4). Source = parent: an epic (PRD review), a bead (code review) or none (ad hoc) (P3 Q2)
+  const STATUS_ORDER = { explained: 0, approved: 1, fixed: 2, dismissed: 3 };
+  const STATUS_GLYPH = { explained: '○', approved: '◐', fixed: '●', dismissed: '⊘' };
   const CONF_GLYPH = { verified: '✓', inferred: '~', unchecked: '✗' };
 
-  // Ours first, then platform/other; inside each, waiting-for-approval first so the next thing you act on is on top
-  function issueList(scope) {
-    return onLogs()
-      .filter(l => scope === 'all' || l.key === scope)
-      .flatMap(l => S.states[l.key].issues.map(iss => ({ iss, log: l, key: `${l.key}|${iss.id}` })))
-      .sort((a, b) => (a.iss.owner === 'us' ? 0 : 1) - (b.iss.owner === 'us' ? 0 : 1)
-        || STATUS_ORDER[a.iss.status] - STATUS_ORDER[b.iss.status]);
+  // Where a finding came from and which epic it lists under; null epic → the Ad hoc group
+  function findingSource(logKey, iss) {
+    const epic = (S.states[logKey].epics || []).find(ep => ep.id === iss.parent);
+    if (epic) return { epic, label: 'PRD review', bead: null };
+    const bead = beadsOf(logKey).find(x => x.b.id === iss.parent);
+    if (bead) return { epic: bead.ep.id === ADHOC ? null : bead.ep, label: `code review · ${bead.b.id}`, bead };
+    return { epic: null, label: 'ad hoc', bead: null };
+  }
+
+  // Epics in plan order, then Ad hoc; inside each, waiting-for-approval first so the next thing you act on is on top
+  function issueList() {
+    const logKey = view.wt;
+    const epicOrder = (S.states[logKey].epics || []).map(ep => ep.id);
+    const rank = x => x.src.epic ? epicOrder.indexOf(x.src.epic.id) : epicOrder.length;
+    return S.states[logKey].issues
+      .map(iss => ({ iss, log: logOf(logKey), key: `${logKey}|${iss.id}`, src: findingSource(logKey, iss) }))
+      .sort((a, b) => rank(a) - rank(b) || STATUS_ORDER[a.iss.status] - STATUS_ORDER[b.iss.status]);
   }
 
   const cell = v => {
@@ -689,21 +837,27 @@
     const terms = st.facts.filter(f => f.kind === 'term' && (new RegExp(`\\b${f.term}\\b`).test(blob) || new RegExp(`\\b${iss.id}\\b`).test(f.text)));
     const notes = st.notes.filter(n => n.ref === iss.id);
     const k = esc(entry.key);
+    // Dismiss = close the finding with metadata.resolution = dismissed; a later review round sees it and won't re-raise it
     const gate = {
       explained: [`<button class="btn btn--primary" type="button" data-issue-set="${k}" data-to="approved">Approve</button>
-        <button class="btn btn--danger" type="button" data-issue-set="${k}" data-to="dropped">Drop</button>`, 'Claude can\'t fix this until you approve it.'],
+        <button class="btn btn--danger" type="button" data-issue-set="${k}" data-to="dismissed">Dismiss</button>`, 'Claude can\'t fix this until you approve it.'],
       approved: [`<button class="btn" type="button" data-issue-set="${k}" data-to="explained">Undo</button>
-        <button class="btn btn--danger" type="button" data-issue-set="${k}" data-to="dropped">Drop</button>`, 'Approved. Claude can fix it after your next prompt.'],
+        <button class="btn btn--danger" type="button" data-issue-set="${k}" data-to="dismissed">Dismiss</button>`, 'Approved. Claude can fix it after your next prompt.'],
       fixed: ['', 'Fixed by Claude. Nothing for you to do.'],
-      dropped: [`<button class="btn" type="button" data-issue-set="${k}" data-to="explained">Undo</button>`, 'Dropped. Claude won\'t act on it.'],
+      dismissed: [`<button class="btn" type="button" data-issue-set="${k}" data-to="explained">Undo</button>`, 'Dismissed. Claude won\'t act on it, and later reviews skip it.'],
     }[iss.status];
+    const src = entry.src;
+    const srcAttr = src.bead ? `data-bead-open="${esc(src.bead.key)}"` : src.epic ? `data-epic-open="${esc(log.key)}|${esc(src.epic.id)}"` : '';
+    const srcPill = srcAttr
+      ? `<button class="pill p-src" type="button" ${srcAttr} title="open on the Planning tab">${esc(src.label)}${src.epic ? ` · ${esc(src.epic.id)}` : ''}</button>`
+      : `<span class="pill p-src">ad hoc</span>`;
     return `<article class="ws">
       <div class="ws-meta"><span>issue ${pos + 1}/${list.length}</span>
         <span class="pill ${iss.owner === 'us' ? 'p-ours' : 'p-other'}">${iss.owner === 'us' ? 'ours' : 'platform / other'}</span>
-        <span class="wt" title="${esc(log.worktree)}">${esc(log.key)}</span></div>
+        ${srcPill}</div>
       <h2><span class="id">${esc(iss.id)}</span>${esc(iss.title)}</h2>
       <div class="gate">
-        <ol class="stepper ${iss.status === 'dropped' ? 'dropped' : ''}">${steps.map((s, i) =>
+        <ol class="stepper ${iss.status === 'dismissed' ? 'dropped' : ''}">${steps.map((s, i) =>
           `<li class="${i < reached ? 'done' : ''} ${i === reached ? 'now' : ''}"><span>${i < reached ? '✓' : i + 1}</span>${s}</li>`).join('')}</ol>
         <div class="gate-row">${gate[0]}<span class="gate-msg">${gate[1]}</span></div>
         ${iss.quote ? `<div class="quote">approved in chat: “${esc(iss.quote)}”</div>` : ''}
@@ -725,32 +879,35 @@
   }
 
   function renderIssues() {
-    const list = issueList(view.issuesScope);
+    const list = issueList();
     if (!list.some(x => x.key === view.selectedIssue)) {
       view.selectedIssue = (list.find(x => x.iss.status === 'explained') || list[0])?.key ?? null;
     }
-    const showWt = view.issuesScope === 'all';
     const row = x => `<button class="is-row st-${x.iss.status} ${x.key === view.selectedIssue ? 'sel' : ''}" type="button" data-issue-open="${esc(x.key)}" title="${x.iss.status}">
       <span class="g g--${x.iss.status}">${STATUS_GLYPH[x.iss.status]}</span><span class="id">${esc(x.iss.id)}</span>
-      <span class="t">${esc(x.iss.title)}${showWt ? `<br><span class="wt">${esc(x.log.branch)}</span>` : ''}</span>
+      <span class="t">${esc(x.iss.title)}<span class="src">${esc(x.src.label)}${x.iss.owner === 'us' ? '' : ' · platform / other'}</span></span>
       <span class="cf" title="${esc(confGlyph[x.iss.confidence] || 'no confidence given')}">${CONF_GLYPH[x.iss.confidence] || '?'}</span></button>`;
-    const group = (label, items) => `<div class="is-group"><span>${label}</span><span>${items.length}</span></div>`
-      + (items.map(row).join('') || '<div class="empty" style="padding-left:6px">none</div>');
-    const ours = list.filter(x => x.iss.owner === 'us'), other = list.filter(x => x.iss.owner !== 'us');
+    // One group per epic that has findings, then Ad hoc (P3 Q2)
+    const groups = [];
+    list.forEach(x => {
+      const label = x.src.epic ? epicLabel(x.src.epic) : 'Ad hoc';
+      let group = groups.find(g => g.label === label);
+      if (!group) groups.push(group = { label, items: [] });
+      group.items.push(x);
+    });
+    const groupHtml = g => `<div class="is-group"><span>${esc(g.label)}</span><span>${g.items.length}</span></div>` + g.items.map(row).join('');
     const waiting = list.filter(x => x.iss.status === 'explained').length;
     const selected = list.find(x => x.key === view.selectedIssue);
-    const queued = view.queued.filter(q => list.some(x => x.log.key === q.key));
-    const queuedLine = queued.length ? `<div class="queued">queued for the next prompt: ${queued.map(q => `${esc(q.label)} (${esc(logOf(q.key).branch)})`).join(' · ')}</div>` : '';
 
-    document.getElementById('main').innerHTML = `
-      <div class="tab-head"><h1>Issues</h1>${scopeSelect('issues-scope', view.issuesScope)}
-        <span class="meta">${list.length} issues · ${waiting} waiting for your approval</span></div>
+    document.getElementById('main').innerHTML = `${wtBanner()}
+      <div class="tab-head"><h1>Issues</h1>
+        <span class="meta">${list.length} findings · ${waiting} waiting for your approval</span></div>
       <div class="is-grid">
         <section class="panel is-list"><div class="panel-body">
-          ${group('Ours', ours)}${group('Platform / other', other)}
-          <div class="legend">status ○ explained ◐ approved ● fixed ⊘ dropped<br>sure ✓ verified ~ inferred ✗ unknown</div>
-          ${queuedLine}</div></section>
-        <div>${selected ? worksheetHTML(selected, list) : '<div class="canvas"><p>No issues logged.</p></div>'}</div>
+          ${groups.map(groupHtml).join('') || '<div class="empty">No findings for this worktree.</div>'}
+          <div class="legend">status ○ explained ◐ approved ● fixed ⊘ dismissed<br>sure ✓ verified ~ inferred ✗ unknown</div>
+          ${queuedLine()}</div></section>
+        <div>${selected ? worksheetHTML(selected, list) : '<div class="canvas"><p>No findings logged.</p></div>'}</div>
       </div>`;
   }
 
@@ -772,7 +929,7 @@
   }
 
   function stepIssue(delta) {
-    const list = issueList(view.issuesScope);
+    const list = issueList();
     const pos = list.findIndex(x => x.key === view.selectedIssue);
     const next = list[pos + delta];
     if (!next) return;
@@ -785,16 +942,24 @@
   // Reason: sample times are bare HH:MM:SS (today) or "yesterday HH:MM"; prefix so a string sort puts today first
   const sortKey = ts => /^\d\d:\d\d:\d\d$/.test(ts) ? '1' + ts : '0' + ts;
 
+  // P3 Q5: sessions are a filter, not a container. Only activity rows carry `sid` (A123); Claude's and your item events don't,
+  // so picking one session hides them
   function mergedRows() {
     const f = view.logFilter;
-    return onLogs()
-      .filter(l => f.scope === 'all' || l.key === f.scope)
-      .flatMap(l => S.states[l.key].activity.map(a => ({ ...a, log: l })))
+    return cur().activity
       .filter(a => (f.events || isToolRow(a))
+        && (f.session === 'all' || a.sid === f.session)
         && (f.tool === 'all' || a.tool === f.tool)
         && !(f.hideAgents && a.agent)
         && (!f.filesOnly || a.t === 'file'))
       .sort((a, b) => sortKey(b.ts).localeCompare(sortKey(a.ts)));
+  }
+
+  // Sessions seen in this worktree's activity, newest first; the live one is marked
+  function sessionsOf() {
+    const seen = [];
+    cur().activity.forEach(a => { if (a.sid && !seen.includes(a.sid)) seen.push(a.sid); });
+    return seen;
   }
 
   function rowHtml(a) {
@@ -802,20 +967,25 @@
     const who = isToolRow(a) ? a.tool : a.by === 'user' ? 'you' : a.by;
     const text = a.text ? esc(a.text) : '';
     const tags = (a.t === 'file' ? '<span class="tag file">file</span>' : '') + (a.agent ? `<span class="tag">${esc(a.agent)}</span>` : '');
+    const live = a.sid && a.sid === curLog().session.id;
     return `<li class="${kind} ${a.fresh ? 'fresh' : ''}"><span class="cell">${esc(a.ts.replace('yesterday', 'yday'))}</span>
-      <span class="cell wtcell"><span class="wt" title="${esc(a.log.worktree)}">${esc(a.log.key)}</span></span>
+      <span class="cell sidcell sid ${live ? 'now' : ''}" title="${a.sid ? `session ${esc(a.sid)}` : 'item event, no session'}">${esc(a.sid || '·')}</span>
       <span class="cell tool" title="${esc(who)}">${esc(who)}</span>
       <span class="txt ${text ? '' : 'none'}">${text || '(no description)'}${tags}</span></li>`;
   }
 
   function renderLogTab() {
     const f = view.logFilter;
-    const tools = [...new Set(onLogs().flatMap(l => S.states[l.key].activity.filter(isToolRow).map(a => a.tool)))].sort();
-    document.getElementById('main').innerHTML = `
+    const sessions = sessionsOf();
+    if (f.session !== 'all' && !sessions.includes(f.session)) f.session = 'all';
+    const liveSid = curLog().session.id;
+    const tools = [...new Set(cur().activity.filter(isToolRow).map(a => a.tool))].sort();
+    document.getElementById('main').innerHTML = `${wtBanner()}
       <div class="tab-head"><h1>Tool log</h1><span class="meta" id="log-count"></span></div>
       <section class="panel">
         <div class="filters">
-          ${scopeSelect('log-scope', f.scope)}
+          <select id="log-session" aria-label="Session"><option value="all">all sessions (${sessions.length})</option>${sessions.map(sid =>
+            `<option value="${esc(sid)}" ${f.session === sid ? 'selected' : ''}>${esc(sid)}${sid === liveSid ? ' · current' : ''}</option>`).join('')}</select>
           <select id="log-tool" aria-label="Tool"><option value="all">all tools</option>${tools.map(t => `<option ${f.tool === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
           <label><input type="checkbox" id="log-agents" ${f.hideAgents ? 'checked' : ''}>hide subagents</label>
           <label><input type="checkbox" id="log-files" ${f.filesOnly ? 'checked' : ''}>files only</label>
@@ -830,23 +1000,173 @@
     const feed = document.getElementById('feed');
     if (!feed) return;
     const rows = mergedRows();
-    feed.innerHTML = `<li class="head"><span>time</span><span>worktree</span><span>tool</span><span>what</span></li>`
+    feed.innerHTML = `<li class="head"><span>time</span><span>session</span><span>tool</span><span>what</span></li>`
       + (rows.map(rowHtml).join('') || '<li><span></span><span></span><span></span><span class="txt none">nothing matches</span></li>');
     document.getElementById('log-count').textContent = `${rows.length} rows · newest first · Bash shows its description, never the command`;
   }
 
-  // ---------- Empty tabs ----------
-  function renderEmpty() {
-    document.getElementById('main').innerHTML = `<div class="canvas"><h1>Home</h1><p>empty</p></div>`;
+  // ---------- Home tab: open questions ----------
+  // Questions live in items.jsonl (P4 Q1) and replace queue.md "qs" (P4 Q2). An answer is a page op `question answer`
+  // that reaches Claude with this session's next prompt; "need more context" sends `{more: true}` and keeps it open (A88)
+  const isOpen = q => !q.answer || q.more;
+
+  function questionCard(q, pos, total) {
+    const k = `${view.wt}|${q.id}`;
+    const sent = view.queued.find(x => x.questionKey === k);
+    const ex = q.example && cur().examples.find(e => e.name === q.example);
+    const title = q.kind === 'assume'
+      ? `<span class="assume">I assumed:</span>${esc(q.text)}. True?`
+      : esc(q.text);
+    const choiceBtn = c => `<button class="btn choice ${c === q.recommended ? 'rec' : ''}" type="button" data-answer="${esc(k)}" data-text="${esc(c)}"
+      ${sent ? 'disabled' : ''}>${esc(c)}${c === q.recommended ? '<span class="star">★ recommended</span>' : ''}</button>`;
+    // Reason: assumption checks are yes/no only (A113), so they get no free-text box
+    const other = q.kind === 'assume' ? '' : `<form class="other" data-answer-form="${esc(k)}">
+      <input name="text" placeholder="other answer…" aria-label="Other answer for ${esc(q.id)}" ${sent ? 'disabled' : ''}>
+      <button class="btn" type="submit" ${sent ? 'disabled' : ''}>Send</button></form>`;
+    const action = sent
+      ? `<div class="choices"><span class="queued" style="margin:0">→ ${esc(sent.label)} · goes with your next prompt</span>
+          <button class="btn" type="button" data-answer-undo="${esc(k)}">Undo</button></div>`
+      : `<div class="choices">${(q.choices || []).map(choiceBtn).join('')}
+          <button class="btn" type="button" data-answer="${esc(k)}" data-more="1">need more context</button>${other}</div>`;
+    return `<article class="q-card ${sent ? 'sent' : 'waiting'}">
+      <div class="q-head"><span>Q${pos}/${total}</span><span class="item-id">${esc(q.id)}</span>${q.ref ? `<span class="hint">re ${esc(q.ref)}</span>` : ''}</div>
+      <h2>${title}</h2>
+      ${q.context ? `<section class="sec"><h3><b>1</b>Context</h3><p>${esc(q.context)}</p></section>` : ''}
+      ${q.impact ? `<section class="sec"><h3><b>2</b>Impact</h3><p class="impact">${esc(q.impact)}</p></section>` : ''}
+      ${ex ? `<section class="sec"><h3><b>3</b>Example</h3>${exampleHTML(ex)}</section>` : ''}
+      ${q.more ? `<div class="followup">you asked for more context · waiting for Claude to add it</div>` : ''}
+      ${action}</article>`;
+  }
+
+  // Session: state, turn, last event, and the tool the live session is running now
+  function sessionCard() {
+    const l = curLog(), st = cur();
+    const state = l.session.state;
+    const cls = state === 'working' ? 's-working' : state === 'waiting on you' ? 's-waiting' : state === 'off' ? 's-off' : 's-idle';
+    const latest = l.session.id && st.activity.find(a => a.sid === l.session.id && (a.t === 'tool' || a.t === 'file'));
+    const now = state === 'working' && latest ? `<div><span class="k">now</span>${esc(latest.tool)} · ${esc(latest.text || '(no description)')}</div>` : '';
+    return panel('Session', '', `<div class="kv">
+      <div><span class="sess ${cls}">${esc(state)}</span></div>
+      <div><span class="k">session</span>${esc(l.session.id || 'none')} · <span class="k">turn</span>${st.turn} · <span class="k">last event</span>${esc(l.session.lastEventAgo)} ago</div>
+      ${now}</div>`);
+  }
+
+  // Where work is: active epic, its active bead, and what `bd ready` would hand out next (todo, every dep done)
+  function workCard() {
+    const st = cur();
+    const all = beadsOf(view.wt);
+    if (!all.length) return panel('Where work is', '', '<div class="empty">No epics or beads for this worktree.</div>');
+    const activeEpic = (st.epics || []).find(ep => ep.status === 'active');
+    const activeBead = all.find(x => x.b.status === 'active' && (!activeEpic || x.ep === activeEpic)) || all.find(x => x.b.status === 'active');
+    const doneIds = new Set(all.filter(x => x.b.status === 'done').map(x => x.b.id));
+    const ready = all.filter(x => x.b.status === 'todo' && (x.b.deps || []).every(id => doneIds.has(id)));
+    return panel('Where work is', '', `<div class="kv">
+      ${activeEpic ? `<div><span class="k">epic</span><button class="chip" type="button" data-epic-open="${esc(view.wt)}|${esc(activeEpic.id)}">${esc(epicLabel(activeEpic))}</button> ${progressBar(activeEpic.beads)}</div>` : ''}
+      <div><span class="k">now</span>${activeBead ? beadChip(activeBead) : '<span class="hint">no active bead</span>'}</div>
+      <div><span class="k">ready</span>${ready.length ? `<div class="chips" style="margin-top:4px">${ready.slice(0, 3).map(beadChip).join('')}</div>` : '<span class="hint">nothing ready</span>'}</div>
+    </div>`);
+  }
+
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+  // Sync risk: what a dead disk loses right now (P4). Work repos never leave this machine
+  function syncCard() {
+    const l = curLog(), st = cur();
+    if (ERNIE_SAMPLE.repoKinds[l.repo] === 'work') {
+      return panel('Sync', '', `<div class="kv"><div class="sync-risk">work repo · stays on this machine</div>
+        <div class="hint">.ernie/ excluded from git, Beads stealth with no remote. Backup TBD.</div></div>`);
+    }
+    const sync = st.sync || { itemsUncommitted: 0, itemsUnpushed: 0, beadsUnpushedMin: 0 };
+    const atRisk = sync.itemsUncommitted || sync.itemsUnpushed || sync.beadsUnpushedMin;
+    return panel('Sync', '', `<div class="kv">
+      <div class="${atRisk ? 'sync-risk' : 'sync-ok'}">${atRisk ? 'not all on origin yet' : '✓ everything pushed'}</div>
+      <div><span class="k">items.jsonl</span>${plural(sync.itemsUncommitted, 'line')} uncommitted · ${plural(sync.itemsUnpushed, 'commit')} unpushed</div>
+      <div><span class="k">beads</span>${sync.beadsUnpushedMin ? `${sync.beadsUnpushedMin} min since a write left unpushed (auto-push ≥5 min)` : 'pushed'}</div>
+    </div>`);
+  }
+
+  // What the next prompt's hook will inject: the sample's pending events plus this page's queued ones
+  function inboxPanel() {
+    const st = cur();
+    const lines = [...st.pending.map(p => p.label), ...view.queued.filter(q => q.key === view.wt).map(q => q.label)];
+    const body = lines.length
+      ? `<div class="inbox"><pre>ernie inbox · turn ${st.turn + 1}\n${lines.map(t => `- ${esc(t)}`).join('\n')}</pre></div>`
+      : '<div class="empty">Nothing queued; the next prompt delivers nothing.</div>';
+    return panel('Next prompt delivers', lines.length, body);
+  }
+
+  // Page op `note add`: goes to Claude with the next prompt and stays on the page
+  function notePanel() {
+    const notes = cur().notes.slice(-3).reverse();
+    return panel('Add a note', '', `<form class="note-form" data-note-form>
+        <input name="text" placeholder="note for Claude…" aria-label="Note for Claude"><button class="btn" type="submit">Add</button></form>
+      ${notes.length ? `<ul class="answered" style="margin-top:10px">${notes.map(n => `<li><span class="item-id">${esc(n.id)}</span>${esc(n.text)}</li>`).join('')}</ul>` : ''}`);
+  }
+
+  function opsPanel() {
+    const ops = cur().ops || [];
+    return panel('Ops', ops.length, ops.length
+      ? `<ol class="ops">${ops.map(o => `<li>${esc(o)}</li>`).join('')}</ol><div class="hint" style="margin-top:8px">this worktree's standing instructions · add with *op</div>`
+      : '<div class="empty">No ops for this worktree. Add with *op.</div>');
+  }
+
+  function renderHome() {
+    const st = cur();
+    const open = st.questions.filter(isOpen);
+    const answered = st.questions.filter(q => !isOpen(q));
+    const answeredList = answered.length
+      ? `<ul class="answered">${answered.map(q => `<li><span class="item-id">${esc(q.id)}</span>${esc(q.text)}<br><span class="a">→ ${esc(q.answer)}</span></li>`).join('')}</ul>`
+      : '<div class="empty">Nothing answered yet.</div>';
+    document.getElementById('main').innerHTML = `${wtBanner()}
+      <div class="tab-head"><h1>Home</h1>
+        <span class="meta">${open.length} open question${open.length === 1 ? '' : 's'} · ${answered.length} answered</span></div>
+      <div class="home-strip">${sessionCard()}${workCard()}${syncCard()}</div>
+      <div class="home-grid">
+        <div class="q-list">${open.length
+          ? open.map((q, i) => questionCard(q, i + 1, open.length)).join('')
+          : '<div class="canvas" style="min-height:200px"><p>No open questions for this worktree.</p></div>'}</div>
+        <div class="fd-col">${inboxPanel()}${notePanel()}${opsPanel()}${panel('Answered', answered.length, answeredList)}</div>
+      </div>`;
+  }
+
+  function addNote(text) {
+    const st = cur();
+    const id = `n${Math.max(0, ...st.notes.map(n => +n.id.slice(1))) + 1}`;
+    st.notes.push({ id, text });
+    view.queued.push({ key: view.wt, label: `note: ${text}` });
+    logRow(view.wt, { by: 'user', t: 'note', op: 'add', text: `${id} ${text}` });
+    renderAll();
+  }
+
+  // Answer, or ask for more context. Undo before the next prompt cancels the queued answer
+  function answerQuestion(k, text, more) {
+    const [key, id] = k.split('|');
+    const q = S.states[key].questions.find(x => x.id === id);
+    const label = more ? `${id}: need more context` : `${id} → ${text}`;
+    view.queued.push({ key, label, questionKey: k, before: { answer: q.answer, more: q.more } });
+    // Reason: the fold applies the answer as soon as the page writes it; only delivery to Claude waits for the prompt
+    Object.assign(q, more ? { more: true } : { answer: text, more: false });
+    logRow(key, { by: 'user', t: 'question', op: 'answer', text: label });
+    renderAll();
+  }
+
+  function undoAnswer(k) {
+    const sent = view.queued.find(x => x.questionKey === k);
+    const [key, id] = k.split('|');
+    Object.assign(S.states[key].questions.find(x => x.id === id), sent.before);
+    view.queued = view.queued.filter(x => x !== sent);
+    renderAll();
   }
 
   function renderAll() {
+    pickWorktree();
+    renderPicker();
     renderTabs();
     if (view.active === 'planning') renderPlanning();
     else if (view.active === 'issues') renderIssues();
     else if (view.active === 'facts') renderFacts();
     else if (view.active === 'log') renderLogTab();
-    else renderEmpty();
+    else renderHome();
     Object.values(S.states).forEach(st => st.activity.forEach(a => { a.fresh = false; }));
   }
 
@@ -863,21 +1183,36 @@
     const tab = t.closest('[data-tab]');
     if (tab) return openTab(tab.dataset.tab);
 
-    const phaseOpen = t.closest('[data-phase-open]');
-    if (phaseOpen) { view.selectedPhase = phaseOpen.dataset.phaseOpen; return renderAll(); }
+    // Epic and bead chips can sit on other tabs (a decision's ref, a finding's source); they open the Planning tab
+    const epicOpen = t.closest('[data-epic-open]');
+    if (epicOpen) {
+      view.selectedEpic = epicOpen.dataset.epicOpen;
+      return view.active === 'planning' ? renderAll() : openTab('planning');
+    }
     const beadOpen = t.closest('[data-bead-open]');
     if (beadOpen) {
-      const [logKey, phaseId] = beadOpen.dataset.beadOpen.split('|');
-      view.planWorktree = logKey;
-      view.selectedPhase = `${logKey}|${phaseId}`;
+      const [logKey, epicId] = beadOpen.dataset.beadOpen.split('|');
+      view.wt = logKey;
+      view.selectedEpic = `${logKey}|${epicId}`;
       view.selectedBead = beadOpen.dataset.beadOpen;
-      return renderAll();
+      return view.active === 'planning' ? renderAll() : openTab('planning');
     }
     const issueJump = t.closest('[data-issue-jump]');
     if (issueJump) {
-      view.issuesScope = 'all';
+      view.wt = issueJump.dataset.issueJump.split('|')[0];
       view.selectedIssue = issueJump.dataset.issueJump;
       return openTab('issues');
+    }
+    // P3 Q4: archive writes a `<branch>.archived` marker (implies off); restore removes it. Neither reaches Claude
+    const archive = t.closest('[data-archive]');
+    if (archive) {
+      Object.assign(logOf(archive.dataset.archive), { archived: true, on: false });
+      return renderAll();
+    }
+    const restore = t.closest('[data-restore]');
+    if (restore) {
+      logOf(restore.dataset.restore).archived = false;
+      return renderAll();
     }
     const research = t.closest('[data-research]');
     if (research) return startResearch(research.dataset.research);
@@ -887,6 +1222,10 @@
       view.factsKind = view.factsKind === kind ? 'all' : kind;
       return renderAll();
     }
+    const answer = t.closest('[data-answer]');
+    if (answer) return answerQuestion(answer.dataset.answer, answer.dataset.text, !!answer.dataset.more);
+    const answerUndo = t.closest('[data-answer-undo]');
+    if (answerUndo) return undoAnswer(answerUndo.dataset.answerUndo);
     const issueOpen = t.closest('[data-issue-open]');
     if (issueOpen) { view.selectedIssue = issueOpen.dataset.issueOpen; return renderAll(); }
     const issueSet = t.closest('[data-issue-set]');
@@ -916,13 +1255,29 @@
     }
   });
 
+  document.addEventListener('submit', e => {
+    const noteForm = e.target.closest('[data-note-form]');
+    if (noteForm) {
+      e.preventDefault();
+      const text = noteForm.elements.text.value.trim();
+      return text && addNote(text);
+    }
+    const form = e.target.closest('[data-answer-form]');
+    if (!form) return;
+    e.preventDefault();
+    const text = form.elements.text.value.trim();
+    if (text) answerQuestion(form.dataset.answerForm, text, false);
+  });
+
   document.addEventListener('change', e => {
     const f = view.logFilter;
     const id = e.target.id;
-    if (id === 'facts-scope') { view.factsScope = e.target.value; return renderAll(); }
-    if (id === 'issues-scope') { view.issuesScope = e.target.value; return renderAll(); }
-    if (id === 'plan-worktree') { view.planWorktree = e.target.value; return renderAll(); }
-    if (id === 'log-scope') f.scope = e.target.value;
+    if (id === 'wt-pick') {
+      view.wt = e.target.value;
+      view.logUnseen = 0;
+      return renderAll();
+    }
+    if (id === 'log-session') f.session = e.target.value;
     else if (id === 'log-tool') f.tool = e.target.value;
     else if (id === 'log-agents') f.hideAgents = e.target.checked;
     else if (id === 'log-files') f.filesOnly = e.target.checked;
@@ -931,11 +1286,11 @@
     renderFeed();
   });
 
-  // Planning keys: [ ] prev/next bead, { } prev/next phase. Issues keys: [ ] prev/next, a approve. Ignored while typing.
+  // Planning keys: [ ] prev/next bead, { } prev/next epic. Issues keys: [ ] prev/next, a approve. Ignored while typing.
   document.addEventListener('keydown', e => {
     if (e.target.closest?.('input, select, textarea') || e.metaKey || e.ctrlKey) return;
     if (view.active === 'planning') {
-      const step = { '[': () => stepBead(-1), ']': () => stepBead(1), '{': () => stepPhase(-1), '}': () => stepPhase(1) }[e.key];
+      const step = { '[': () => stepBead(-1), ']': () => stepBead(1), '{': () => stepEpic(-1), '}': () => stepEpic(1) }[e.key];
       return step?.();
     }
     if (view.active !== 'issues') return;
@@ -962,14 +1317,18 @@
   let liveIndex = 0;
   setInterval(() => {
     const row = LIVE_ROWS[liveIndex++ % LIVE_ROWS.length];
-    onLogs().filter(l => l.session.state === 'working').forEach(log => {
+    const working = S.logs.filter(l => l.on && !l.archived && l.session.state === 'working');
+    working.forEach(log => {
       const st = S.states[log.key];
-      st.activity.unshift({ ts: clock(), by: 'hook', op: row.t === 'file' ? 'touch' : 'run', ...row, fresh: true });
+      st.activity.unshift({ ts: clock(), by: 'hook', op: row.t === 'file' ? 'touch' : 'run', ...row, sid: log.session.id, fresh: true });
       st.activity.length = Math.min(st.activity.length, 350);
       log.session.lastEventAgo = '0s';
     });
-    if (view.active === 'log') renderFeed();
-    else { view.logUnseen += 1; renderTabs(); }
+    // Only the picked worktree's rows count toward the Tool log badge
+    if (working.some(l => l.key === view.wt)) {
+      if (view.active === 'log') renderFeed();
+      else { view.logUnseen += 1; renderTabs(); }
+    }
     Object.values(S.states).forEach(st => st.activity.forEach(a => { a.fresh = false; }));
   }, 4000);
 
