@@ -43,6 +43,8 @@
       session (P3 Q5; activity rows carry `sid`, Claude's and your item events don't, A123), tool, hide subagents,
       files only, + ernie events. A new row lands every ~4 s on the working session.
   Data: _sample_state.js, loaded from this folder (same data as the 10 variations; P3/P4 additions at the end).
+  Colours: _tokens.css; map in style-guide.html. Top-bar select picks the scheme: retro (default; brown ground, burnt-orange
+    boxes, cream text, teal accent), original dark or original light (the blue scheme with its grid). Remembered per browser.
 -->
 <html lang="en">
 <head>
@@ -52,51 +54,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_tokens.css">
 <style>
   * { box-sizing: border-box; }
-  :root {
-    --sans: 'Bricolage Grotesque', system-ui, sans-serif;
-    --mono: 'Fragment Mono', ui-monospace, SFMono-Regular, monospace;
-    --bg: #0a1520; --bg-card: #0f1e2c; --bg-recessed: #0c1925; --bg-raised: #132638;
-    --text: #d8e6f2; --text-dim: #8299ae; --text-accent: #7dd3fc;
-    --accent: #38bdf8; --accent-soft: #0c2f48;
-    --border: #1c3246; --border-accent: #1f5a82;
-    --grid: rgba(56,189,248,.04);
-    --success: #34d399; --warning: #fbbf24; --error: #f87171;
-    --pass-bg: #064e3b; --pass-fg: #a7f3d0;
-    --warn-bg: #78350f; --warn-fg: #fde68a;
-    --info-bg: #1e3a8a; --info-fg: #dbeafe;
-    --shadow: rgba(0,0,0,.5);
-    color-scheme: dark;
-  }
-  @media (prefers-color-scheme: light) {
-    :root:not([data-theme="dark"]) {
-      --bg: #f3f7fb; --bg-card: #ffffff; --bg-recessed: #eef3f8; --bg-raised: #ffffff;
-      --text: #0d1f2e; --text-dim: #557087; --text-accent: #0369a1;
-      --accent: #0284c7; --accent-soft: #e0f2fe;
-      --border: #d3dfea; --border-accent: #7cc4ee;
-      --grid: rgba(2,132,199,.05);
-      --success: #059669; --warning: #b45309; --error: #dc2626;
-      --pass-bg: #d1fae5; --pass-fg: #065f46;
-      --warn-bg: #fef3c7; --warn-fg: #92400e;
-      --info-bg: #dbeafe; --info-fg: #1e40af;
-      --shadow: rgba(13,31,46,.16);
-      color-scheme: light;
-    }
-  }
-  :root[data-theme="light"] {
-    --bg: #f3f7fb; --bg-card: #ffffff; --bg-recessed: #eef3f8; --bg-raised: #ffffff;
-    --text: #0d1f2e; --text-dim: #557087; --text-accent: #0369a1;
-    --accent: #0284c7; --accent-soft: #e0f2fe;
-    --border: #d3dfea; --border-accent: #7cc4ee;
-    --grid: rgba(2,132,199,.05);
-    --success: #059669; --warning: #b45309; --error: #dc2626;
-    --pass-bg: #d1fae5; --pass-fg: #065f46;
-    --warn-bg: #fef3c7; --warn-fg: #92400e;
-    --info-bg: #dbeafe; --info-fg: #1e40af;
-    --shadow: rgba(13,31,46,.16);
-    color-scheme: light;
-  }
   body { margin: 0; font-family: var(--sans); font-size: 14px; line-height: 1.5; color: var(--text);
     background-color: var(--bg); overflow-x: hidden;
     background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
@@ -143,7 +103,7 @@
   .tab-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px; margin: 2px 0 14px; }
   .tab-head h1 { margin: 0; font: 800 22px var(--sans); letter-spacing: -.02em; }
   .tab-head .meta { font: 12px var(--mono); color: var(--text-dim); }
-  select.wt-pick, .filters select { max-width: 100%; font: 12px var(--mono); background: var(--bg-card); color: var(--text);
+  select.wt-pick, .filters select, select.scheme-pick { max-width: 100%; font: 12px var(--mono); background: var(--bg-card); color: var(--text);
     border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; }
 
   /* Worktree picker (top bar) + worktree banners */
@@ -156,7 +116,7 @@
   .wt-banner span { flex: 1 1 260px; }
 
   /* Panels (from 01) */
-  .panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; min-width: 0; }
+  .panel { background: var(--bg-card); border: 1px solid var(--box-edge); border-radius: 10px; min-width: 0; }
   .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid var(--border);
     font: 11px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); }
   .panel-head .count { color: var(--text-accent); text-transform: none; letter-spacing: 0; }
@@ -239,7 +199,7 @@
   .btn { font: 12px var(--mono); padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-card); cursor: pointer; }
   .btn:hover { border-color: var(--accent); } .btn--primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
   .btn--danger:hover { border-color: var(--error); color: var(--error); }
-  .tbl-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); }
+  .tbl-wrap { overflow-x: auto; border: 1px solid var(--box-edge); border-radius: 8px; background: var(--bg-card); }
   .tbl-wrap table { border-collapse: collapse; width: 100%; font: 12px var(--mono); }
   .tbl-wrap th, .tbl-wrap td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
   .tbl-wrap thead th { color: var(--text-dim); font-weight: 400; background: var(--bg-recessed); }
@@ -260,7 +220,7 @@
   @media (max-width: 900px) { .home-grid { grid-template-columns: minmax(0, 1fr); } }
   /* Open questions: focus list (one line each, the selected one opens; labels in a left gutter) */
   .qf-hint { font: 11.5px var(--mono); color: var(--text-dim); margin: 0 0 10px; }
-  .qf-item { border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); margin-bottom: 10px; overflow: hidden; min-width: 0; }
+  .qf-item { border: 1px solid var(--box-edge); border-radius: 12px; background: var(--bg-card); margin-bottom: 10px; overflow: hidden; min-width: 0; }
   .qf-item.sel { border-color: var(--border-accent); box-shadow: inset 3px 0 0 var(--accent); }
   .qf-line { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 14px; align-items: baseline; width: 100%; padding: 14px 18px;
     border: 0; background: none; text-align: left; cursor: pointer; }
@@ -385,7 +345,10 @@
   <div class="brand">ernie<span>.</span></div>
   <div class="wt-pick-wrap" id="wt-pick-wrap"></div>
   <nav class="tabstrip" id="tabstrip" aria-label="Tabs"></nav>
-  <div class="status"><span class="live">live</span><button class="icon-btn" id="theme-toggle" type="button">◐</button></div>
+  <div class="status"><span class="live">live</span>
+    <select class="scheme-pick" id="scheme-pick" aria-label="Colour scheme">
+      <option value="retro">retro</option><option value="original">original dark</option><option value="original-light">original light</option>
+    </select></div>
 </header>
 
 <main id="main"></main>
@@ -1315,6 +1278,7 @@
   document.addEventListener('change', e => {
     const f = view.logFilter;
     const id = e.target.id;
+    if (id === 'scheme-pick') return applyScheme(e.target.value);
     if (id === 'wt-pick') {
       view.wt = e.target.value;
       view.logUnseen = 0;
@@ -1386,12 +1350,18 @@
     Object.values(S.states).forEach(st => st.activity.forEach(a => { a.fresh = false; }));
   }, 4000);
 
-  // Theme
-  const root = document.documentElement;
-  const currentTheme = () => root.dataset.theme || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-  document.getElementById('theme-toggle').addEventListener('click', () => {
-    root.dataset.theme = currentTheme() === 'dark' ? 'light' : 'dark';
-  });
+  // Colour scheme: retro is the default (no attribute); the pick is remembered per browser
+  const SCHEMES = ['retro', 'original', 'original-light'];
+  function applyScheme(scheme) {
+    if (!SCHEMES.includes(scheme)) scheme = 'retro';
+    if (scheme === 'retro') delete document.documentElement.dataset.scheme;
+    else document.documentElement.dataset.scheme = scheme;
+    document.getElementById('scheme-pick').value = scheme;
+    try { localStorage.setItem('ernie-scheme', scheme); } catch (err) { /* storage blocked: pick lasts this visit */ }
+  }
+  let savedScheme = null;
+  try { savedScheme = localStorage.getItem('ernie-scheme'); } catch (err) { /* storage blocked */ }
+  applyScheme(savedScheme);
 
   // Deep link: #planning, #issues, #facts or #log
   const hashKey = decodeURIComponent(location.hash.slice(1));

@@ -1,0 +1,75 @@
+/* ernie page colour tokens. Default = retro (dark only); style-guide.html documents every role. The original blue
+   scheme (dark + light) stays selectable via data-scheme on <html>.
+   Three surfaces: ground (brown page), box (burnt-orange panels, mustard edge), cut-out (a selected row inside a box,
+   brown again). Components use the role tokens only; the raw palette is for this file. */
+:root {
+  --sans: 'Bricolage Grotesque', system-ui, sans-serif;
+  --mono: 'Fragment Mono', ui-monospace, SFMono-Regular, monospace;
+
+  /* Raw palette: five from the source image, two derived for success / error */
+  --brown: #422d1f; --brown-deep: #2e1f15; --brown-lift: #513d2f;
+  --orange: #cc572e; --box: #b04f2b; --box-hover: #a04a29;
+  --mustard: #edbe44; --cream: #f9f3e4; --teal: #66bdbf;
+  --sage: #9cc08a; --salmon: #f08a6a;
+
+  /* Ground roles */
+  --bg: var(--brown); --bg-card: var(--box); --bg-recessed: var(--brown-deep); --bg-raised: var(--brown-lift);
+  --text: var(--cream); --text-dim: #b3a899; --text-accent: var(--teal);
+  --accent: var(--teal); --accent-soft: var(--brown-deep);
+  --border: #5f4d3f; --border-accent: var(--teal); --box-edge: var(--mustard);
+  --success: var(--sage); --warning: var(--mustard); --error: var(--salmon);
+  --pass-bg: #443f2c; --pass-fg: var(--sage);
+  --warn-bg: #543f1e; --warn-fg: var(--mustard);
+  --info-bg: #393f37; --info-fg: var(--teal);
+  --grid: transparent;
+  --shadow: rgba(20,12,6,.55);
+  color-scheme: dark;
+}
+
+/* Original blue scheme, picked from the top-bar scheme select. Values as before the retro palette. */
+:root[data-scheme="original"] {
+  --bg: #0a1520; --bg-card: #0f1e2c; --bg-recessed: #0c1925; --bg-raised: #132638;
+  --text: #d8e6f2; --text-dim: #8299ae; --text-accent: #7dd3fc;
+  --accent: #38bdf8; --accent-soft: #0c2f48;
+  --border: #1c3246; --border-accent: #1f5a82;
+  --grid: rgba(56,189,248,.04);
+  --success: #34d399; --warning: #fbbf24; --error: #f87171;
+  --pass-bg: #064e3b; --pass-fg: #a7f3d0;
+  --warn-bg: #78350f; --warn-fg: #fde68a;
+  --info-bg: #1e3a8a; --info-fg: #dbeafe;
+  --shadow: rgba(0,0,0,.5);
+  --box-edge: #1c3246;
+  color-scheme: dark;
+}
+:root[data-scheme="original-light"] {
+  --bg: #f3f7fb; --bg-card: #ffffff; --bg-recessed: #eef3f8; --bg-raised: #ffffff;
+  --text: #0d1f2e; --text-dim: #557087; --text-accent: #0369a1;
+  --accent: #0284c7; --accent-soft: #e0f2fe;
+  --border: #d3dfea; --border-accent: #7cc4ee;
+  --grid: rgba(2,132,199,.05);
+  --success: #059669; --warning: #b45309; --error: #dc2626;
+  --pass-bg: #d1fae5; --pass-fg: #065f46;
+  --warn-bg: #fef3c7; --warn-fg: #92400e;
+  --info-bg: #dbeafe; --info-fg: #1e40af;
+  --shadow: rgba(13,31,46,.16);
+  --box-edge: #d3dfea;
+  color-scheme: light;
+}
+
+/* Box: anything filled orange. Only cream reads on orange (4.74:1), so every ink role turns cream. Mustard stays for
+   warning glyphs (3:1, icons only). Selected rows cut back to brown. Components set their own edges. */
+:root:not([data-scheme^="original"]) :is(.panel, .qf-item, .tbl-wrap, .chip, .btn:not(.btn--primary)) {
+  --bg-card: var(--box); --bg-recessed: var(--box-hover); --bg-raised: var(--brown-deep);
+  --text-dim: #f2e3d2; --text-accent: var(--cream);
+  --accent: var(--cream); --accent-soft: var(--brown);
+  --border: #c78366;
+  --success: var(--cream); --error: var(--cream);
+}
+
+/* Cut-out: a selected row inside a box gets the ground inks back */
+:root:not([data-scheme^="original"]) :is(.ph-row, .bd-row, .is-row).sel {
+  --text-dim: #b3a899; --text-accent: var(--teal);
+  --accent: var(--teal); --success: var(--sage); --error: var(--salmon);
+  box-shadow: inset 3px 0 0 var(--teal);
+}
+:root:not([data-scheme^="original"]) .bd-row:not(.sel) .why { color: var(--text); }

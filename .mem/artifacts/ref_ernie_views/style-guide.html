@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<!--
+  Style guide for the ernie page. Reads every value from _tokens.css (same file 00-template.html loads), so the hexes and
+  contrast ratios on this page are always the live ones. Built from the Planning tab: brown ground, burnt-orange boxes
+  with a mustard edge, cream text, teal accent.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ernie · Style guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--sans); font-size: 15px; line-height: 1.55; color: var(--text); background: var(--bg); }
+  main { max-width: 1180px; margin: 0 auto; padding: 28px 20px 64px; display: grid; gap: 40px; }
+  @media (max-width: 720px) { main { padding: 20px 16px 48px; } }
+  h1 { margin: 0; font: 800 30px/1.15 var(--sans); letter-spacing: -.02em; text-wrap: balance; }
+  h2 { margin: 0 0 4px; font: 800 20px var(--sans); letter-spacing: -.01em; }
+  .lede { margin: 6px 0 0; max-width: 62ch; color: var(--text-dim); }
+  .sec-note { margin: 0 0 16px; max-width: 70ch; color: var(--text-dim); font-size: 14px; }
+  code, .mono { font-family: var(--mono); font-size: .88em; }
+
+  /* Palette */
+  .swatches { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .sw { border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: var(--brown-deep); min-width: 0; }
+  .sw .chip-c { height: 64px; }
+  .sw .meta { padding: 8px 10px; font: 11.5px var(--mono); display: grid; gap: 2px; }
+  .sw .meta b { font: 600 13px var(--sans); }
+  .sw .meta span { color: var(--text-dim); }
+
+  /* Surfaces */
+  .surfaces { display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  @media (max-width: 900px) { .surfaces { grid-template-columns: minmax(0, 1fr); } }
+  .surf { border-radius: 10px; padding: 14px 16px; min-width: 0; }
+  .surf.ground { border: 1px dashed var(--border); }
+  .surf.panel { border: 1px solid var(--box-edge); }
+  .surf.cut { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--teal); border-radius: 6px; }
+  .surf h3 { margin: 0 0 2px; font: 600 15px var(--sans); }
+  .surf .what { margin: 0 0 12px; font: 11.5px var(--mono); color: var(--text-dim); }
+  .inks { display: grid; gap: 4px; font-size: 14px; }
+  .inks div { display: flex; justify-content: space-between; gap: 10px; }
+  .inks .r { font: 11px var(--mono); color: var(--text-dim); white-space: nowrap; }
+  .inks .r.low { text-decoration: underline dotted; }
+
+  /* Role map */
+  .tbl { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; min-width: 760px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  thead th { font: 11px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); font-weight: 400; background: var(--brown-deep); }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.tok { font: 12px var(--mono); white-space: nowrap; }
+  td.val { white-space: nowrap; font: 12px var(--mono); }
+  .dot { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -2px; margin-right: 6px; border: 1px solid rgba(249,243,228,.25); }
+  td.val .r { color: var(--text-dim); margin-left: 4px; }
+  td.val .same { color: var(--text-dim); }
+  td.use { color: var(--text-dim); min-width: 240px; }
+  tr.grp td { font: 600 12px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text); background: var(--brown-lift); }
+
+  /* Specimens (minimal copies of the template's own rules) */
+  .spec { display: grid; gap: 16px; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); align-items: start; }
+  @media (max-width: 900px) { .spec { grid-template-columns: minmax(0, 1fr); } }
+  .panel { background: var(--bg-card); border: 1px solid var(--box-edge); border-radius: 10px; padding: 10px 12px 14px; }
+  .group { font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); margin: 2px 4px 6px; display: flex; justify-content: space-between; }
+  .bd-row { width: 100%; display: grid; grid-template-columns: 14px auto minmax(0, 1fr); gap: 7px; align-items: baseline; border: 0; border-radius: 6px;
+    background: none; padding: 7px 6px; text-align: left; cursor: pointer; color: var(--text); font: inherit; }
+  .bd-row:hover { background: var(--bg-recessed); }
+  .bd-row.sel { background: var(--accent-soft); }
+  .bd-row .id { font: 11px var(--mono); color: var(--text-dim); }
+  .bd-row .t { font-size: 14px; line-height: 1.4; }
+  .bd-row.st-done .t { color: var(--text-dim); }
+  .bd-row .why { display: block; font: 10.5px var(--mono); color: var(--text); margin-top: 2px; }
+  .bd-row.sel .why { color: var(--warning); }
+  .g { font: 12px var(--mono); text-align: center; }
+  .g--todo { color: var(--text-dim); } .g--active { color: var(--accent); } .g--done { color: var(--success); } .g--blocked { color: var(--warning); }
+  .bar { display: flex; align-items: center; gap: 6px; margin: 4px 6px 10px; font: 10.5px var(--mono); color: var(--text-dim); }
+  .bar i { flex: 1; height: 4px; border-radius: 2px; background: var(--bg-raised); border: 1px solid var(--border); overflow: hidden; display: block; }
+  .bar i b { display: block; height: 100%; width: 60%; background: var(--success); }
+  .kit { display: grid; gap: 18px; }
+  .kit .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .kit .lbl { font: 11px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); width: 100%; }
+  .pill { font: 11px var(--mono); padding: 1px 8px; border-radius: 10px; white-space: nowrap; }
+  .p-pass { background: var(--pass-bg); color: var(--pass-fg); } .p-warn { background: var(--warn-bg); color: var(--warn-fg); }
+  .p-info { background: var(--info-bg); color: var(--info-fg); } .p-unk { background: var(--bg-raised); color: var(--text); border: 1px dashed var(--text-dim); }
+  .chip { font: 11.5px var(--mono); padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); }
+  .btn { font: 12px var(--mono); padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); cursor: pointer; }
+  .btn:hover { border-color: var(--accent); } .btn--primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+  .kbtn { display: inline-flex; align-items: center; gap: 8px; font: 600 14px var(--sans); padding: 7px 14px; border-radius: 8px;
+    border: 1.5px solid var(--border); background: var(--bg-recessed); color: var(--text); cursor: pointer; }
+  .kbtn.rec, .kbtn:hover { border-color: var(--accent); }
+  .kbtn kbd { font: 11px var(--mono); padding: 0 5px; border-radius: 4px; border: 1px solid var(--border); color: var(--text-dim); }
+  .kbtn small { font: 400 11px var(--mono); color: var(--text-accent); }
+  .badge { font: 10.5px var(--mono); min-width: 18px; padding: 1px 6px; border-radius: 9px; background: var(--accent); color: var(--bg); }
+  .impact { border-left: 3px solid var(--warning); padding: 4px 0 4px 10px; color: var(--warning); max-width: 62ch; }
+  .path { font: 12px var(--mono); color: var(--text-accent); }
+  .legend { font: 12px var(--mono); color: var(--text-dim); display: flex; flex-wrap: wrap; gap: 6px 16px; }
+  .legend span b { font-weight: 400; margin-right: 4px; }
+
+  /* Rules */
+  .rules { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; max-width: 78ch; }
+  .rules li { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 16px; }
+  .rules li b { font: 11px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); padding-top: 3px; font-weight: 400; }
+  @media (max-width: 640px) { .rules li { grid-template-columns: minmax(0, 1fr); gap: 2px; } }
+  :focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>ernie · Style guide</h1>
+    <p class="lede">Colours for every ernie page, taken from the Planning tab. One dark look. Values below are read live from
+      <code>_tokens.css</code>; ratios are WCAG contrast against the surface each colour sits on.</p>
+  </header>
+
+  <section>
+    <h2>Rules</h2>
+    <ul class="rules">
+      <li><b>Surfaces</b><span>Three only. The page is brown. Things you work in (epic and bead lists, issue list, question cards, tables) are burnt-orange boxes with a mustard edge. A selected row inside a box is cut back to brown with a teal bar on its left.</span></li>
+      <li><b>On orange</b><span>Only cream reads on orange (4.7:1). Anything filled orange (boxes, chips, buttons) turns every text role cream; status shows by glyph shape (○ ◐ ● ⊘). Mustard is allowed for warning glyphs (3:1, fine for icons, not for small text).</span></li>
+      <li><b>Colour = meaning</b><span>Teal = active, selected, recommended, primary action. Mustard = waiting, blocked, impact. Sage = done, verified. Salmon = error, destructive. Colour shows on brown (page or cut-out), never as small text on orange.</span></li>
+      <li><b>Edges</b><span>Mustard edge = a box at rest. Teal edge = the selected box or the focused control. Hairlines between rows use the plain border, never a colour.</span></li>
+      <li><b>No texture</b><span>No background grid, no gradients. Separation comes from the brown/orange switch and whitespace, not inner borders.</span></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Palette</h2>
+    <p class="sec-note">Five colours come from the source image. Box orange is the image orange pulled 15% toward brown so cream text passes 4.5:1; the image orange stays for highlights. Sage and salmon are added for done and error.</p>
+    <div class="swatches" id="swatches"></div>
+  </section>
+
+  <section>
+    <h2>Surfaces</h2>
+    <p class="sec-note">The same role tokens resolve differently on each surface. Ratios marked with a dotted underline are under 4.5:1.</p>
+    <div class="surfaces">
+      <div class="surf ground" data-surface="ground"><h3>Ground</h3><p class="what">page, bead detail, Tool log</p><div class="inks"></div></div>
+      <div class="surf panel" data-surface="box"><h3>Box</h3><p class="what">panels, question cards, tables, chips, buttons</p><div class="inks"></div></div>
+      <div class="panel" style="padding: 10px"><div class="surf cut bd-row sel" data-surface="cut" style="display:block; cursor:default"><h3>Cut-out</h3><p class="what">selected row inside a box</p><div class="inks"></div></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Role map</h2>
+    <p class="sec-note">What each token is for, and its value on ground and inside a box. "same" = the box inherits the ground value.</p>
+    <div class="tbl"><table>
+      <thead><tr><th>Token</th><th>Ground</th><th>Box</th><th>Used for</th></tr></thead>
+      <tbody id="roles"></tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>Components</h2>
+    <p class="sec-note">Planning's bead column on the left (hover a row to see the box hover). Controls and status marks on the ground to the right.</p>
+    <div class="spec">
+      <div class="panel">
+        <div class="group"><span>e2 · Hook pipeline</span><span>4 beads</span></div>
+        <div class="bar"><i><b></b></i>3/5</div>
+        <button class="bd-row st-done" type="button"><span class="g g--done">●</span><span class="id">b4</span><span class="t">Parse hook payloads</span></button>
+        <button class="bd-row sel" type="button"><span class="g g--active">◐</span><span class="id">b5</span><span class="t">Write activity rows<span class="why">needs b3</span></span></button>
+        <button class="bd-row" type="button"><span class="g g--blocked">⊘</span><span class="id">b6</span><span class="t">Turn marks<span class="why">needs b5</span></span></button>
+        <button class="bd-row" type="button"><span class="g g--todo">○</span><span class="id">b7</span><span class="t">Seed mark on init</span></button>
+      </div>
+      <div class="kit">
+        <div class="row"><span class="lbl">Bead status</span><span class="legend"><span><b class="g--todo">○</b>todo</span><span><b class="g--active">◐</b>active</span><span><b class="g--done">●</b>done</span><span><b class="g--blocked">⊘</b>blocked</span></span></div>
+        <div class="row"><span class="lbl">Fact confidence</span><span class="pill p-pass">✓ verified</span><span class="pill p-warn">~ inferred</span><span class="pill p-unk">✗ unknown</span><span class="pill p-info">ours</span></div>
+        <div class="row"><span class="lbl">Answer row</span><button class="kbtn rec" type="button"><kbd>1</kbd>Keep split log <small>★ recommended</small></button><button class="kbtn" type="button"><kbd>2</kbd>One log</button><button class="kbtn" type="button"><kbd>m</kbd>need more context</button></div>
+        <div class="row"><span class="lbl">Buttons, chips, badge</span><button class="btn btn--primary" type="button">Approve</button><button class="btn" type="button">Dismiss</button><span class="chip">→ b5</span><span class="badge">3</span></div>
+        <div class="row"><span class="lbl">Impact, paths</span><div class="impact">If skipped: page notes vanish after /clear.</div><span class="path">internal/hook/payload.go:42</span></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+  const ROOT = getComputedStyle(document.documentElement);
+  const tok = (el, name) => getComputedStyle(el).getPropertyValue(name).trim();
+  const hexRgb = h => { const m = /^#([0-9a-f]{6})$/i.exec(h); return m ? [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16)) : null; };
+  const lum = rgb => { const c = rgb.map(v => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; });
+    return .2126 * c[0] + .7152 * c[1] + .0722 * c[2]; };
+  const ratio = (a, b) => { const A = hexRgb(a), B = hexRgb(b); if (!A || !B) return null;
+    const [x, y] = [lum(A), lum(B)].sort((p, q) => q - p); return (x + .05) / (y + .05); };
+  const fmt = r => r == null ? '' : r.toFixed(2) + ':1';
+
+  // Palette swatches
+  const PALETTE = [
+    ['--brown', 'Brown', 'image · page ground'], ['--brown-deep', 'Brown deep', 'derived · wells, inputs'],
+    ['--brown-lift', 'Brown lift', 'derived · hover on ground'], ['--orange', 'Burnt orange', 'image · highlights'],
+    ['--box', 'Box orange', 'derived · box surface'], ['--box-hover', 'Box hover', 'derived · row hover in box'],
+    ['--mustard', 'Mustard', 'image · box edge, warning'], ['--cream', 'Cream', 'image · text'],
+    ['--teal', 'Teal', 'image · accent'], ['--sage', 'Sage', 'added · done, verified'], ['--salmon', 'Salmon', 'added · error'],
+  ];
+  document.getElementById('swatches').innerHTML = PALETTE.map(([v, name, src]) => {
+    const hex = ROOT.getPropertyValue(v).trim();
+    return `<div class="sw"><div class="chip-c" style="background:var(${v})"></div>
+      <div class="meta"><b>${name}</b><code>${hex}</code><span>${src}</span></div></div>`;
+  }).join('');
+
+  // Ink ratios per surface
+  const INKS = [['--text', 'text'], ['--text-dim', 'dim text'], ['--text-accent', 'accent text'], ['--accent', 'accent'],
+    ['--success', 'success'], ['--warning', 'warning'], ['--error', 'error']];
+  document.querySelectorAll('[data-surface]').forEach(el => {
+    const ground = el.dataset.surface === 'ground' ? tok(el, '--bg') : el.dataset.surface === 'box' ? tok(el, '--bg-card') : tok(el, '--accent-soft');
+    el.querySelector('.inks').innerHTML = INKS.map(([v, label]) => {
+      const c = tok(el, v), r = ratio(c, ground);
+      return `<div><span style="color:var(${v})">${label}</span><span class="r ${r < 4.5 ? 'low' : ''}">${c} · ${fmt(r)}</span></div>`;
+    }).join('');
+  });
+
+  // Role map: values on ground and inside a box, with contrast for inks
+  const boxEl = document.querySelector('[data-surface="box"]');
+  const ROLES = [
+    ['Surfaces'],
+    ['--bg', 'Page ground; text on teal buttons and badges'],
+    ['--bg-card', 'Box surface: panels, question cards, tables, active tab, buttons, chips'],
+    ['--bg-recessed', 'Wells on ground (inputs, code blocks, inactive tabs); row hover inside a box'],
+    ['--bg-raised', 'Hover on ground, unknown-fact pill; progress-bar track inside a box'],
+    ['--accent-soft', 'Selected row fill (the cut-out)'],
+    ['Text', true],
+    ['--text', 'Body text, titles'],
+    ['--text-dim', 'Ids, labels, meta, done rows'],
+    ['--text-accent', 'File paths, links, recommended marks'],
+    ['Accent and status', true],
+    ['--accent', 'Active bead, primary button, badge, hover and focus borders'],
+    ['--success', 'Done, verified, progress fill'],
+    ['--warning', 'Blocked, waiting, impact, inferred'],
+    ['--error', 'Errors, destructive hover'],
+    ['Edges', true],
+    ['--box-edge', 'Box outline at rest'],
+    ['--border-accent', 'Selected box outline, active tab'],
+    ['--border', 'Hairlines between rows, chip and button borders, inner dashed rules'],
+    ['Pills', true],
+    ['--pass-bg', 'Verified pill fill (pair: --pass-fg)', '--pass-fg'],
+    ['--warn-bg', 'Inferred / waiting pill fill (pair: --warn-fg)', '--warn-fg'],
+    ['--info-bg', 'Info pill fill (pair: --info-fg)', '--info-fg'],
+  ];
+  const isInk = v => /^--(text|accent$|success|warning|error)/.test(v);
+  const cell = (el, v, surface, fgPair) => {
+    const c = tok(el, v);
+    let r = null;
+    if (fgPair) r = ratio(tok(el, fgPair), c);
+    else if (isInk(v)) r = ratio(c, surface);
+    return `<span class="dot" style="background:${c}"></span>${c}${r ? `<span class="r">${fmt(r)}</span>` : ''}`;
+  };
+  const groundBg = ROOT.getPropertyValue('--bg').trim(), boxBg = tok(boxEl, '--bg-card');
+  document.getElementById('roles').innerHTML = ROLES.map(([v, use, pair]) => {
+    if (!use || use === true) return `<tr class="grp"><td colspan="4">${v}</td></tr>`;
+    const g = ROOT.getPropertyValue(v).trim(), b = tok(boxEl, v);
+    const boxCell = g === b && !isInk(v) ? '<span class="same">same</span>' : cell(boxEl, v, boxBg, pair);
+    return `<tr><td class="tok">${v}</td><td class="val">${cell(document.documentElement, v, groundBg, pair)}</td><td class="val">${boxCell}</td><td class="use">${use}</td></tr>`;
+  }).join('');
+</script>
+</body>
+</html>
