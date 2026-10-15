@@ -28,6 +28,8 @@
 - [git] `merge=union` (git 2.47.1, scratch test 2026-10-13): no-attr append on both sides → conflict; union → all lines kept; merge order ours→theirs, rebase/`pull --rebase` upstream→local (line order ≠ time order); byte-identical lines collapse to one; gitattributes `*` doesn't cross `/` → use `**`
 - [ui] user's readability principles for ernie page detail views (chosen 2026-10-13, Home question list D): scan first (one line per item w/ status, e.g. ★ recommended), labels in left gutter (dl, no numbered section headings), body 15–16px sans ~62ch measure, whitespace not inner borders, action row always last in fixed spot, plain labels ("If wrong", "If skipped"), colour only for meaning (warning = impact/waiting, accent = recommended), keyboard-first numbered choices. Applied to Home questions, Issues, Planning (no collapsing on those two)
 - [ui] user liked "need more context" + Undo on page answers; keep that pattern for page ops that queue for the next prompt
+- [ui] check local mocks w/o browser tools: headless Chrome `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --hide-scrollbars --window-size=1400,1500 --virtual-time-budget=4000 --user-data-dir=<scratch dir> --screenshot=<out.png> file://…#tab` (relative css/js load fine over file://); measure layout: copy page to a probe file w/ a script that writes getBoundingClientRect values into a body data-attr, run `--dump-dom`, grep it, delete the probe
+- [ui] readability decisions (2026-10-14/15, user-approved): type roles (12px floor, body 15/1.6, labels 13/600 sans sentence case, secondary 13 dim, mono only ids/paths/code), spacing scale 4/8/12/16/24/32/48, space not inner rules, Home questions first + right rail, Planning epic row on top → ref_ui_readability_review.md
 ## gotchas
 - [beads] `bd init` in a git repo (non-stealth) makes its own commit (.beads/ config + 5 git hooks, .gitignore) and sets `core.hooksPath=.beads/hooks` → overrides existing repo hooks (spike 2026-10-10)
 - [beads] every `bd` cmd outside a git repo prints 3-line `beads.role not configured` stderr warning → token noise; set `beads.role` or filter
@@ -35,6 +37,7 @@
 - [claude-hooks] dotfiles hooks calling ernie must guard on the binary (`[ -x … ] && … || true`); ~/things/myc isn't synced by dotfiles, missing binary = hook error every tool call
 - [ernie] `git rev-parse` ≈12 ms → hooks miss 10 ms budget unless they skip git (A96); fold 50k = 67 ms, 75% allocs = activity buffer (A109)
 - [ernie] dump has no notes → page notes vanish after /clear/compaction unless promoted (A106)
+- [git] subagent still editing a file you want to commit → commit its pre-edit snapshot: git hash-object -w <snapshot> + git update-index --cacheinfo 100644,<sha>,<path> (2026-10-14)
 ## arch
 - [ernie] P4 decided (2026-10-13): split log — activity (tool/file/turn/meta, `sid`) local `~/.local/state`; durable items (question/decision/fact/note/diagram/example) → `.ernie/mem/<branch>/items.jsonl`, git-tracked (personal), `merge=union`; queue.md retired (qs → ernie questions, next → ad hoc beads); cross-store links ernie-side `--ref` → backlog "P4 … DECIDED"
 - [ernie] ops stay per branch (C1 isolation kept; re-add per worktree); `ernie dump` prints OPS first; `*op`/`*um`/`*mr` triggers move into the one `ernie` skill (2026-10-13)
@@ -56,6 +59,7 @@
 - [beads] page buttons run `bd` directly from ernie server (no Claude, no queue); dismiss finding = resolution=dismissed + close; review dedup = prompt-only, round N reviewer gets dismissed findings of that bead only (2026-10-11)
 - [ernie] P2 planning flow decided (2026-10-11): PRD in .ernie/mem/<branch>/artifacts; epic at draft, Beads tracks plan state/reviews/findings; fresh-agent breakdown → 2–3 fresh polish rounds (reread PRD) → user approves via audit report; per-bead code review min 2/cap 5 → ref_ernie_backlog.md "P2 planning flow — DECIDED"
 - [ernie] P3 tab scopes decided (2026-10-11): one top picker at worktree level (grouped by repo); worktree → epic | ad hoc model, finding source = parent; Beads one store/repo + `wt:<branch>` label; explicit archive + folder-gone flag; events carry `sid`, session filter on Tool log only → ref_ernie_backlog.md "P3 tab scopes — DECIDED"
+- [ui] page colours = ref_ernie_views/_tokens.css (2026-10-14): retro default, dark only for now; 3 surfaces: ground brown #422d1f, box orange #b04f2b w/ mustard #edbe44 edge, cut-out (selected row in box) brown + teal bar; only cream #f9f3e4 reads on orange → status colour (teal accent, sage done, mustard warn, salmon error) only on brown; original blue dark/light kept selectable → style-guide.html
 ## reference
 - [ernie] spec → .mem/artifacts/spec_ernie.md
 - [ernie] build plan (phases, tasks, amendments A1–A114) → .mem/artifacts/plan_ernie_build.md
@@ -70,3 +74,5 @@
 - [beads] beads_rust (`br`) research + spike: SQLite+JSONL-in-git port, license rider vs Anthropic → .mem/artifacts/ref_ernie_beads_rust.md
 - [ernie] agent-flywheel guide research (PRD→beads, bead polishing, 42-prompt catalog as paraphrase; MIT+Anthropic rider → no verbatim) → .mem/artifacts/ref_agent_flywheel.md
 - [ernie] P4 decisions (split log, F1–F3, Q1–Q6, final store map, drive-loss analysis) → .mem/artifacts/ref_ernie_backlog.md "P4 data model for state — DECIDED"
+- [ui] colour style guide (palette, surfaces, role map, components) → .mem/artifacts/ref_ernie_views/style-guide.html (tokens in _tokens.css)
+- [ui] readability review (applied/remaining, per tab) → .mem/artifacts/ref_ui_readability_review.md

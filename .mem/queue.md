@@ -1,5 +1,5 @@
 ---
-updated: 2026-10-13
+updated: 2026-10-15
 ---
 ## next
 - [ernie] next session: P5 UI tabs → backlog. P4 amendments A115–A123 in plan §0 (not folded); fold later in one pass w/ C1, C2, P2, P3, page buttons, Beads type drop (plan Open #11)
@@ -22,10 +22,33 @@ updated: 2026-10-13
 - [ernie] when ernie memory lands: update global ~/.claude/CLAUDE.md §7 (Memory) + retire mem skill/mem-ops; user migrates old `.mem/` dirs manually
 - [beads] `/gtg` + `*um` run `bd dolt push` (personal repos) to flush writes held by the 5-min auto-push window; update gtg + mem skills when ernie lands
 - [ernie] pick 00-template as the phase 3 target (P5 UI tabs reviews it tab by tab)
-- [ernie] spec amendment for template-only page features: Home Sync card (server needs items.jsonl uncommitted/unpushed counts + Beads last push), Ops panel (reads memory `## ops`), Session card state/now-tool, question keys j/k/1–9/m/u, Issues keys a/d/u → backlog/plan when folding (Open #11)
+- [ernie] spec amendment for template-only page features: Ops panel (reads memory `## ops`), colour scheme select (_tokens.css), Planning PRD reader (keys p/esc), question keys j/k/1–9/m/u, Issues keys a/d/u → backlog/plan when folding (Open #11)
 - [ernie] spec amendments the template now needs: phases/beads model (plan is flat), page op `fact research` in PostOps, CLI to update a fact's confidence/method/text (only add/dismiss today)
 - [ernie] phase 1 build per .mem/artifacts/plan_ernie_build.md — not started; blocked until P7. Order: 1.1 bootstrap (git init done; go mod, install.sh, README, .gitignore left) → 1.1s hook spike (must finish before 1.6, A28) → rest
 - [ernie] 1.1s spike remaining: A58 (CLAUDECODE leak into own panes/! mode), A67 interactive (! / queued / interactive slash), cwd follows cd, fork source, SessionStart on clear, A114 item 9 (`*` covers MCP/Agent, tool_input fields, failing Bash → PostToolUseFailure?); fixtures → testdata/hooks (A76). Settled ones: ref_ernie_flow_test.md
 - [ernie] spec amendment C2: replace D12 → `ernie setup` (global guarded hooks + stub skill, body `!`ernie skill``), `ernie update` (pull origin/main → build → setup; refuse dirty / not on main), `init` = repo kind + version-stamped CLAUDE.local.md block, SessionStart rewrites stale block → ref_ernie_backlog.md "C2 — DECIDED"
 - [ernie] spec amendment page buttons: server runs `bd` directly (fixed subcommand allowlist, id validation); Issues-tab dismiss = `--set-metadata resolution=dismissed` + `bd close --reason`; review round N prompt lists that bead's dismissed findings → backlog "Open qs walk"
 - [ernie] spec v2 amendment: `*um` page button (C4) + fact research via fresh headless `claude -p` (ERNIE_HEADLESS guard, tool allowlist, run cap/timeout, prompt-injection note) → backlog "Fact research trigger"
+- [ui] retro: mustard text on orange is 3.01:1 (Home "If wrong", Q status "asked for more context", Tool log "Edit") → proposed: split --warning (glyphs/bars, mustard) vs new --warning-text (mustard on brown, cream in boxes); awaiting user approval
+- [ui] retro minor: answer kbtns blend into orange box (try brown fill); "Add a note" placeholder faint
+- [ui] option: bead detail links to its PRD section (bead metadata.prd=<path>#<section>)
+- [ui] index.html in ref_ernie_views doesn't link style-guide.html
+- [ui] readability #5 next: one line per row in Issues + Planning (ellipsis, drop `.src`/`.cf` from rows, list col 380px) → ref_ui_readability_review.md
+- [ui] remaining readability items (Home/Planning/Issues/Facts/Tool log/keys per tab) → ref_ui_readability_review.md "Not applied"
+- [ui] tab strip still clips <~1000px (780: Planning, Tool log); long worktree names hard-clip in picker (no ellipsis)
+## qs
+- [ui] retro: keep every panel orange, or only pick-lists/cards (Planning lists, Issues list, Home question cards) and Tool log table, Facts panels, Home side cards back on brown? (asked 2026-10-14)
+- [ui] body font: switch `--sans` Bricolage → system sans (SF Pro Text) for body/labels, keep Bricolage for brand + titles? (asked 2026-10-14)
+- [ui] Facts `.method` 2px left bar (colour = research found/no answer): keep (rec) or indent? (asked 2026-10-14)
+- [beads] user wants to understand Beads workflow before deciding these. Answer next session, Beads-first: (asked 2026-10-15)
+- [beads] allow marking a bead "work on" from the page? 1 queue-only "▶ Work on" (key w → Next prompt delivers, Undo until sent; rec) vs 2 queue + server `bd update --claim`; blocked bead → disabled (asked 2026-10-15)
+- [beads] how to polish beads multiple times (P2: 2–3 fresh polish rounds + stop rule; what triggers another round?) (asked 2026-10-15)
+- [beads] should/can subagents do bead work? (parallel beads in one worktree → file conflicts?) (asked 2026-10-15)
+- [beads] how to trigger bead code reviews, multiple times (P2 Q5: per bead as finished, min 2 / cap 5; manual re-trigger?) (asked 2026-10-15)
+- [beads] how do beads get into epics like Investigate/Fix/Ship? (~ sample epic titles in _sample_state.js, not fixed categories; epics come from PRD breakdown; ad hoc = no epic) (asked 2026-10-15)
+- [ui] "what happened to the PRD view in planning?" → ✓ still there: ▤ PRD chip under epic goal in beads column (key p / esc); maybe less visible after epic row moved to top (asked 2026-10-15)
+- [beads] who starts work when user says nothing: does Claude auto-pick `bd ready --label wt:<branch>` top item, and in what order (priority? deps?) (asked 2026-10-15)
+- [beads] how does the page show which bead Claude is on now (Home "Now", status active) and does claim set that? (asked 2026-10-15)
+- [beads] reopen a closed bead / send a done bead back for more review: allowed? which page action? (asked 2026-10-15)
+- [beads] can user reorder or prioritise beads from the page (bd priority 0–4) or only via deps? (asked 2026-10-15)
+- [beads] where does PRD polish vs bead polish vs code review show on the page (P6 overlap)? (asked 2026-10-15)
