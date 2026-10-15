@@ -13,6 +13,7 @@ updated: 2026-10-15
 - [ernie] priorities in order, one at a time (full list + notes → .mem/artifacts/ref_ernie_backlog.md):
 - [ernie] P5 UI tabs
 - [ernie] spec amendment beads workflow: queue checkbox, serial subagent-per-bead loop, Now/stalled, Send back/Review again/Polish again/+ Bead page buttons, polish batch N=10 → backlog "Beads workflow — DECIDED"
+- [ernie] spec amendment settings: `~/.config/ernie/settings.json` (server POST op w/ range checks; CLI `ernie settings` refuses under CLAUDECODE), queue pause read by the agent loop, loop reads caps from settings → backlog "Settings panel — DECIDED"
 - [beads] verify bd 1.3.1: `bd ready` tie-break order; can ernie read subagent token usage (for v2 polish budget)
 - [ernie] v2: per-subagent worktrees for parallel beads + merge; per-epic polish token budget
 - [ernie] P6 inputs add: where PRD review / polish / code review show (deferred from beads workflow Q9)

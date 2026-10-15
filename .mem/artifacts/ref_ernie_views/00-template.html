@@ -43,6 +43,15 @@
     - Tool log tab: the picked worktree's tool calls, newest first (A114: Bash shows its description only). Filters:
       session (P3 Q5; activity rows carry `sid`, Claude's and your item events don't, A123), tool, hide subagents,
       files only, + ernie events. A new row lands every ~4 s on the working session.
+    - Settings (⚙ in the top bar, key `,`, esc closes): one panel, global (every repo; server keeps it in
+      ~/.config/ernie/settings.json). Only the page or your own terminal changes it, never Claude: the numbers are what stop
+      the agent loop from running away. Rows: Queue running / paused (applies at once; Claude finishes the step it's on) ·
+      Polish batch (beads per polish agent, 3–20, default 10) · Polish rounds cap (2–8, default 5) · PRD review rounds and
+      Code review rounds (min / max, 1–10, defaults 2 / 5). Number rows wait for Save; checked on Save (range, min ≤ max).
+      Read-only block below: port (ERNIE_PORT), state folder (ERNIE_HOME), the picked worktree's repo kind (git config)
+      and Beads auto-push (bd config); each is changed where it lives. Paused shows a "queue paused" pill in the top bar.
+      Kept off the panel: context caps (dump 4 KB, inbox 8 KB, tied to Claude Code's hook output limit), server timings,
+      approval gates and security checks.
   Data: _sample_state.js, loaded from this folder (same data as the 10 variations; P3/P4 additions at the end).
   Colours: _tokens.css; map in style-guide.html. Top-bar select picks the scheme: retro (default; brown ground, burnt-orange
     boxes, cream text, teal accent), original dark or original light (the blue scheme with its grid). Remembered per browser.
@@ -85,6 +94,31 @@
   .live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--success); animation: pulse 1.8s infinite; }
   .icon-btn { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; font: 12px var(--mono); }
   .icon-btn:hover { border-color: var(--accent); }
+  .settings-btn { font: 16px/1 var(--sans); padding: 3px 8px; }
+  .settings-btn[aria-expanded=true] { border-color: var(--accent); }
+  .paused-pill { font: 600 12px var(--sans); padding: 1px 8px; border-radius: 9px; background: var(--warn-bg); color: var(--warn-fg); }
+
+  /* Settings panel: opens under the top bar's ⚙, right-aligned */
+  .settings { position: fixed; z-index: 60; top: 56px; right: 20px; width: min(600px, calc(100vw - 32px));
+    max-height: calc(100dvh - 76px); overflow-y: auto; box-shadow: 0 12px 32px var(--shadow); }
+  .settings .panel-body { display: grid; gap: 24px; padding: 8px 20px 20px; }
+  .settings .sub { margin: 0 0 12px; }
+  .settings .hint { margin: 4px 0 0; }
+  .settings .gut { grid-template-columns: 130px minmax(0, 1fr); gap: 16px 18px; }
+  .settings input[type=number] { width: 72px; font: 13px var(--mono); padding: 4px 6px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--bg-raised); color: var(--text); }
+  .settings .pair { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+  .settings .err { color: var(--warning); font-size: 13px; }
+  .settings .ro { font: 13px var(--mono); }
+  .settings .ro + .hint { display: inline; margin: 0 0 0 10px; }
+  .settings .kbtn[aria-pressed=true] { background: var(--bg-raised); border-color: var(--accent); }
+  .settings .kbtn[aria-pressed=false] { color: var(--text-dim); }
+  .settings .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding-top: 4px; }
+  .settings .actions .msg { font-size: 13px; line-height: 1.45; color: var(--text-dim); flex: 1 1 200px; }
+  .btn[disabled] { opacity: .5; cursor: default; }
+  @media (max-width: 720px) { .settings { right: 16px; top: 96px; max-height: calc(100dvh - 112px); } }
+  @media (max-width: 640px) { .settings .gut { grid-template-columns: minmax(0, 1fr); gap: 4px; } .settings .gut dd { margin-bottom: 12px; } }
+
   @media (max-width: 720px) {
     .topbar { flex-wrap: wrap; padding: 8px 16px 0; }
     .status { margin-left: auto; }
@@ -356,11 +390,14 @@
   <div class="brand">ernie<span>.</span></div>
   <div class="wt-pick-wrap" id="wt-pick-wrap"></div>
   <nav class="tabstrip" id="tabstrip" aria-label="Tabs"></nav>
-  <div class="status"><span class="live">live</span>
+  <div class="status"><span class="paused-pill" id="queue-paused" hidden>queue paused</span><span class="live">live</span>
     <select class="scheme-pick" id="scheme-pick" aria-label="Colour scheme">
       <option value="retro">retro</option><option value="original">original dark</option><option value="original-light">original light</option>
-    </select></div>
+    </select>
+    <button class="icon-btn settings-btn" type="button" id="settings-btn" data-settings-toggle aria-label="Settings" aria-expanded="false" title="Settings (,)">⚙</button></div>
 </header>
+
+<div class="panel settings" id="settings" role="dialog" aria-label="Settings" hidden></div>
 
 <main id="main"></main>
 
@@ -394,7 +431,15 @@
     queued: [], // page events waiting for each session's next prompt: { key, label }
     logFilter: { session: 'all', tool: 'all', hideAgents: false, filesOnly: false, events: false },
     logUnseen: 0,
+    settingsOpen: false,
+    settingsDraft: null, // number rows being edited; copied from S.settings when the panel opens
+    settingsMsg: '',
   };
+
+  // Settings: global, the server's copy of ~/.config/ernie/settings.json
+  const SETTINGS_DEFAULTS = { queuePaused: false, polishBatch: 10, polishRounds: 5, prdMin: 2, prdMax: 5, reviewMin: 2, reviewMax: 5 };
+  const SETTING_RANGES = { polishBatch: [3, 20], polishRounds: [2, 8], prdMin: [1, 10], prdMax: [1, 10], reviewMin: [1, 10], reviewMax: [1, 10] };
+  S.settings = { ...SETTINGS_DEFAULTS };
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const logOf = key => S.logs.find(l => l.key === key);
   const isTab = key => TABS.some(p => p.key === key);
@@ -1201,10 +1246,86 @@
     renderAll();
   }
 
+  // ---------- Settings panel ----------
+  function settingErrors(draft) {
+    const errors = {};
+    Object.entries(SETTING_RANGES).forEach(([name, [lo, hi]]) => {
+      const n = draft[name];
+      if (!Number.isInteger(n) || n < lo || n > hi) errors[name] = `${lo}–${hi}`;
+    });
+    if (!errors.prdMin && !errors.prdMax && draft.prdMin > draft.prdMax) errors.prdMax = 'max below min';
+    if (!errors.reviewMin && !errors.reviewMax && draft.reviewMin > draft.reviewMax) errors.reviewMax = 'max below min';
+    return errors;
+  }
+  const settingsDirty = () => Object.keys(SETTING_RANGES).some(name => view.settingsDraft[name] !== S.settings[name]);
+
+  function renderSettings() {
+    const box = document.getElementById('settings');
+    const btn = document.getElementById('settings-btn');
+    document.getElementById('queue-paused').hidden = !S.settings.queuePaused;
+    btn.setAttribute('aria-expanded', String(view.settingsOpen));
+    box.hidden = !view.settingsOpen;
+    if (!view.settingsOpen) return;
+    const d = view.settingsDraft;
+    const num = name => `<input type="number" inputmode="numeric" data-setting="${name}" min="${SETTING_RANGES[name][0]}" max="${SETTING_RANGES[name][1]}" value="${d[name]}" aria-label="${name}"><span class="err" data-err="${name}"></span>`;
+    const log = curLog();
+    const kind = S.repoKinds?.[log.repo] || 'not set';
+    const paused = S.settings.queuePaused;
+    box.innerHTML = `
+      <div class="panel-head"><span>Settings · every repo</span><button class="btn" type="button" data-settings-toggle aria-label="Close settings">✕</button></div>
+      <div class="panel-body">
+        <section>
+          <div class="sub">Agent loop</div>
+          <dl class="gut">
+            <dt>Queue</dt><dd><div class="kbtns">
+              <button class="kbtn ${paused ? '' : 'rec'}" type="button" data-queue-set="run" aria-pressed="${!paused}">Running</button>
+              <button class="kbtn ${paused ? 'rec' : ''}" type="button" data-queue-set="pause" aria-pressed="${paused}">Paused</button></div>
+              <p class="hint">${paused ? 'Ticked beads wait. Nothing new starts until you press Running.' : 'Claude works through ticked beads in order.'} Applies at once; Claude finishes the step it's on.</p></dd>
+            <dt>Polish batch</dt><dd>${num('polishBatch')}<p class="hint">Beads per polish agent. 30 beads at 10 → 3 agents per round.</p></dd>
+            <dt>Polish rounds</dt><dd><span class="pair">up to ${num('polishRounds')}</span><p class="hint">Stops sooner after a round with only small fixes, or when edits stop shrinking.</p></dd>
+            <dt>PRD review</dt><dd><span class="pair">min ${num('prdMin')} max ${num('prdMax')}</span><p class="hint">Rounds before you approve the PRD. Each is a fresh agent.</p></dd>
+            <dt>Code review</dt><dd><span class="pair">min ${num('reviewMin')} max ${num('reviewMax')}</span><p class="hint">Rounds per finished bead. Stops at the first clean round after the min; at the max it flags the bead and moves on.</p></dd>
+          </dl>
+        </section>
+        <section>
+          <div class="sub">This machine · read-only</div>
+          <dl class="gut">
+            <dt>Port</dt><dd><span class="ro">7477</span><span class="hint">ERNIE_PORT</span></dd>
+            <dt>State folder</dt><dd><span class="ro">~/.local/state/ernie</span><span class="hint">ERNIE_HOME</span></dd>
+            <dt>Repo kind</dt><dd><span class="ro">${esc(log.repo)} · ${esc(kind)}</span><span class="hint">git config · set by <code>ernie init</code></span></dd>
+            <dt>Beads push</dt><dd><span class="ro">${kind === 'personal' ? 'on · every 5 min' : 'off · stealth'}</span><span class="hint">bd config dolt.auto-push</span></dd>
+          </dl>
+        </section>
+        <div class="actions">
+          <button class="btn btn--primary" type="button" data-settings-save>Save</button>
+          <button class="btn" type="button" data-settings-reset>Reset to defaults</button>
+          <span class="msg" id="settings-msg"></span>
+        </div>
+      </div>`;
+    updateSettingsState();
+  }
+
+  // Refreshes Save, errors and the message without re-rendering, so a number input keeps focus while typing
+  function updateSettingsState() {
+    const errors = settingErrors(view.settingsDraft);
+    document.querySelectorAll('#settings [data-err]').forEach(el => { el.textContent = errors[el.dataset.err] || ''; });
+    const dirty = settingsDirty();
+    document.querySelector('#settings [data-settings-save]').disabled = !dirty || Object.keys(errors).length > 0;
+    document.getElementById('settings-msg').textContent = dirty ? 'Unsaved changes.' : view.settingsMsg;
+  }
+
+  function toggleSettings(open = !view.settingsOpen) {
+    view.settingsOpen = open;
+    view.settingsDraft = open ? { ...S.settings } : null;
+    view.settingsMsg = '';
+    renderSettings();
+  }
+
   function renderAll() {
     pickWorktree();
     renderPicker();
     renderTabs();
+    renderSettings();
     if (view.active === 'planning') renderPlanning();
     else if (view.active === 'issues') renderIssues();
     else if (view.active === 'facts') renderFacts();
@@ -1223,6 +1344,24 @@
   // ---------- Events ----------
   document.addEventListener('click', e => {
     const t = e.target;
+    if (t.closest('[data-settings-toggle]')) return toggleSettings();
+    // A click outside the open panel closes it (unsaved number edits are dropped) and still does its own thing
+    if (view.settingsOpen && !t.closest('#settings')) toggleSettings(false);
+    const queueSet = t.closest('[data-queue-set]');
+    if (queueSet) {
+      S.settings.queuePaused = queueSet.dataset.queueSet === 'pause';
+      view.settingsMsg = S.settings.queuePaused ? 'Queue paused.' : 'Queue running.';
+      return renderSettings();
+    }
+    if (t.closest('[data-settings-save]')) {
+      Object.keys(SETTING_RANGES).forEach(name => { S.settings[name] = view.settingsDraft[name]; });
+      view.settingsMsg = 'Saved to ~/.config/ernie/settings.json.';
+      return renderSettings();
+    }
+    if (t.closest('[data-settings-reset]')) {
+      Object.keys(SETTING_RANGES).forEach(name => { view.settingsDraft[name] = SETTINGS_DEFAULTS[name]; });
+      return renderSettings();
+    }
     const tab = t.closest('[data-tab]');
     if (tab) return openTab(tab.dataset.tab);
 
@@ -1321,6 +1460,13 @@
     if (text) answerQuestion(form.dataset.answerForm, text, false);
   });
 
+  document.addEventListener('input', e => {
+    const field = e.target.closest('[data-setting]');
+    if (!field) return;
+    view.settingsDraft[field.dataset.setting] = field.value === '' ? NaN : Number(field.value);
+    updateSettingsState();
+  });
+
   document.addEventListener('change', e => {
     const f = view.logFilter;
     const id = e.target.id;
@@ -1339,9 +1485,16 @@
     renderFeed();
   });
 
-  // Home keys: j/k, 1–9, m, u (open questions). Planning keys: [ ] prev/next bead, { } prev/next epic, p PRD, esc back. Issues keys: [ ] prev/next, a approve, d dismiss, u undo. Ignored while typing.
+  // Settings: `,` opens or closes, esc closes. Home keys: j/k, 1–9, m, u (open questions). Planning keys: [ ] prev/next bead, { } prev/next epic, p PRD, esc back. Issues keys: [ ] prev/next, a approve, d dismiss, u undo. Ignored while typing.
   document.addEventListener('keydown', e => {
+    if (view.settingsOpen && e.key === 'Escape') {
+      toggleSettings(false);
+      return document.getElementById('settings-btn').focus();
+    }
     if (e.target.closest?.('input, select, textarea') || e.metaKey || e.ctrlKey) return;
+    if (e.key === ',') return toggleSettings();
+    // Tab keys stay off while the panel is open
+    if (view.settingsOpen) return;
     if (view.active === 'home') {
       if (e.key === 'j' || e.key === 'k') return stepQuestion(e.key === 'j' ? 1 : -1);
       return questionKey(e.key);
