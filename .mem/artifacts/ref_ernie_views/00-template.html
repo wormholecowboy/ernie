@@ -13,18 +13,19 @@
       choices, "need more context" (`question answer {more: true}`, stays open, A88) and an "other answer…" box (not on
       `assume` yes/no checks, A113). An answer queues for the session's next prompt with Undo until then.
       Keys: j/k move, 1–9 answer, m more context, u undo.
-      Top strip: Session (state, sid, turn, last event, the live tool), Where work is (active epic + bar, active bead, up
-      to 3 `bd ready` beads: todo with every dep done), Sync (work repo → stays on this machine; personal → items.jsonl
-      uncommitted/unpushed + Beads auto-push window, the P4 drive-loss gap; view-only numbers).
-      Right column: Next prompt delivers (inbox preview: sample `pending` + page-queued events), Add a note (`note add`),
-      Ops (memory `## ops`, read-only, per branch), Answered.
+      Top strip: Where work is (active epic + bar, active bead, up to 3 `bd ready` beads: todo with every dep done),
+      Add a note (`note add`), Ops (memory `## ops`, read-only, per branch). Session and Sync cards were dropped (git history).
+      Right column: Next prompt delivers (inbox preview: sample `pending` + page-queued events), Answered.
     - Planning tab (view-only data: `epics` + `adhoc` in _sample_state.js; Beads fields not final): three columns. Left,
       the worktree's epics with a done/total bar, then ◇ Ad hoc (beads with no epic; replaces queue.md "next", P4 Q2);
       middle, the selected epic's goal, beads, epic done-when checks and its PRD-review findings; right, the selected bead:
       labels in a gutter, content capped at ~62ch: Status (text todo → active → done, or blocked naming the unfinished deps) ·
       What · Notes · Done when · Depends on / Unblocks (click to jump, across epics) · Linked · Files · Commit. Linked also
       shows the reverse links the page computes (P4 Q3): decisions whose `ref` is this bead, findings from its code review.
-      Keys: [ ] prev/next bead, { } prev/next epic.
+      ▤ PRD chip under the epic goal (P2: one PRD per epic, path from `spec_id`) swaps the right column for the PRD: plan
+      state + review rounds from the epic's labels, path, section chips that scroll to each ## heading, the markdown at the
+      reading measure. Opening a bead goes back to it; picking another epic keeps the PRD open on that epic's PRD.
+      Keys: [ ] prev/next bead, { } prev/next epic, p PRD, esc back.
     - Issues tab (from 03 Issue Workbench): findings (Beads bugs) grouped by epic, then Ad hoc (P3 Q2); waiting-for-approval
       first. Each row and worksheet names its source = parent: PRD review (epic), code review · <bead>, or ad hoc; the
       source pill opens it on Planning. Worksheet: labels in a gutter (same layout as Home's open questions): Status (text
@@ -259,12 +260,6 @@
   @media (max-width: 1000px) { .home-strip { grid-template-columns: minmax(0, 1fr); } }
   .kv { display: grid; gap: 5px; font-size: 13px; overflow-wrap: anywhere; }
   .kv .k { font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); margin-right: 6px; }
-  .sess { display: inline-flex; align-items: center; gap: 6px; font: 600 12px var(--mono); }
-  .sess::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); }
-  .sess.s-working { color: var(--success); } .sess.s-working::before { background: var(--success); animation: pulse 1.8s infinite; }
-  .sess.s-waiting { color: var(--warning); } .sess.s-waiting::before { background: var(--warning); }
-  .sess.s-idle, .sess.s-off { color: var(--text-dim); }
-  .sync-ok { color: var(--success); } .sync-risk { color: var(--warning); }
   .inbox pre { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--bg-recessed); border: 1px solid var(--border); font: 12px var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
   .ops { margin: 0; padding-left: 20px; font-size: 13px; display: grid; gap: 4px; overflow-wrap: anywhere; }
   .note-form { display: flex; gap: 6px; }
@@ -305,6 +300,20 @@
   .chip .g { margin-right: 5px; }
   .blocked-msg { font: 12px var(--mono); color: var(--warning); margin-top: 6px; }
   .files { list-style: none; margin: 0; padding: 0; font: 12px var(--mono); color: var(--text-accent); display: grid; gap: 3px; overflow-wrap: anywhere; }
+  .prd-open { margin: -4px 4px 12px; }
+  .prd-open .chip[aria-pressed="true"] { border-color: var(--accent); }
+  /* PRD reader: replaces the bead detail; body capped at the reading measure */
+  .prd-path { font: 12px var(--mono); color: var(--text-accent); margin: -14px 0 14px; overflow-wrap: anywhere; }
+  .prd-toc { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 22px; }
+  .md { max-width: 62ch; font-size: 15px; line-height: 1.6; overflow-wrap: break-word; }
+  .md h3 { font: 600 17px var(--sans); margin: 26px 0 8px; scroll-margin-top: 72px; }
+  .md h4 { font: 600 15px var(--sans); margin: 18px 0 6px; }
+  .md p { margin: 0 0 12px; }
+  .md ul, .md ol { margin: 0 0 12px; padding-left: 22px; display: grid; gap: 4px; }
+  .md code { color: var(--text-accent); }
+  .md pre { margin: 0 0 12px; padding: 10px 12px; border-radius: 8px; background: var(--bg-recessed); border: 1px solid var(--border);
+    font: 12px var(--mono); overflow-x: auto; }
+  .md pre code { color: var(--text); }
   @media (max-width: 900px) {
     .pl-phases .panel-body { display: flex; flex-wrap: wrap; gap: 4px; }
     .pl-phases .ph-row { width: auto; }
@@ -377,6 +386,7 @@
     selectedIssue: null, // "<log key>|<issue id>"
     selectedEpic: null, // "<log key>|<epic id>", or "<log key>|adhoc"
     selectedBead: null, // "<log key>|<epic id or adhoc>|<bead id>"
+    prdOpen: false, // Planning: the selected epic's PRD replaces the bead detail
     copied: null,
     shownMethods: new Set(),
     queued: [], // page events waiting for each session's next prompt: { key, label }
@@ -679,6 +689,62 @@
       </footer></article>`;
   }
 
+  // Just enough markdown for a PRD: headings, paragraphs, lists, code fences, inline code and bold
+  function mdToHTML(md) {
+    const inline = t => esc(t).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+    const out = [];
+    let list = null, para = [], fence = null;
+    const flush = () => {
+      if (para.length) out.push(`<p>${inline(para.join(' '))}</p>`);
+      if (list) out.push(`<${list.tag}>${list.items.map(i => `<li>${inline(i)}</li>`).join('')}</${list.tag}>`);
+      para = []; list = null;
+    };
+    md.split('\n').forEach(line => {
+      if (fence) {
+        if (line.startsWith('```')) { out.push(`<pre><code>${esc(fence.join('\n'))}</code></pre>`); fence = null; }
+        else fence.push(line);
+        return;
+      }
+      if (line.startsWith('```')) { flush(); fence = []; return; }
+      const h = /^(#{2,3}) (.*)/.exec(line);
+      const li = /^(?:- |\d+\. )(.*)/.exec(line);
+      if (h) { flush(); out.push(`<h${h[1].length + 1} id="prd-${slug(h[2])}">${inline(h[2])}</h${h[1].length + 1}>`); return; }
+      if (li) {
+        const tag = line.startsWith('- ') ? 'ul' : 'ol';
+        if (para.length || (list && list.tag !== tag)) flush();
+        list = list || { tag, items: [] };
+        list.items.push(li[1]);
+        return;
+      }
+      if (!line.trim()) return flush();
+      if (list) flush();
+      para.push(line.trim());
+    });
+    flush();
+    return out.join('');
+  }
+  const slug = t => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  // P2: the epic's PRD (one per epic, path from `spec_id`), with its plan state and review count from the epic's labels
+  function prdHTML(epic, bead) {
+    const prd = epic.ep.prd;
+    const title = /^# (.*)/m.exec(prd.md)?.[1] || epic.ep.title;
+    const body = prd.md.replace(/^# .*\n?/m, '');
+    const sections = [...body.matchAll(/^## (.*)/gm)].map(m => m[1]);
+    return `<article class="ws">
+      <div class="ws-meta"><span>PRD</span><span class="pill p-ours">${esc(epicLabel(epic.ep))}</span>
+        <span>plan=${esc(prd.plan)} · ${plural(prd.review, 'review round')}</span></div>
+      <h2>${esc(title)}</h2>
+      <div class="prd-path">${esc(prd.path)}</div>
+      <nav class="prd-toc" aria-label="PRD sections">${sections.map(t => `<button class="chip" type="button" data-prd-jump="prd-${slug(t)}">${esc(t)}</button>`).join('')}</nav>
+      <div class="md">${mdToHTML(body)}</div>
+      <footer class="ws-foot">
+        ${bead ? `<button class="btn" type="button" data-prd-toggle>‹ bead ${esc(bead.b.id)}</button>` : '<span></span>'}
+        <span>p PRD · esc back</span><span></span>
+      </footer></article>`;
+  }
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
   // Keeps the epic and bead selection valid inside the picked worktree: active epic first, then its active bead
   function planSelection() {
     const epics = epicList(view.wt);
@@ -720,6 +786,7 @@
     const beadCol = epic ? `
       <div class="is-group"><span>${esc(epicLabel(epic.ep))}</span><span>${beads.length} beads</span></div>
       <p class="ph-goal">${esc(epic.ep.goal || '')}</p>
+      ${epic.ep.prd ? `<div class="prd-open"><button class="chip" type="button" data-prd-toggle aria-pressed="${view.prdOpen}">▤ PRD · ${esc(epic.ep.prd.path.split('/').pop())}</button></div>` : ''}
       ${beads.map(beadRow).join('')}
       ${epic.ep.doneWhen?.length ? `<div class="ph-checks"><div class="sub">epic done when</div>${checklist(epic.ep.doneWhen)}</div>` : ''}
       ${prdFindings.length ? `<div class="ph-checks"><div class="sub">PRD review findings</div><div class="chips">${prdFindings.map(i => issueChip(view.wt, i)).join('')}</div></div>` : ''}
@@ -736,7 +803,8 @@
       ${epics.length ? `<div class="pl-grid">
         <section class="panel pl-col pl-phases"><div class="panel-body">${epicCol}</div></section>
         <section class="panel pl-col"><div class="panel-body">${beadCol}</div></section>
-        <div>${selected ? beadHTML(selected, beads) : '<div class="canvas"><p>No beads in this epic.</p></div>'}</div>
+        <div>${view.prdOpen && epic?.ep.prd ? prdHTML(epic, selected)
+          : selected ? beadHTML(selected, beads) : '<div class="canvas"><p>No beads in this epic.</p></div>'}</div>
       </div>` : '<div class="canvas"><p>No epics or ad hoc beads for this worktree.</p></div>'}`;
   }
 
@@ -745,6 +813,7 @@
     const next = beads[beads.findIndex(x => x.key === view.selectedBead) + delta];
     if (!next) return;
     view.selectedBead = next.key;
+    view.prdOpen = false;
     renderAll();
   }
 
@@ -1042,19 +1111,6 @@
     if (choice) answerQuestion(k, choice, false);
   }
 
-  // Session: state, turn, last event, and the tool the live session is running now
-  function sessionCard() {
-    const l = curLog(), st = cur();
-    const state = l.session.state;
-    const cls = state === 'working' ? 's-working' : state === 'waiting on you' ? 's-waiting' : state === 'off' ? 's-off' : 's-idle';
-    const latest = l.session.id && st.activity.find(a => a.sid === l.session.id && (a.t === 'tool' || a.t === 'file'));
-    const now = state === 'working' && latest ? `<div><span class="k">now</span>${esc(latest.tool)} · ${esc(latest.text || '(no description)')}</div>` : '';
-    return panel('Session', '', `<div class="kv">
-      <div><span class="sess ${cls}">${esc(state)}</span></div>
-      <div><span class="k">session</span>${esc(l.session.id || 'none')} · <span class="k">turn</span>${st.turn} · <span class="k">last event</span>${esc(l.session.lastEventAgo)} ago</div>
-      ${now}</div>`);
-  }
-
   // Where work is: active epic, its active bead, and what `bd ready` would hand out next (todo, every dep done)
   function workCard() {
     const st = cur();
@@ -1068,24 +1124,6 @@
       ${activeEpic ? `<div><span class="k">epic</span><button class="chip" type="button" data-epic-open="${esc(view.wt)}|${esc(activeEpic.id)}">${esc(epicLabel(activeEpic))}</button> ${progressBar(activeEpic.beads)}</div>` : ''}
       <div><span class="k">now</span>${activeBead ? beadChip(activeBead) : '<span class="hint">no active bead</span>'}</div>
       <div><span class="k">ready</span>${ready.length ? `<div class="chips" style="margin-top:4px">${ready.slice(0, 3).map(beadChip).join('')}</div>` : '<span class="hint">nothing ready</span>'}</div>
-    </div>`);
-  }
-
-  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-
-  // Sync risk: what a dead disk loses right now (P4). Work repos never leave this machine
-  function syncCard() {
-    const l = curLog(), st = cur();
-    if (ERNIE_SAMPLE.repoKinds[l.repo] === 'work') {
-      return panel('Sync', '', `<div class="kv"><div class="sync-risk">work repo · stays on this machine</div>
-        <div class="hint">.ernie/ excluded from git, Beads stealth with no remote. Backup TBD.</div></div>`);
-    }
-    const sync = st.sync || { itemsUncommitted: 0, itemsUnpushed: 0, beadsUnpushedMin: 0 };
-    const atRisk = sync.itemsUncommitted || sync.itemsUnpushed || sync.beadsUnpushedMin;
-    return panel('Sync', '', `<div class="kv">
-      <div class="${atRisk ? 'sync-risk' : 'sync-ok'}">${atRisk ? 'not all on origin yet' : '✓ everything pushed'}</div>
-      <div><span class="k">items.jsonl</span>${plural(sync.itemsUncommitted, 'line')} uncommitted · ${plural(sync.itemsUnpushed, 'commit')} unpushed</div>
-      <div><span class="k">beads</span>${sync.beadsUnpushedMin ? `${sync.beadsUnpushedMin} min since a write left unpushed (auto-push ≥5 min)` : 'pushed'}</div>
     </div>`);
   }
 
@@ -1124,12 +1162,12 @@
     document.getElementById('main').innerHTML = `${wtBanner()}
       <div class="tab-head"><h1>Home</h1>
         <span class="meta">${open.length} open question${open.length === 1 ? '' : 's'} · ${answered.length} answered</span></div>
-      <div class="home-strip">${sessionCard()}${workCard()}${syncCard()}</div>
+      <div class="home-strip">${workCard()}${notePanel()}${opsPanel()}</div>
       <div class="home-grid">
         <div>${open.length
           ? questionList(open)
           : '<div class="canvas" style="min-height:200px"><p>No open questions for this worktree.</p></div>'}</div>
-        <div class="fd-col">${inboxPanel()}${notePanel()}${opsPanel()}${panel('Answered', answered.length, answeredList)}</div>
+        <div class="fd-col">${inboxPanel()}${panel('Answered', answered.length, answeredList)}</div>
       </div>`;
   }
 
@@ -1199,8 +1237,15 @@
       view.wt = logKey;
       view.selectedEpic = `${logKey}|${epicId}`;
       view.selectedBead = beadOpen.dataset.beadOpen;
+      view.prdOpen = false;
       return view.active === 'planning' ? renderAll() : openTab('planning');
     }
+    if (t.closest('[data-prd-toggle]')) {
+      view.prdOpen = !view.prdOpen;
+      return renderAll();
+    }
+    const prdJump = t.closest('[data-prd-jump]');
+    if (prdJump) return document.getElementById(prdJump.dataset.prdJump)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     const issueJump = t.closest('[data-issue-jump]');
     if (issueJump) {
       view.wt = issueJump.dataset.issueJump.split('|')[0];
@@ -1293,7 +1338,7 @@
     renderFeed();
   });
 
-  // Home keys: j/k, 1–9, m, u (open questions). Planning keys: [ ] prev/next bead, { } prev/next epic. Issues keys: [ ] prev/next, a approve, d dismiss, u undo. Ignored while typing.
+  // Home keys: j/k, 1–9, m, u (open questions). Planning keys: [ ] prev/next bead, { } prev/next epic, p PRD, esc back. Issues keys: [ ] prev/next, a approve, d dismiss, u undo. Ignored while typing.
   document.addEventListener('keydown', e => {
     if (e.target.closest?.('input, select, textarea') || e.metaKey || e.ctrlKey) return;
     if (view.active === 'home') {
@@ -1301,6 +1346,10 @@
       return questionKey(e.key);
     }
     if (view.active === 'planning') {
+      if (e.key === 'p' || (e.key === 'Escape' && view.prdOpen)) {
+        view.prdOpen = e.key === 'p' ? !view.prdOpen : false;
+        return renderAll();
+      }
       const step = { '[': () => stepBead(-1), ']': () => stepBead(1), '{': () => stepEpic(-1), '}': () => stepEpic(1) }[e.key];
       return step?.();
     }

@@ -539,3 +539,76 @@ ERNIE_SAMPLE.states['glue/CDIT-2631-ga4-dedupe'].ops = ['Read-only queries on st
 
 // Sync risk (personal repos only): what a dead disk would lose right now. P4 drive-loss analysis
 ERNIE_SAMPLE.states['ernie/main'].sync = { itemsUncommitted: 3, itemsUnpushed: 1, beadsUnpushedMin: 4 };
+
+// ---------- view-only: PRDs for the Planning tab (00-template) ----------
+// P2 Q1/Q2: one PRD per epic, written in the worktree that builds it (.ernie/mem/<branch>/artifacts/prd_<topic>.md);
+// the epic points at it (`spec_id`, fallback `metadata.prd`) and carries the plan state and review count as labels.
+const DEDUPE_PRDS = {
+  E1: { path: '.ernie/mem/CDIT-2631-ga4-dedupe/artifacts/prd_dedupe-investigate.md', plan: 'done', review: 2, md: `# Find why sessions double-count on Dealer Spike hosts
+
+## Problem
+Session counts for Dealer Spike client sites run about 3% above the GA4 UI. Other platforms match within 0.5%.
+
+## Goal
+Name the cause and show it on one host with real rows.
+
+## Scope
+- In: ga4_hits rows for one Dealer Spike host, one day.
+- Out: any fix. That is E2.
+
+## Done when
+- Counts differ on one named host for one named day.
+- Two rows that should share a key are shown side by side.` },
+  E2: { path: '.ernie/mem/CDIT-2631-ga4-dedupe/artifacts/prd_dedupe-fix.md', plan: 'building', review: 3, md: `# Dedupe sessions to one key per listing view
+
+## Problem
+Dealer Spike sends the same listing page with two \`page_location\` values: one ends in \`…-14615315i\`, the other in \`…-14615315\`. \`dedupe_key\` hashes \`page_location\`, so one view becomes two keys and the session is counted twice.
+
+Example from ds-4471 on 2026-09-14:
+
+\`\`\`
+page_location                           dedupe_key
+…/2019-ford-f150-14615315i              a91f…
+…/2019-ford-f150-14615315               c03e…
+\`\`\`
+
+## Goal
+New and old rows dedupe to one key per listing view, on every Dealer Spike host, without changing keys on other platforms.
+
+## Scope
+- In: the sessions view, the hash helper in the loader, a 90-day backfill on stage.
+- In: late-arriving hits in the backfill job (found while reproducing, i2).
+- Out: fixing Dealer Spike's tag. Platform-side bugs go to the platform team (d2).
+- Out: Dealer Inspire hosts. Asked as q3; not in this PRD unless the answer is yes.
+
+## Approach
+1. Normalize \`page_location\` in the sessions view: strip a trailing \`i\` from the listing id segment before hashing. Doing it in the view fixes old rows without reloading them.
+2. Make the loader's hash helper apply the same rule, so new rows and the view agree.
+3. Fix the backfill job to filter on \`event_date\` with a 2-day lookback, so late hits land in the right day.
+4. Backfill 90 days on stage, one property at a time.
+
+## Data checks
+- Probe query on ds-4471 returns one key per listing for 2026-09-14.
+- Probe query returns 0 duplicate keys across all Dealer Spike hosts for 90 days.
+- Session counts for 5 non-Dealer-Spike hosts are unchanged, row for row.
+
+## Risks
+- The trailing \`i\` might mean something on another platform. Mitigation: the rule only applies when the host is in the Dealer Spike host list.
+- Backfill takes about 40 minutes per property on stage. Run it outside the nightly load window.
+
+## Open questions
+- q3: should the dedupe also cover Dealer Inspire hosts?` },
+  E3: { path: '.ernie/mem/CDIT-2631-ga4-dedupe/artifacts/prd_dedupe-ship.md', plan: 'approved', review: 2, md: `# Ship the dedupe fix
+
+## Goal
+Stage numbers checked against the GA4 UI and a PR open with the evidence.
+
+## Steps
+1. Compare September session counts before and after on 5 Dealer Spike hosts.
+2. Open a PR against main with the probe query and the before/after table in the description.
+
+## Done when
+- Counts are within 0.5% of the GA4 UI on all 5 hosts.
+- PR is open and links this PRD.` },
+};
+ERNIE_SAMPLE.states['glue/CDIT-2631-ga4-dedupe'].epics.forEach(ep => { ep.prd = DEDUPE_PRDS[ep.id]; });
