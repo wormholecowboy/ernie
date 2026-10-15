@@ -60,6 +60,7 @@
 - [ernie] P2 planning flow decided (2026-10-11): PRD in .ernie/mem/<branch>/artifacts; epic at draft, Beads tracks plan state/reviews/findings; fresh-agent breakdown → 2–3 fresh polish rounds (reread PRD) → user approves via audit report; per-bead code review min 2/cap 5 → ref_ernie_backlog.md "P2 planning flow — DECIDED"
 - [ernie] P3 tab scopes decided (2026-10-11): one top picker at worktree level (grouped by repo); worktree → epic | ad hoc model, finding source = parent; Beads one store/repo + `wt:<branch>` label; explicit archive + folder-gone flag; events carry `sid`, session filter on Tool log only → ref_ernie_backlog.md "P3 tab scopes — DECIDED"
 - [ui] page colours = ref_ernie_views/_tokens.css (2026-10-14): retro default, dark only for now; 3 surfaces: ground brown #422d1f, box orange #b04f2b w/ mustard #edbe44 edge, cut-out (selected row in box) brown + teal bar; only cream #f9f3e4 reads on orange → status colour (teal accent, sage done, mustard warn, salmon error) only on brown; original blue dark/light kept selectable → style-guide.html
+- [beads] beads workflow decided (2026-10-15): tick-to-queue checkbox, serial fresh subagent per bead, tick order + deps, Now derived from Beads, Send back / Review again / Polish again / + Bead buttons, polish batches ≤10, queue moves on while findings wait → ref_ernie_backlog.md "Beads workflow — DECIDED"
 ## reference
 - [ernie] spec → .mem/artifacts/spec_ernie.md
 - [ernie] build plan (phases, tasks, amendments A1–A114) → .mem/artifacts/plan_ernie_build.md

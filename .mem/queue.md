@@ -12,9 +12,13 @@ updated: 2026-10-15
 - [beads] verify bd 1.3.1: `spec_id` flag, epic close-eligible helper, does `bd close` refuse when blocked by open finding
 - [ernie] priorities in order, one at a time (full list + notes → .mem/artifacts/ref_ernie_backlog.md):
 - [ernie] P5 UI tabs
+- [ernie] spec amendment beads workflow: queue checkbox, serial subagent-per-bead loop, Now/stalled, Send back/Review again/Polish again/+ Bead page buttons, polish batch N=10 → backlog "Beads workflow — DECIDED"
+- [beads] verify bd 1.3.1: `bd ready` tie-break order; can ernie read subagent token usage (for v2 polish budget)
+- [ernie] v2: per-subagent worktrees for parallel beads + merge; per-epic polish token budget
+- [ernie] P6 inputs add: where PRD review / polish / code review show (deferred from beads workflow Q9)
 - [ernie] P6 review visualization (code + plan review issues; new tabs or Planning); inputs: P2 review flow, P3 Q2 issues grouped by epic + Ad hoc
 - [ernie] P7 v1 / phase 1 scope; gate cleared (C1–C4 settled 2026-10-11)
-- [beads] design approval guard: Claude can't `bd gate resolve`/close an unapproved finding (PreToolUse deny? ernie wrapper?); page Approve → main agent / subagent sets `execution_agent_type`
+- [beads] design approval guard: Claude can't `bd gate resolve`/close an unapproved finding (PreToolUse deny? ernie wrapper?)
 - [beads] required finding fields (cause/impact/owner/confidence/method in metadata): enforce via ernie wrapper or `bd lint`?
 - [ernie] spec amendment: drop ernie `plan` + `issue` types → Beads (epics/beads, findings); ernie keeps question/decision/fact/diagram/example/note; integrate via `bd --json` + events tail
 - [ernie] `ernie init` once per repo (kind in `git config`): personal (beads git-backed, Dolt remote = origin, auto-push) vs work (beads stealth, `BEADS_DIR` outside repo, no remote/hooks). Work-repo backup TBD
@@ -40,15 +44,3 @@ updated: 2026-10-15
 - [ui] retro: keep every panel orange, or only pick-lists/cards (Planning lists, Issues list, Home question cards) and Tool log table, Facts panels, Home side cards back on brown? (asked 2026-10-14)
 - [ui] body font: switch `--sans` Bricolage → system sans (SF Pro Text) for body/labels, keep Bricolage for brand + titles? (asked 2026-10-14)
 - [ui] Facts `.method` 2px left bar (colour = research found/no answer): keep (rec) or indent? (asked 2026-10-14)
-- [beads] user wants to understand Beads workflow before deciding these. Answer next session, Beads-first: (asked 2026-10-15)
-- [beads] allow marking a bead "work on" from the page? 1 queue-only "▶ Work on" (key w → Next prompt delivers, Undo until sent; rec) vs 2 queue + server `bd update --claim`; blocked bead → disabled (asked 2026-10-15)
-- [beads] how to polish beads multiple times (P2: 2–3 fresh polish rounds + stop rule; what triggers another round?) (asked 2026-10-15)
-- [beads] should/can subagents do bead work? (parallel beads in one worktree → file conflicts?) (asked 2026-10-15)
-- [beads] how to trigger bead code reviews, multiple times (P2 Q5: per bead as finished, min 2 / cap 5; manual re-trigger?) (asked 2026-10-15)
-- [beads] how do beads get into epics like Investigate/Fix/Ship? (~ sample epic titles in _sample_state.js, not fixed categories; epics come from PRD breakdown; ad hoc = no epic) (asked 2026-10-15)
-- [ui] "what happened to the PRD view in planning?" → ✓ still there: ▤ PRD chip under epic goal in beads column (key p / esc); maybe less visible after epic row moved to top (asked 2026-10-15)
-- [beads] who starts work when user says nothing: does Claude auto-pick `bd ready --label wt:<branch>` top item, and in what order (priority? deps?) (asked 2026-10-15)
-- [beads] how does the page show which bead Claude is on now (Home "Now", status active) and does claim set that? (asked 2026-10-15)
-- [beads] reopen a closed bead / send a done bead back for more review: allowed? which page action? (asked 2026-10-15)
-- [beads] can user reorder or prioritise beads from the page (bd priority 0–4) or only via deps? (asked 2026-10-15)
-- [beads] where does PRD polish vs bead polish vs code review show on the page (P6 overlap)? (asked 2026-10-15)
