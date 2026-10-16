@@ -66,6 +66,7 @@
 - [ui] user dropped readability #5 (one line per list row, ellipsis) 2026-10-15 → Issues/Planning rows stay multi-line w/ `.src` + confidence glyph; Facts `.method` 2px bar kept
 - [beads] beads workflow decided (2026-10-15): tick-to-queue checkbox, serial fresh subagent per bead, tick order + deps, Now derived from Beads, Send back / Review again / Polish again / + Bead buttons, polish batches ≤10, queue moves on while findings wait → ref_ernie_backlog.md "Beads workflow — DECIDED"
 - [ui] settings panel decided (2026-10-15): ⚙ in top bar (key `,`), global `~/.config/ernie/settings.json`; queue pause + polish batch/rounds + PRD/code review min/max; read-only machine block; Claude can't change settings → ref_ernie_backlog.md "Settings panel — DECIDED"
+- [ui] Files tab (2026-10-15): ▧ Files between Facts and Tool log, key `g a`; lists `.ernie/mem/<branch>/artifacts/*.md` grouped by filename prefix (prd_ → plan_ → spec_ → ref_ → other), newest first; PRDs come from epics (same file Planning shows); list | reader like Issues; reader = kind · updated/by · path · sticky section chips · md; PRD adds epic pill (→ Planning) + plan state/review rounds; read-only (Claude writes, page never edits); j/k prev/next
 ## reference
 - [ernie] spec → .mem/artifacts/spec_ernie.md
 - [ernie] build plan (phases, tasks, amendments A1–A114) → .mem/artifacts/plan_ernie_build.md

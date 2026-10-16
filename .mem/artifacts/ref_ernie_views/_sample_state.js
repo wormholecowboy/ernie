@@ -612,3 +612,58 @@ Stage numbers checked against the GA4 UI and a PR open with the evidence.
 - PR is open and links this PRD.` },
 };
 ERNIE_SAMPLE.states['glue/CDIT-2631-ga4-dedupe'].epics.forEach(ep => { ep.prd = DEDUPE_PRDS[ep.id]; });
+
+// ---------- view-only: artifacts for the Files tab (00-template) ----------
+// Everything in .ernie/mem/<branch>/artifacts/ besides the PRDs above (those come from the epics). Prefix = kind:
+// plan_ (a plan to execute), spec_ (decisions other work must follow), ref_ (facts captured from the world).
+ERNIE_SAMPLE.states['glue/CDIT-2631-ga4-dedupe'].artifacts = [
+  { path: '.ernie/mem/CDIT-2631-ga4-dedupe/artifacts/spec_dedupe-key.md', updated: '14:02', by: 'claude', md: `# dedupe_key
+
+## Rule
+\`dedupe_key = sha1(session_id, normalized page_location, event_ts)\` (d1).
+
+## Normalizing page_location
+- Only on Dealer Spike hosts (host list in \`ref/dealer_spike_hosts.csv\`).
+- Strip one trailing \`i\` from the listing id segment: \`…-14615315i\` → \`…-14615315\`.
+- Leave the query string and fragment alone.
+
+## Where it applies
+1. The sessions view, so old rows dedupe without a backfill.
+2. The loader's hash helper, so new rows match the view.
+
+## Not in scope
+- Dealer Inspire hosts (q3, still open).` },
+  { path: '.ernie/mem/CDIT-2631-ga4-dedupe/artifacts/plan_backfill-runbook.md', updated: '13:40', by: 'claude', md: `# Backfill runbook (stage)
+
+## Before
+- Pause the nightly load for the property.
+- Note the session count for 2026-09-14 on ds-4471.
+
+## Steps
+1. Run the backfill job with \`--days 90 --lookback 2\`, one property at a time.
+2. Re-run the probe query; it should return 0 duplicate keys.
+3. Resume the nightly load.
+
+## Timing
+About 40 minutes per property. Run outside 01:00–03:00 UTC.` },
+  { path: '.ernie/mem/CDIT-2631-ga4-dedupe/artifacts/ref_ga4-hits-fields.md', updated: 'yesterday 16:20', by: 'claude', md: `# ga4_hits fields used by the dedupe
+
+## Columns
+- \`session_id\`: GA4 \`ga_session_id\` joined with \`user_pseudo_id\`.
+- \`page_location\`: full URL as sent by the tag, query string included.
+- \`event_ts\`: event timestamp in microseconds, UTC.
+- \`site_platform\`: Dealer Spike, Dealer Inspire or other, from publicDigmsDB.clients.
+
+## Row counts
+- September: 41.2M rows (f1).` },
+];
+ERNIE_SAMPLE.states['ernie/main'].artifacts = [
+  { path: '.ernie/mem/main/artifacts/ref_beads-spike.md', updated: 'yesterday 11:05', by: 'claude', md: `# Beads spike notes
+
+## Integration
+- Call \`bd … --json\`; follow changes with \`bd events tail --since <seq> --follow\` (~0.66 s).
+- Don't link the Go library: embedded Dolt needs cgo + ICU.
+
+## Backup
+- Data only leaves the disk on \`bd dolt push\`; \`git push\` does not carry it.` },
+];

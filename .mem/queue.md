@@ -27,7 +27,7 @@ updated: 2026-10-15
 - [ernie] when ernie memory lands: update global ~/.claude/CLAUDE.md §7 (Memory) + retire mem skill/mem-ops; user migrates old `.mem/` dirs manually
 - [beads] `/gtg` + `*um` run `bd dolt push` (personal repos) to flush writes held by the 5-min auto-push window; update gtg + mem skills when ernie lands
 - [ernie] pick 00-template as the phase 3 target (P5 UI tabs reviews it tab by tab)
-- [ernie] spec amendment for template-only page features: Ops panel (reads memory `## ops`), colour scheme select (_tokens.css), Planning PRD reader (keys p/esc), question keys j/k/1–9/m/u, Issues keys a/d/u → backlog/plan when folding (Open #11)
+- [ernie] spec amendment for template-only page features: Ops panel (reads memory `## ops`), colour scheme select (_tokens.css), Planning PRD reader (keys p/esc), question keys j/k/1–9/m/u, Issues keys a/d/u, Files tab (artifacts by prefix kind, PRDs via epics, read-only reader, key `g a`) → backlog/plan when folding (Open #11)
 - [ernie] spec amendments the template now needs: phases/beads model (plan is flat), page op `fact research` in PostOps, CLI to update a fact's confidence/method/text (only add/dismiss today)
 - [ernie] phase 1 build per .mem/artifacts/plan_ernie_build.md — not started; blocked until P7. Order: 1.1 bootstrap (git init done; go mod, install.sh, README, .gitignore left) → 1.1s hook spike (must finish before 1.6, A28) → rest
 - [ernie] 1.1s spike remaining: A58 (CLAUDECODE leak into own panes/! mode), A67 interactive (! / queued / interactive slash), cwd follows cd, fork source, SessionStart on clear, A114 item 9 (`*` covers MCP/Agent, tool_input fields, failing Bash → PostToolUseFailure?); fixtures → testdata/hooks (A76). Settled ones: ref_ernie_flow_test.md
@@ -35,5 +35,5 @@ updated: 2026-10-15
 - [ernie] spec amendment page buttons: server runs `bd` directly (fixed subcommand allowlist, id validation); Issues-tab dismiss = `--set-metadata resolution=dismissed` + `bd close --reason`; review round N prompt lists that bead's dismissed findings → backlog "Open qs walk"
 - [ernie] spec v2 amendment: `*um` page button (C4) + fact research via fresh headless `claude -p` (ERNIE_HEADLESS guard, tool allowlist, run cap/timeout, prompt-injection note) → backlog "Fact research trigger"
 - [ui] option: bead detail links to its PRD section (bead metadata.prd=<path>#<section>)
-- [ui] readability left: top bar (clipping, worktree name ellipsis, drop `.tab-head h1`?) + dim vs body hierarchy inside orange boxes → ref_ui_readability_review.md "Not applied"
-- [ui] tab strip still clips <~1000px (780: Planning, Tool log); long worktree names hard-clip in picker (no ellipsis)
+- [ui] option: Planning PRD reader → link to the same file on the Files tab
+- [ui] readability left: top bar (tabs clip <~1100px w/ 6 tabs; worktree names no ellipsis; drop `.tab-head h1`?) + dim vs body inside orange boxes → ref_ui_readability_review.md "Not applied"

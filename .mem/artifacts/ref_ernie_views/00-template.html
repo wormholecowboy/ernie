@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   TEMPLATE · shell taken from 01 Mission Control, filled one piece at a time.
-  Tabs: ⌂ Home · ▤ Planning · ◎ Issues · ◆ Facts · ≡ Tool log.
+  Tabs: ⌂ Home · ▤ Planning · ◎ Issues · ◆ Facts · ▧ Files · ≡ Tool log.
   Worktree picker (P3 Q1, Q4): one select in the top bar picks the worktree every tab shows; no per-tab pickers, no "all".
     Grouped by repo; a worktree reads "· folder gone", "· off" or "· needs you" after its branch. Archived worktrees sit in
     an "Archived (N)" group. A banner above each tab: archived → Restore; folder gone → Archive (never auto-hidden);
@@ -42,11 +42,16 @@
       session's next prompt → Claude spawns a subagent (Agent row + its tool calls land in the Tool log) → the answer updates
       the row (`fact set`, A123: badge → verified, method, corrected text with the old wording kept) or leaves a
       "no answer" note + retry. Mock: the next prompt is simulated 3 s after the click; outcomes come from RESEARCH_OUTCOMES.
+    - Files tab: every markdown file in the worktree's .ernie/mem/<branch>/artifacts/, listed by kind (filename prefix):
+      PRD (one per epic, from the epics) · Plan · Spec · Ref · Other. The reader shows kind, updated time and author, the
+      path, section chips (sticky) and the markdown at the reading measure. A PRD also shows its epic (opens Planning)
+      and plan state + review rounds. Read-only: Claude writes these files; the page never edits them.
+      Keys: j/k (or [ ]) prev/next file.
     - Tool log tab: the picked worktree's tool calls, newest first (A114: Bash shows its description only). Filters:
       session (P3 Q5; activity rows carry `sid`, Claude's and your item events don't, A123), tool, hide subagents,
       files only, + ernie events. A divider row marks each session change. Bash and Agent descriptions and item events
       read as prose (sans); paths, patterns and URLs stay mono. A new row lands every ~4 s on the working session.
-    - Tab keys: g then h / p / i / f / l (Home, Planning, Issues, Facts, Tool log).
+    - Tab keys: g then h / p / i / f / a / l (Home, Planning, Issues, Facts, Files, Tool log).
     - Settings (⚙ in the top bar, key `,`, esc closes): one panel, global (every repo; server keeps it in
       ~/.config/ernie/settings.json). Only the page or your own terminal changes it, never Claude: the numbers are what stop
       the agent loop from running away. Rows: Queue running / paused (applies at once; Claude finishes the step it's on) ·
@@ -377,6 +382,10 @@
   .pl-phases .ph-row { width: auto; }
   .pl-phases .bar i { flex: 1 0 56px; }
 
+  /* Files: list | reader (layout shared with Issues) */
+  .fl-row { grid-template-columns: minmax(0, 1fr); }
+  .fl-row .fn { display: block; font: 12px var(--mono); color: var(--text-dim); margin-top: 2px; overflow-wrap: anywhere; }
+
   /* Tool log */
   .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 12px 16px 16px;
     font: 13px var(--sans); color: var(--text-dim); }
@@ -437,6 +446,7 @@
     { key: 'planning', label: '▤ Planning' },
     { key: 'issues', label: '◎ Issues' },
     { key: 'facts', label: '◆ Facts' },
+    { key: 'files', label: '▧ Files' },
     { key: 'log', label: '≡ Tool log' },
   ];
   const view = {
@@ -446,6 +456,7 @@
     research: {}, // "<log key>|<fact id>" → { stage: queued | running | found | none, note, oldText, from }
     selectedQuestion: null, // "<log key>|<question id>"; Home's focus list opens one at a time
     selectedIssue: null, // "<log key>|<issue id>"
+    selectedFile: null, // "<log key>|<path>"
     selectedEpic: null, // "<log key>|<epic id>", or "<log key>|adhoc"
     selectedBead: null, // "<log key>|<epic id or adhoc>|<bead id>"
     prdOpen: false, // Planning: the selected epic's PRD replaces the bead detail
@@ -1057,6 +1068,82 @@
     renderAll();
   }
 
+  // ---------- Files tab ----------
+  // Kind comes from the filename prefix (same prefixes as repo memory artifacts); order = group order in the list
+  const FILE_KINDS = [
+    { prefix: 'prd_', label: 'PRD', what: 'one per epic; the epic points at it' },
+    { prefix: 'plan_', label: 'Plan', what: 'a plan to execute' },
+    { prefix: 'spec_', label: 'Spec', what: 'decisions other work must follow' },
+    { prefix: 'ref_', label: 'Ref', what: 'facts captured from the world' },
+    { prefix: '', label: 'Other', what: 'no known prefix' },
+  ];
+  const fileName = path => path.split('/').pop();
+  const fileKind = path => FILE_KINDS.find(k => fileName(path).startsWith(k.prefix));
+
+  // PRDs come from the epics (P2: `spec_id`); the rest from the artifacts folder. Grouped by kind, newest first inside a kind
+  function fileList() {
+    const logKey = view.wt;
+    const st = S.states[logKey];
+    const prds = (st.epics || []).filter(ep => ep.prd).map(ep => ({ path: ep.prd.path, md: ep.prd.md, epic: ep, prd: ep.prd }));
+    const files = [...prds, ...(st.artifacts || [])].map(f => ({ ...f, key: `${logKey}|${f.path}`, kind: fileKind(f.path) }));
+    const kindRank = f => FILE_KINDS.indexOf(f.kind);
+    return files.sort((a, b) => kindRank(a) - kindRank(b) || sortKey(b.updated || '').localeCompare(sortKey(a.updated || '')));
+  }
+
+  function fileTitle(f) {
+    return /^# (.*)/m.exec(f.md)?.[1] || fileName(f.path);
+  }
+
+  function fileHTML(f, list) {
+    const pos = list.findIndex(x => x.key === f.key);
+    const prev = list[pos - 1], next = list[pos + 1];
+    const body = f.md.replace(/^# .*\n?/m, '');
+    const sections = [...body.matchAll(/^## (.*)/gm)].map(m => m[1]);
+    const epicPill = f.epic
+      ? `<button class="pill p-src" type="button" data-epic-open="${esc(view.wt)}|${esc(f.epic.id)}" title="open on the Planning tab">${esc(epicLabel(f.epic))}</button>
+        <span>Plan: ${esc(f.prd.plan)} · ${plural(f.prd.review, 'review round')}</span>`
+      : '';
+    const updated = f.updated ? `<span>updated ${esc(f.updated)}${f.by ? ` by ${esc(f.by)}` : ''}</span>` : '';
+    return `<article class="ws">
+      <div class="ws-meta"><span>file ${pos + 1} of ${list.length}</span><span class="pill p-ours" title="${esc(f.kind.what)}">${esc(f.kind.label)}</span>${epicPill}${updated}</div>
+      <h2>${esc(fileTitle(f))}</h2>
+      <div class="prd-path">${esc(f.path)}</div>
+      ${sections.length ? `<nav class="prd-toc" aria-label="Sections">${sections.map(t => `<button class="chip" type="button" data-prd-jump="prd-${slug(t)}">${esc(t)}</button>`).join('')}</nav>` : ''}
+      <div class="md">${mdToHTML(body)}</div>
+      <footer class="ws-foot">
+        ${prev ? `<button class="btn" type="button" data-file-open="${esc(prev.key)}" title="k">‹ ${esc(fileName(prev.path))}</button>` : '<span></span>'}
+        ${next ? `<button class="btn" type="button" data-file-open="${esc(next.key)}" title="j">${esc(fileName(next.path))} ›</button>` : '<span></span>'}
+      </footer></article>`;
+  }
+
+  function renderFiles() {
+    const list = fileList();
+    if (!list.some(x => x.key === view.selectedFile)) view.selectedFile = list[0]?.key ?? null;
+    const row = f => `<button class="is-row fl-row ${f.key === view.selectedFile ? 'sel' : ''}" type="button" data-file-open="${esc(f.key)}">
+      <span class="t">${esc(fileTitle(f))}<span class="fn">${esc(fileName(f.path))}${f.updated ? ` · ${esc(f.updated)}` : ''}</span></span></button>`;
+    const groups = FILE_KINDS.map(k => ({ k, items: list.filter(f => f.kind === k) })).filter(g => g.items.length);
+    const selected = list.find(f => f.key === view.selectedFile);
+
+    document.getElementById('main').innerHTML = `${wtBanner()}
+      <div class="tab-head"><h1>Files</h1>
+        <span class="meta">${plural(list.length, 'file')} in .ernie/mem/${esc(curLog().branch)}/artifacts/ · read-only</span></div>
+      <div class="is-grid">
+        <section class="panel is-list"><div class="panel-body">
+          ${groups.map(g => `<div class="is-group" title="${esc(g.k.what)}"><span>${esc(g.k.label)}</span><span>${g.items.length}</span></div>${g.items.map(row).join('')}`).join('')
+            || '<div class="empty">No files yet. Claude writes PRDs, plans, specs and refs here.</div>'}
+        </div></section>
+        <div>${selected ? fileHTML(selected, list) : '<div class="canvas"><p>No files for this worktree.</p></div>'}</div>
+      </div>`;
+  }
+
+  function stepFile(delta) {
+    const list = fileList();
+    const next = list[list.findIndex(x => x.key === view.selectedFile) + delta];
+    if (!next) return;
+    view.selectedFile = next.key;
+    renderAll();
+  }
+
   // ---------- Tool log tab ----------
   const isToolRow = a => a.t === 'tool' || a.t === 'file';
   // Reason: sample times are bare HH:MM:SS (today) or "yesterday HH:MM"; prefix so a string sort puts today first
@@ -1371,6 +1458,7 @@
     if (view.active === 'planning') renderPlanning();
     else if (view.active === 'issues') renderIssues();
     else if (view.active === 'facts') renderFacts();
+    else if (view.active === 'files') renderFiles();
     else if (view.active === 'log') renderLogTab();
     else renderHome();
     Object.values(S.states).forEach(st => st.activity.forEach(a => { a.fresh = false; }));
@@ -1467,6 +1555,8 @@
     }
     const answerUndo = t.closest('[data-answer-undo]');
     if (answerUndo) return undoAnswer(answerUndo.dataset.answerUndo);
+    const fileOpen = t.closest('[data-file-open]');
+    if (fileOpen) { view.selectedFile = fileOpen.dataset.fileOpen; return renderAll(); }
     const issueOpen = t.closest('[data-issue-open]');
     if (issueOpen) { view.selectedIssue = issueOpen.dataset.issueOpen; return renderAll(); }
     const issueSet = t.closest('[data-issue-set]');
@@ -1535,10 +1625,10 @@
     renderFeed();
   });
 
-  // Settings: `,` opens or closes, esc closes. Any tab: g then h/p/i/f/l switches tab. Home keys: j/k, 1–9, m, u (open
+  // Settings: `,` opens or closes, esc closes. Any tab: g then h/p/i/f/a/l switches tab. Files keys: j/k (or [ ]) prev/next. Home keys: j/k, 1–9, m, u (open
   // questions). Planning keys: j/k (or [ ]) prev/next bead, { } prev/next epic, p PRD, esc back. Issues keys: j/k (or [ ])
   // prev/next, a approve, d dismiss, u undo. Ignored while typing.
-  const GO_KEYS = { h: 'home', p: 'planning', i: 'issues', f: 'facts', l: 'log' };
+  const GO_KEYS = { h: 'home', p: 'planning', i: 'issues', f: 'facts', a: 'files', l: 'log' };
   let goPending = 0; // time `g` was pressed; the next key within 1 s picks a tab
   document.addEventListener('keydown', e => {
     if (view.settingsOpen && e.key === 'Escape') {
@@ -1565,6 +1655,11 @@
       }
       const step = { k: () => stepBead(-1), j: () => stepBead(1), '[': () => stepBead(-1), ']': () => stepBead(1), '{': () => stepEpic(-1), '}': () => stepEpic(1) }[e.key];
       return step?.();
+    }
+    if (view.active === 'files') {
+      if (e.key === 'k' || e.key === '[') return stepFile(-1);
+      if (e.key === 'j' || e.key === ']') return stepFile(1);
+      return;
     }
     if (view.active !== 'issues') return;
     if (e.key === 'k' || e.key === '[') return stepIssue(-1);
@@ -1625,7 +1720,7 @@
   try { savedScheme = localStorage.getItem('ernie-scheme'); } catch (err) { /* storage blocked */ }
   applyScheme(savedScheme);
 
-  // Deep link: #planning, #issues, #facts or #log
+  // Deep link: #planning, #issues, #facts, #files or #log
   const hashKey = decodeURIComponent(location.hash.slice(1));
   if (isTab(hashKey)) openTab(hashKey); else renderAll();
 </script>
