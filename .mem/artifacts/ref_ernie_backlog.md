@@ -12,7 +12,10 @@ Worked one at a time with the user, in this order. Recommended order puts items 
 4. **Data model for state.**
 5. **UI tabs.**
 6. **Review visualization** — how code and plan review issues show on the page (new tabs, or inside Planning).
-7. **v1 / phase 1 scope** — decide what is in v1 and phase 1. Must finish before phase 1 build starts.
+7. **v1 / phase 1 scope** — decide what is in v1 and phase 1. Must finish before phase 1 build starts. Includes (added 2026-10-15):
+   - **Template → spec audit** — walk 00-template; every small convenience feature (keys, Undo, chips, jump links, badges, etc.) must be written into the spec.
+   - **Spec → template audit** — walk the spec; every v1 element must show in 00-template.
+   - **Security model review** — go over the security model before bootstrap (1.1).
 
 User's original order: data model, UI tabs, tab scopes, review visualization, v1 scope, Beads (planning flow added later).
 

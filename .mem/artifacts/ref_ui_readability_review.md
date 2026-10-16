@@ -24,9 +24,9 @@ Line numbers are from before the edits; re-find by selector.
 
 ## Not applied — remaining
 ### Top bar
-- tab strip still clips <~1100px (6 tabs since Files tab; measured 523px tabs in 520px at 1100, 2026-10-15; was ~1000px; 780px: "Planni…", Tool log); hidden scrollbar = no cue
-- rejected for now: move scheme select out, glyph+short labels <1100px
-- long worktree names hard-clip under select arrow (no ellipsis; native select)
+- DROPPED (desktop only, 2026-10-15): tab strip still clips <~1100px (6 tabs since Files tab; measured 523px tabs in 520px at 1100, 2026-10-15; was ~1000px; 780px: "Planni…", Tool log); hidden scrollbar = no cue
+- DROPPED (desktop only, 2026-10-15): rejected for now: move scheme select out, glyph+short labels <1100px
+- DROPPED (desktop only, 2026-10-15): long worktree names hard-clip under select arrow (no ellipsis; native select)
 - `.tab-head h1` repeats tab name at 22/800, costs ~50px every tab → drop h1, keep meta line (sans 13) or counts in tab badge
 
 ### Hierarchy inside boxes (colour-adjacent, deferred)

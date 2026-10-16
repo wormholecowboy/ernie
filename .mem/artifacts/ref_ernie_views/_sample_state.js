@@ -667,3 +667,50 @@ ERNIE_SAMPLE.states['ernie/main'].artifacts = [
 ## Backup
 - Data only leaves the disk on \`bd dolt push\`; \`git push\` does not carry it.` },
 ];
+
+// ---------- view-only: scratch pads for the Scratch tab (00-template) ----------
+// Explanations Claude writes on request in a fixed format, newest first. Only `flow` exists so far: the question you
+// asked, one real example traced through, numbered steps (what happens · where · what it leaves behind), the end state.
+ERNIE_SAMPLE.states['ernie/main'].scratch = [
+  { id: 'x2', kind: 'flow', ts: '14:12', title: 'What happens when you answer a question on the page',
+    asked: 'walk me through the flow when I answer a question on Home, in order',
+    example: 'You press 2 on Q3 ("Keep ops per branch?") while Claude is idle in main.',
+    steps: [
+      { text: 'The page sends your answer to the ernie server.', at: 'POST 127.0.0.1:7477 · question answer q3 {choice: 2}', result: 'Q3 shows "sent · Keep per branch" with Undo' },
+      { text: 'The server appends the answer to this worktree\'s inbox as pending.', at: '~/.local/state/ernie/…/main', result: 'Home "Next prompt delivers" lists it' },
+      { text: 'Until you send a prompt, u (or Undo) takes it back.', result: 'nothing has reached Claude yet' },
+      { text: 'You send your next prompt; Claude Code fires UserPromptSubmit, which runs ernie hook.', at: 'ernie hook (every event)' },
+      { text: 'The hook prints pending inbox events to stdout, capped at 8 KB.', at: 'stdout → Claude\'s context', result: '"Q3 answered: Keep per branch" sits next to your prompt' },
+      { text: 'The hook marks the events delivered.', result: 'Undo goes away; Q3 moves to Answered' },
+      { text: 'Claude reads the answer with your prompt and acts on it.' },
+    ],
+    end: 'Q3 is answered in items.jsonl and Claude has it in context. Nothing reaches Claude between prompts.' },
+  { id: 'x1', kind: 'flow', ts: 'yesterday 17:40', title: 'From ticking a bead to the bead closing',
+    asked: 'explain the beads loop step by step, one bead start to finish',
+    example: 'You tick bead 2.3 "Write the hook handler" and nothing else is queued.',
+    steps: [
+      { text: 'You tick 2.3\'s queue box.', at: 'ernie queue (tick order)', result: '2.3 is first in the queue' },
+      { text: 'Claude takes the first ticked bead that is ready and claims it.', at: 'bd update 2.3 --claim', result: '2.3 in_progress; Home shows it under Where work is' },
+      { text: 'A fresh subagent writes the code for 2.3 only.', at: 'Agent · implementation' },
+      { text: 'A fresh reviewer reads 2.3\'s diff (round 1).', at: 'Agent · review r1', result: '1 finding, waiting on you on Issues' },
+      { text: 'The queue moves on while the finding waits.', result: '2.3 reads "waiting on you"' },
+      { text: 'You approve the finding; its fix jumps to the front of the queue.', at: 'Issues · a' },
+      { text: 'After the fix, round 2 comes back clean (min 2 rounds met).', at: 'Agent · review r2' },
+      { text: 'Claude closes 2.3.', at: 'bd close 2.3', result: 'beads that depend on 2.3 become ready' },
+    ],
+    end: '2.3 closed after 2 review rounds; 1 finding fixed.' },
+];
+ERNIE_SAMPLE.states['glue/CDIT-2631-ga4-dedupe'].scratch = [
+  { id: 'x1', kind: 'flow', ts: '13:55', title: 'How one hit gets its dedupe_key',
+    asked: 'how does a hit get its dedupe_key? numbered, in order',
+    example: 'Row A from e1: session 1728…441, page_location …/2019-ford-f150-14615315i.',
+    steps: [
+      { text: 'gtag sends the hit to GA4; the loader pulls it in the nightly batch.', at: 'loader' },
+      { text: 'The loader reads session_id, page_location and event_ts.', at: 'loader/hash.py' },
+      { text: 'page_location goes into the hash as is; the trailing "i" stays.', at: 'loader/hash.py', result: '…-14615315i' },
+      { text: 'dedupe_key = sha1(session_id, page_location, event_ts).', result: 'a91f…' },
+      { text: 'The row lands in ga4_hits with that key.', at: 'ga4_hits' },
+      { text: 'The sessions view counts distinct keys per session.', at: 'sql/views/sessions.sql', result: 'Row B (no "i") has c03e…, so the listing counts twice' },
+    ],
+    end: 'Same listing, two keys. Normalizing page_location before step 4 makes both a91f… (i1).' },
+];

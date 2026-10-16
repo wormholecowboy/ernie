@@ -2,7 +2,7 @@
 updated: 2026-10-15
 ---
 ## next
-- [ernie] next session: P5 UI tabs → backlog. P4 amendments A115–A123 in plan §0 (not folded); fold later in one pass w/ C1, C2, P2, P3, page buttons, Beads type drop (plan Open #11)
+- [ernie] next session: P6 review visualization (walk it like Beads workflow: trace one review, list gaps, decide each). P4 amendments A115–A123 in plan §0 (not folded); fold later in one pass w/ C1, C2, P2, P3, page buttons, Beads type drop (plan Open #11)
 - [ernie] `ernie init` (personal) also writes `.gitattributes` line `.ernie/mem/**/items.jsonl merge=union` + sets bd `events-journal true` (P4 F3/Q4)
 - [ernie] when ernie memory lands: user migrates old `.mem/queue.md` items → ernie questions (qs) + ad hoc beads (next) (P4 Q2)
 - [ernie] spec amendment P3: top worktree picker, `wt:<branch>` label on beads, `ernie archive` + `.archived` marker + folder-gone flag, `meta init` worktree path, `sid` on events → ref_ernie_backlog.md "P3 tab scopes — DECIDED"
@@ -11,7 +11,6 @@ updated: 2026-10-15
 - [ernie] write own ernie prompts (PRD review, breakdown, polish, bead review) from flywheel ideas; catalog → ref_agent_flywheel.md
 - [beads] verify bd 1.3.1: `spec_id` flag, epic close-eligible helper, does `bd close` refuse when blocked by open finding
 - [ernie] priorities in order, one at a time (full list + notes → .mem/artifacts/ref_ernie_backlog.md):
-- [ernie] P5 UI tabs
 - [ernie] spec amendment beads workflow: queue checkbox, serial subagent-per-bead loop, Now/stalled, Send back/Review again/Polish again/+ Bead page buttons, polish batch N=10 → backlog "Beads workflow — DECIDED"
 - [ernie] spec amendment settings: `~/.config/ernie/settings.json` (server POST op w/ range checks; CLI `ernie settings` refuses under CLAUDECODE), queue pause read by the agent loop, loop reads caps from settings → backlog "Settings panel — DECIDED"
 - [beads] verify bd 1.3.1: `bd ready` tie-break order; can ernie read subagent token usage (for v2 polish budget)
@@ -19,6 +18,9 @@ updated: 2026-10-15
 - [ernie] P6 inputs add: where PRD review / polish / code review show (deferred from beads workflow Q9)
 - [ernie] P6 review visualization (code + plan review issues; new tabs or Planning); inputs: P2 review flow, P3 Q2 issues grouped by epic + Ad hoc
 - [ernie] P7 v1 / phase 1 scope; gate cleared (C1–C4 settled 2026-10-11)
+- [ernie] P7: template → spec audit: every convenience feature in 00-template written into spec (overlaps "template-only page features" amendment below)
+- [ernie] P7: spec → template audit: every v1 spec element shows in 00-template
+- [ernie] P7: security model review, before bootstrap (1.1)
 - [beads] design approval guard: Claude can't `bd gate resolve`/close an unapproved finding (PreToolUse deny? ernie wrapper?)
 - [beads] required finding fields (cause/impact/owner/confidence/method in metadata): enforce via ernie wrapper or `bd lint`?
 - [ernie] spec amendment: drop ernie `plan` + `issue` types → Beads (epics/beads, findings); ernie keeps question/decision/fact/diagram/example/note; integrate via `bd --json` + events tail
@@ -26,8 +28,7 @@ updated: 2026-10-15
 - [ernie] spec amendment for C1 (memory → ernie, `.ernie/mem/<branch>/`; drops D9, mem delta/synced, mem-ops) → ref_ernie_backlog.md "C1 — DECIDED"
 - [ernie] when ernie memory lands: update global ~/.claude/CLAUDE.md §7 (Memory) + retire mem skill/mem-ops; user migrates old `.mem/` dirs manually
 - [beads] `/gtg` + `*um` run `bd dolt push` (personal repos) to flush writes held by the 5-min auto-push window; update gtg + mem skills when ernie lands
-- [ernie] pick 00-template as the phase 3 target (P5 UI tabs reviews it tab by tab)
-- [ernie] spec amendment for template-only page features: Ops panel (reads memory `## ops`), colour scheme select (_tokens.css), Planning PRD reader (keys p/esc), question keys j/k/1–9/m/u, Issues keys a/d/u, Files tab (artifacts by prefix kind, PRDs via epics, read-only reader, key `g a`) → backlog/plan when folding (Open #11)
+- [ernie] spec amendment for template-only page features: Ops panel (reads memory `## ops`), colour scheme select (_tokens.css), Planning PRD reader (keys p/esc), question keys j/k/1–9/m/u, Issues keys a/d/u, Files tab (artifacts by prefix kind, PRDs via epics, read-only reader, key `g a`), Scratch tab (Claude-written explanation pads, `flow` format only; `ernie scratch` CLI + storage undecided; key `g s`) → backlog/plan when folding (Open #11)
 - [ernie] spec amendments the template now needs: phases/beads model (plan is flat), page op `fact research` in PostOps, CLI to update a fact's confidence/method/text (only add/dismiss today)
 - [ernie] phase 1 build per .mem/artifacts/plan_ernie_build.md — not started; blocked until P7. Order: 1.1 bootstrap (git init done; go mod, install.sh, README, .gitignore left) → 1.1s hook spike (must finish before 1.6, A28) → rest
 - [ernie] 1.1s spike remaining: A58 (CLAUDECODE leak into own panes/! mode), A67 interactive (! / queued / interactive slash), cwd follows cd, fork source, SessionStart on clear, A114 item 9 (`*` covers MCP/Agent, tool_input fields, failing Bash → PostToolUseFailure?); fixtures → testdata/hooks (A76). Settled ones: ref_ernie_flow_test.md
@@ -36,4 +37,6 @@ updated: 2026-10-15
 - [ernie] spec v2 amendment: `*um` page button (C4) + fact research via fresh headless `claude -p` (ERNIE_HEADLESS guard, tool allowlist, run cap/timeout, prompt-injection note) → backlog "Fact research trigger"
 - [ui] option: bead detail links to its PRD section (bead metadata.prd=<path>#<section>)
 - [ui] option: Planning PRD reader → link to the same file on the Files tab
-- [ui] readability left: top bar (tabs clip <~1100px w/ 6 tabs; worktree names no ellipsis; drop `.tab-head h1`?) + dim vs body inside orange boxes → ref_ui_readability_review.md "Not applied"
+- [ui] readability left: dim vs body inside orange boxes; drop `.tab-head h1`? → ref_ui_readability_review.md "Not applied"
+## qs
+- [ui] Scratch pads: store w/ durable items (.ernie/mem/<branch>/items.jsonl, git) or local only like activity (Claude leans local)? Tab position Facts|Scratch|Files ok? (asked 2026-10-15)

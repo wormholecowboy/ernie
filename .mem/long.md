@@ -30,6 +30,7 @@
 - [ui] user liked "need more context" + Undo on page answers; keep that pattern for page ops that queue for the next prompt
 - [ui] check local mocks w/o browser tools: headless Chrome `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --hide-scrollbars --window-size=1400,1500 --virtual-time-budget=4000 --user-data-dir=<scratch dir> --screenshot=<out.png> file://…#tab` (relative css/js load fine over file://); measure layout: copy page to a probe file w/ a script that writes getBoundingClientRect values into a body data-attr, run `--dump-dom`, grep it, delete the probe
 - [ui] readability decisions (2026-10-14/15, user-approved): type roles (12px floor, body 15/1.6, labels 13/600 sans sentence case, secondary 13 dim, mono only ids/paths/code), spacing scale 4/8/12/16/24/32/48, space not inner rules, Home = card row on top, questions, Answered | Ops below (right rail dropped 2026-10-15), Planning epic row on top → ref_ui_readability_review.md
+- [ernie] "PRD" in user speech about ernie itself = the ernie spec (.mem/artifacts/spec_ernie.md); converting spec to a PRD wanted someday, not now
 ## gotchas
 - [beads] `bd init` in a git repo (non-stealth) makes its own commit (.beads/ config + 5 git hooks, .gitignore) and sets `core.hooksPath=.beads/hooks` → overrides existing repo hooks (spike 2026-10-10)
 - [beads] every `bd` cmd outside a git repo prints 3-line `beads.role not configured` stderr warning → token noise; set `beads.role` or filter
@@ -68,6 +69,9 @@
 - [ui] settings panel decided (2026-10-15): ⚙ in top bar (key `,`), global `~/.config/ernie/settings.json`; queue pause + polish batch/rounds + PRD/code review min/max; read-only machine block; Claude can't change settings → ref_ernie_backlog.md "Settings panel — DECIDED"
 - [ui] Files tab (2026-10-15): ▧ Files between Facts and Tool log, key `g a`; lists `.ernie/mem/<branch>/artifacts/*.md` grouped by filename prefix (prd_ → plan_ → spec_ → ref_ → other), newest first; PRDs come from epics (same file Planning shows); list | reader like Issues; reader = kind · updated/by · path · sticky section chips · md; PRD adds epic pill (→ Planning) + plan state/review rounds; read-only (Claude writes, page never edits); j/k prev/next
 - [ui] Home layout (2026-10-15, user hated the right rail): top row 3 cards (Where work is · Next prompt delivers · Add a note), then open questions full width, then Answered | Ops in 2 equal columns; stacks <900px (top) / <640px (bottom)
+- [ui] desktop only for now (user, 2026-10-15): width not an issue; don't add narrow-screen/mobile rules to the template; existing breakpoints stay but aren't maintained
+- [ui] Scratch tab (2026-10-15): ✎ Scratch between Facts and Files, key `g s`; Claude-written explanation pads, collapsible rows newest first (newest open); only `flow` format: Asked · Traced with (one real example) · numbered Steps (text · where in mono · → result) · End state; Coming soon box lists 8 formats from ref_ernie_formats.md; keys j/k, o; read-only
+- [ernie] 00-template = phase 3 visual target (P5 done 2026-10-15)
 ## reference
 - [ernie] spec → .mem/artifacts/spec_ernie.md
 - [ernie] build plan (phases, tasks, amendments A1–A114) → .mem/artifacts/plan_ernie_build.md

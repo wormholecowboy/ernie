@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   TEMPLATE · shell taken from 01 Mission Control, filled one piece at a time.
-  Tabs: ⌂ Home · ▤ Planning · ◎ Issues · ◆ Facts · ▧ Files · ≡ Tool log.
+  Tabs: ⌂ Home · ▤ Planning · ◎ Issues · ◆ Facts · ✎ Scratch · ▧ Files · ≡ Tool log.
   Worktree picker (P3 Q1, Q4): one select in the top bar picks the worktree every tab shows; no per-tab pickers, no "all".
     Grouped by repo; a worktree reads "· folder gone", "· off" or "· needs you" after its branch. Archived worktrees sit in
     an "Archived (N)" group. A banner above each tab: archived → Restore; folder gone → Archive (never auto-hidden);
@@ -43,6 +43,11 @@
       session's next prompt → Claude spawns a subagent (Agent row + its tool calls land in the Tool log) → the answer updates
       the row (`fact set`, A123: badge → verified, method, corrected text with the old wording kept) or leaves a
       "no answer" note + retry. Mock: the next prompt is simulated 3 s after the click; outcomes come from RESEARCH_OUTCOMES.
+    - Scratch tab: explanations Claude writes when you ask, each in a fixed format, one collapsible row per pad, newest
+      on top (the newest starts open). Only `flow` so far: Asked (your words) · Traced with (one real example) · Steps
+      (numbered; each says what happens, where in mono, and what it leaves behind after →) · End state. Read-only; how
+      Claude writes a pad (`ernie scratch …`) and where pads are kept are not in the spec yet. A Coming soon box under the
+      pads lists other formats from ref_ernie_formats.md. Keys: j/k (or [ ]) prev/next pad (opens it), o open/close.
     - Files tab: every markdown file in the worktree's .ernie/mem/<branch>/artifacts/, listed by kind (filename prefix):
       PRD (one per epic, from the epics) · Plan · Spec · Ref · Other. The reader shows kind, updated time and author, the
       path, section chips (sticky) and the markdown at the reading measure. A PRD also shows its epic (opens Planning)
@@ -52,7 +57,7 @@
       session (P3 Q5; activity rows carry `sid`, Claude's and your item events don't, A123), tool, hide subagents,
       files only, + ernie events. A divider row marks each session change. Bash and Agent descriptions and item events
       read as prose (sans); paths, patterns and URLs stay mono. A new row lands every ~4 s on the working session.
-    - Tab keys: g then h / p / i / f / a / l (Home, Planning, Issues, Facts, Files, Tool log).
+    - Tab keys: g then h / p / i / f / s / a / l (Home, Planning, Issues, Facts, Scratch, Files, Tool log).
     - Settings (⚙ in the top bar, key `,`, esc closes): one panel, global (every repo; server keeps it in
       ~/.config/ernie/settings.json). Only the page or your own terminal changes it, never Claude: the numbers are what stop
       the agent loop from running away. Rows: Queue running / paused (applies at once; Claude finishes the step it's on) ·
@@ -386,6 +391,26 @@
   .pl-phases .ph-row { width: auto; }
   .pl-phases .bar i { flex: 1 0 56px; }
 
+  /* Scratch: collapsible pads on the ground (reading panels), newest first */
+  .sc-item { margin-bottom: 10px; overflow: hidden; }
+  .sc-item.sel { border-color: var(--border-accent); box-shadow: inset 3px 0 0 var(--accent); }
+  .sc-item .qf-line .n { color: var(--text-accent); }
+  .sc-item .qf-line .t::before { content: '▸'; display: inline-block; width: 1.2em; color: var(--text-dim); }
+  .sc-item.open .qf-line .t::before { content: '▾'; }
+  .sc-asked { color: var(--text-dim); }
+  .sc-flow { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; counter-reset: step; }
+  .sc-flow li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; counter-increment: step; }
+  .sc-flow li::before { content: counter(step); font: 600 13px/24px var(--mono); text-align: center; height: 24px; border-radius: 12px;
+    background: var(--accent-soft); color: var(--text-accent); border: 1px solid var(--border-accent); }
+  .sc-flow .at { display: block; font: 13px/1.5 var(--mono); color: var(--text-accent); overflow-wrap: anywhere; }
+  .sc-flow .res { display: block; color: var(--text-dim); }
+  .sc-flow .res::before { content: '→ '; color: var(--accent); }
+  .sc-soon { border: 1.5px dashed var(--border); border-radius: 10px; padding: 14px 18px 16px; margin-top: 24px; }
+  .sc-soon h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font: 600 15px var(--sans); }
+  .sc-soon ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px 24px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+  .sc-soon li { font-size: 14px; line-height: 1.5; color: var(--text-dim); }
+  .sc-soon li b { display: block; font-weight: 600; color: var(--text); }
+
   /* Files: list | reader (layout shared with Issues) */
   .fl-row { grid-template-columns: minmax(0, 1fr); }
   .fl-row .fn { display: block; font: 12px var(--mono); color: var(--text-dim); margin-top: 2px; overflow-wrap: anywhere; }
@@ -450,6 +475,7 @@
     { key: 'planning', label: '▤ Planning' },
     { key: 'issues', label: '◎ Issues' },
     { key: 'facts', label: '◆ Facts' },
+    { key: 'scratch', label: '✎ Scratch' },
     { key: 'files', label: '▧ Files' },
     { key: 'log', label: '≡ Tool log' },
   ];
@@ -461,6 +487,9 @@
     selectedQuestion: null, // "<log key>|<question id>"; Home's focus list opens one at a time
     selectedIssue: null, // "<log key>|<issue id>"
     selectedFile: null, // "<log key>|<path>"
+    selectedScratch: null, // "<log key>|<pad id>"; j/k move it
+    scratchOpen: new Set(), // open pad keys
+    scratchSeen: new Set(), // worktrees whose Scratch tab has rendered once; the first render opens the newest pad
     selectedEpic: null, // "<log key>|<epic id>", or "<log key>|adhoc"
     selectedBead: null, // "<log key>|<epic id or adhoc>|<bead id>"
     prdOpen: false, // Planning: the selected epic's PRD replaces the bead detail
@@ -1148,6 +1177,75 @@
     renderAll();
   }
 
+  // ---------- Scratch tab ----------
+  // Other formats from ref_ernie_formats.md the tab may take later (codes = that file's sections)
+  const SCRATCH_SOON = [
+    { name: 'Atomic example', what: 'Two real rows side by side, field names as row labels (B1).' },
+    { name: 'Options on one example', what: 'Each option run on the same rows, ★ on the recommended one (B9).' },
+    { name: 'Mapping table', what: 'A-field → B-field, with an analogy (B12).' },
+    { name: 'Timeline', what: 'State over time; good for races and retries (A6).' },
+    { name: 'Before / after', what: '3–5 lines each side instead of a diff (A5).' },
+    { name: 'Annotated mini-lesson', what: 'A code block with notes under it, ready for /pnotes (B11).' },
+    { name: 'Handoff text', what: 'Rewritten for another audience, with a copy button (B8, v2 per A93).' },
+    { name: 'Arrow chain', what: 'Up to 4 hops as a diagram; longer flows stay numbered (A3).' },
+  ];
+
+  const scratchList = () => cur().scratch || [];
+
+  function flowHTML(pad) {
+    const steps = pad.steps.map(s => `<li><div>${esc(s.text)}${s.at ? `<span class="at">${esc(s.at)}</span>` : ''}${s.result ? `<span class="res">${esc(s.result)}</span>` : ''}</div></li>`).join('');
+    return `<dl class="gut">
+      ${pad.asked ? `<dt>Asked</dt><dd class="sc-asked">"${esc(pad.asked)}"</dd>` : ''}
+      ${pad.example ? `<dt>Traced with</dt><dd>${esc(pad.example)}</dd>` : ''}
+      <dt>Steps</dt><dd><ol class="sc-flow">${steps}</ol></dd>
+      ${pad.end ? `<dt>End state</dt><dd>${esc(pad.end)}</dd>` : ''}</dl>`;
+  }
+
+  function renderScratch() {
+    const pads = scratchList();
+    const keyOf = pad => `${view.wt}|${pad.id}`;
+    if (!view.scratchSeen.has(view.wt)) {
+      view.scratchSeen.add(view.wt);
+      if (pads[0]) view.scratchOpen.add(keyOf(pads[0]));
+    }
+    if (!pads.some(p => keyOf(p) === view.selectedScratch)) view.selectedScratch = pads[0] ? keyOf(pads[0]) : null;
+    const row = (pad, i) => {
+      const k = keyOf(pad);
+      const open = view.scratchOpen.has(k);
+      return `<section class="panel panel--ground sc-item ${open ? 'open' : ''} ${k === view.selectedScratch ? 'sel' : ''}">
+        <button class="qf-line" type="button" data-scratch="${esc(k)}" aria-expanded="${open}">
+          <span class="n">#${pads.length - i}</span><span class="t">${esc(pad.title)}</span>
+          <span class="s">${esc(pad.kind)} · ${plural(pad.steps.length, 'step')} · ${esc(pad.ts)}</span></button>
+        ${open ? `<div class="qf-body">${flowHTML(pad)}</div>` : ''}</section>`;
+    };
+    const soon = `<section class="sc-soon"><h2>More formats <span class="pill p-other">coming soon</span></h2>
+      <ul>${SCRATCH_SOON.map(f => `<li><b>${esc(f.name)}</b>${esc(f.what)}</li>`).join('')}</ul></section>`;
+
+    document.getElementById('main').innerHTML = `${wtBanner()}
+      <div class="tab-head"><h1>Scratch</h1>
+        <span class="meta">${plural(pads.length, 'pad')} · Claude writes these when you ask for an explanation · newest first · read-only</span></div>
+      ${pads.map(row).join('') || '<div class="empty">No pads yet. Ask Claude to explain a flow in order and it lands here.</div>'}
+      ${pads.length ? '<div class="qf-keys">j / k next pad · o open / close</div>' : ''}
+      ${soon}`;
+  }
+
+  function toggleScratch(k) {
+    if (!k) return;
+    if (view.scratchOpen.has(k)) view.scratchOpen.delete(k);
+    else view.scratchOpen.add(k);
+    view.selectedScratch = k;
+    renderAll();
+  }
+
+  function stepScratch(delta) {
+    const pads = scratchList();
+    const next = pads[pads.findIndex(p => `${view.wt}|${p.id}` === view.selectedScratch) + delta];
+    if (!next) return;
+    view.selectedScratch = `${view.wt}|${next.id}`;
+    view.scratchOpen.add(view.selectedScratch);
+    renderAll();
+  }
+
   // ---------- Tool log tab ----------
   const isToolRow = a => a.t === 'tool' || a.t === 'file';
   // Reason: sample times are bare HH:MM:SS (today) or "yesterday HH:MM"; prefix so a string sort puts today first
@@ -1461,6 +1559,7 @@
     if (view.active === 'planning') renderPlanning();
     else if (view.active === 'issues') renderIssues();
     else if (view.active === 'facts') renderFacts();
+    else if (view.active === 'scratch') renderScratch();
     else if (view.active === 'files') renderFiles();
     else if (view.active === 'log') renderLogTab();
     else renderHome();
@@ -1558,6 +1657,8 @@
     }
     const answerUndo = t.closest('[data-answer-undo]');
     if (answerUndo) return undoAnswer(answerUndo.dataset.answerUndo);
+    const scratch = t.closest('[data-scratch]');
+    if (scratch) return toggleScratch(scratch.dataset.scratch);
     const fileOpen = t.closest('[data-file-open]');
     if (fileOpen) { view.selectedFile = fileOpen.dataset.fileOpen; return renderAll(); }
     const issueOpen = t.closest('[data-issue-open]');
@@ -1628,10 +1729,11 @@
     renderFeed();
   });
 
-  // Settings: `,` opens or closes, esc closes. Any tab: g then h/p/i/f/a/l switches tab. Files keys: j/k (or [ ]) prev/next. Home keys: j/k, 1–9, m, u (open
+  // Settings: `,` opens or closes, esc closes. Any tab: g then h/p/i/f/s/a/l switches tab. Files keys: j/k (or [ ]) prev/next.
+  // Scratch keys: j/k (or [ ]) prev/next pad, o open/close. Home keys: j/k, 1–9, m, u (open
   // questions). Planning keys: j/k (or [ ]) prev/next bead, { } prev/next epic, p PRD, esc back. Issues keys: j/k (or [ ])
   // prev/next, a approve, d dismiss, u undo. Ignored while typing.
-  const GO_KEYS = { h: 'home', p: 'planning', i: 'issues', f: 'facts', a: 'files', l: 'log' };
+  const GO_KEYS = { h: 'home', p: 'planning', i: 'issues', f: 'facts', s: 'scratch', a: 'files', l: 'log' };
   let goPending = 0; // time `g` was pressed; the next key within 1 s picks a tab
   document.addEventListener('keydown', e => {
     if (view.settingsOpen && e.key === 'Escape') {
@@ -1658,6 +1760,12 @@
       }
       const step = { k: () => stepBead(-1), j: () => stepBead(1), '[': () => stepBead(-1), ']': () => stepBead(1), '{': () => stepEpic(-1), '}': () => stepEpic(1) }[e.key];
       return step?.();
+    }
+    if (view.active === 'scratch') {
+      if (e.key === 'k' || e.key === '[') return stepScratch(-1);
+      if (e.key === 'j' || e.key === ']') return stepScratch(1);
+      if (e.key === 'o') return toggleScratch(view.selectedScratch);
+      return;
     }
     if (view.active === 'files') {
       if (e.key === 'k' || e.key === '[') return stepFile(-1);
@@ -1723,7 +1831,7 @@
   try { savedScheme = localStorage.getItem('ernie-scheme'); } catch (err) { /* storage blocked */ }
   applyScheme(savedScheme);
 
-  // Deep link: #planning, #issues, #facts, #files or #log
+  // Deep link: #planning, #issues, #facts, #scratch, #files or #log
   const hashKey = decodeURIComponent(location.hash.slice(1));
   if (isTab(hashKey)) openTab(hashKey); else renderAll();
 </script>
