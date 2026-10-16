@@ -5,7 +5,7 @@ Line numbers are from before the edits; re-find by selector.
 
 ## Applied (committed)
 - 8767dc0 — #1 type scale: 12px floor, body 15/1.6, list titles 15/1.35 (600 when selected), labels 600 13/1.3 sans sentence case dim (no caps/tracking), secondary 13/1.45 dim, mono only ids (12) / paths+code+tables (13/1.5); `.ws h2` 20/1.3 700; Google Fonts loads wght 400..800; `.gut` align-items baseline
-- 8767dc0 — #2 Home: questions left `minmax(0,1fr)`, 340px rail = Where work is → Next prompt delivers → Add a note → Answered → Ops (Ops NOT collapsed, user choice); rail below questions <1000px; `.home-strip` deleted
+- 8767dc0 — #2 Home: questions left `minmax(0,1fr)`, 340px rail = Where work is → Next prompt delivers → Add a note → Answered → Ops (Ops NOT collapsed, user choice); rail below questions <1000px; `.home-strip` deleted (superseded 2026-10-15, see below)
 - 8767dc0 — #3 (partial, user picked): Planning responsive grid; `.chip { text-align:left }`; `.wt-pick-wrap` max-width 240px
 - 39ce1fe — #4 whitespace over inner rules: removed rules on `.panel-head`, `.facts li`, `.dec` bar, `.ph-checks`, `.filters`, `.feed li` + head; spacing scale 4/8/12/16/24/32/48; `.ws-foot` margin-top 32px; `.pills` 16px below; `.legend` 24px above
 - 39ce1fe — Planning: epics = one left-to-right row above beads | detail at every width (beads 320px ≥1200, 280px 800–1199, 1 col <800); epic row not sticky, beads sticky
@@ -20,6 +20,7 @@ Line numbers are from before the edits; re-find by selector.
 - 2026-10-15 — Facts: Decisions above Glossary; fact rows grid `88px 28px 1fr 24px`; panel-head hint dropped (badge title "show the method…", hover underline); dismiss × queues with "dismissed f2 · goes with your next prompt · Undo"
 - 2026-10-15 — Tool log: session column → divider row per session change ("session 4995d496 · current"); Bash/Agent descriptions + item events in sans 14, paths/globs/URLs mono; "(no description)" → dim "—"; rows 4px padding, 1.4 leading
 - 2026-10-15 — Keys: j/k prev/next on Planning + Issues (`[ ]` kept as alias); `g h / g p / g i / g f / g l` switch tabs (1 s window; tab buttons' title shows the key); Facts + Tool log get only the tab keys
+- 2026-10-15 — Home relayout (user): right rail dropped; top row 3 cards (Where work is · Next prompt delivers · Add a note), questions full width, Answered | Ops 2 columns below (equal height); `.home-grid` → `.home-top` / `.home-bottom`
 
 ## Not applied — remaining
 ### Top bar

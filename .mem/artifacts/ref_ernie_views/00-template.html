@@ -13,9 +13,10 @@
       choices, "need more context" (`question answer {more: true}`, stays open, A88) and an "other answer…" box (not on
       `assume` yes/no checks, A113). An answer queues for the session's next prompt with Undo until then.
       Keys: j/k move, 1–9 answer, m more context, u undo (hint under the selected question's answer row).
-      Right column: Where work is (active epic + bar, active bead, up to 3 `bd ready` beads: todo with every dep done),
-      Add a note (`note add`), Ops (memory `## ops`, read-only, per branch). Session and Sync cards were dropped (git history).
-      Next prompt delivers (inbox preview: sample `pending` + page-queued events), Answered.
+      Top row (three cards above the questions, stacked <900px): Where work is (active epic + bar, active bead, up to 3
+      `bd ready` beads: todo with every dep done) · Next prompt delivers (inbox preview: sample `pending` + page-queued
+      events) · Add a note (`note add`). Below the questions, two columns: Answered · Ops (memory `## ops`, read-only, per
+      branch). Session and Sync cards were dropped (git history).
     - Planning tab (view-only data: `epics` + `adhoc` in _sample_state.js; Beads fields not final): three columns. Left,
       the worktree's epics with a done/total bar, then ◇ Ad hoc (beads with no epic; replaces queue.md "next", P4 Q2);
       middle, the selected epic's goal, beads, epic done-when checks and its PRD-review findings; right, the selected bead:
@@ -275,8 +276,11 @@
   .ws-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 32px; font: 13px/1.45 var(--sans); color: var(--text-dim); align-items: center; flex-wrap: wrap; }
 
   /* Home: open questions */
-  .home-grid { display: grid; gap: 16px; align-items: start; grid-template-columns: minmax(0, 1fr) 340px; }
-  @media (max-width: 999px) { .home-grid { grid-template-columns: minmax(0, 1fr); } }
+  /* Home: status cards in one row on top, then the questions, then Answered | Ops below them */
+  .home-top { display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 24px; }
+  @media (max-width: 899px) { .home-top { grid-template-columns: minmax(0, 1fr); } }
+  .home-bottom { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 24px; }
+  @media (max-width: 640px) { .home-bottom { grid-template-columns: minmax(0, 1fr); } }
   /* Open questions: focus list (one line each, the selected one opens; labels in a left gutter) */
   .qf-keys { font: 13px/1.45 var(--sans); color: var(--text-dim); margin-top: 10px; }
   .qf-item { border: 1px solid var(--box-edge); border-radius: 12px; background: var(--bg-card); margin-bottom: 10px; overflow: hidden; min-width: 0; }
@@ -1338,12 +1342,11 @@
     document.getElementById('main').innerHTML = `${wtBanner()}
       <div class="tab-head"><h1>Home</h1>
         <span class="meta">${open.length} open question${open.length === 1 ? '' : 's'} · ${answered.length} answered</span></div>
-      <div class="home-grid">
-        <div>${open.length
-          ? questionList(open)
-          : '<div class="canvas" style="min-height:200px"><p>No open questions for this worktree.</p></div>'}</div>
-        <div class="fd-col">${workCard()}${inboxPanel()}${notePanel()}${panel('Answered', answered.length, answeredList)}${opsPanel()}</div>
-      </div>`;
+      <div class="home-top">${workCard()}${inboxPanel()}${notePanel()}</div>
+      ${open.length
+        ? questionList(open)
+        : '<div class="canvas" style="min-height:200px"><p>No open questions for this worktree.</p></div>'}
+      <div class="home-bottom">${panel('Answered', answered.length, answeredList)}${opsPanel()}</div>`;
   }
 
   function addNote(text) {
