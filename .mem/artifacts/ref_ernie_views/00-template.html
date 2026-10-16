@@ -12,28 +12,30 @@
       sent); the selected one opens with Context / If wrong / Example / Answer in a left gutter. Answer row: numbered
       choices, "need more context" (`question answer {more: true}`, stays open, A88) and an "other answer…" box (not on
       `assume` yes/no checks, A113). An answer queues for the session's next prompt with Undo until then.
-      Keys: j/k move, 1–9 answer, m more context, u undo.
-      Top strip: Where work is (active epic + bar, active bead, up to 3 `bd ready` beads: todo with every dep done),
+      Keys: j/k move, 1–9 answer, m more context, u undo (hint under the selected question's answer row).
+      Right column: Where work is (active epic + bar, active bead, up to 3 `bd ready` beads: todo with every dep done),
       Add a note (`note add`), Ops (memory `## ops`, read-only, per branch). Session and Sync cards were dropped (git history).
-      Right column: Next prompt delivers (inbox preview: sample `pending` + page-queued events), Answered.
+      Next prompt delivers (inbox preview: sample `pending` + page-queued events), Answered.
     - Planning tab (view-only data: `epics` + `adhoc` in _sample_state.js; Beads fields not final): three columns. Left,
       the worktree's epics with a done/total bar, then ◇ Ad hoc (beads with no epic; replaces queue.md "next", P4 Q2);
       middle, the selected epic's goal, beads, epic done-when checks and its PRD-review findings; right, the selected bead:
       labels in a gutter, content capped at ~62ch: Status (text todo → active → done, or blocked naming the unfinished deps) ·
-      What · Notes · Done when · Depends on / Unblocks (click to jump, across epics) · Linked · Files · Commit. Linked also
+      What · Notes · Done when · Depends on / Unblocks (only when non-empty; click to jump, across epics) · Linked · Files ·
+      Commit. Glyphs name their status on hover (no legend). Linked also
       shows the reverse links the page computes (P4 Q3): decisions whose `ref` is this bead, findings from its code review.
       ▤ PRD chip under the epic goal (P2: one PRD per epic, path from `spec_id`) swaps the right column for the PRD: plan
       state + review rounds from the epic's labels, path, section chips that scroll to each ## heading, the markdown at the
       reading measure. Opening a bead goes back to it; picking another epic keeps the PRD open on that epic's PRD.
-      Keys: [ ] prev/next bead, { } prev/next epic, p PRD, esc back.
+      Keys: j/k (or [ ]) prev/next bead, { } prev/next epic, p PRD, esc back.
     - Issues tab (from 03 Issue Workbench): findings (Beads bugs) grouped by epic, then Ad hoc (P3 Q2); waiting-for-approval
       first. Each row and worksheet names its source = parent: PRD review (epic), code review · <bead>, or ad hoc; the
       source pill opens it on Planning. Worksheet: labels in a gutter (same layout as Home's open questions): Status (text
       explained → approved → fixed) · Example (first: lead with an example) · Cause · Fix · If skipped · How sure · Linked ·
-      Decide, always the last row: keyed Approve / Dismiss / Undo (dismiss = close with resolution=dismissed).
-      Keys: [ ] prev/next, a approve, d dismiss, u undo.
-    - Facts & decisions tab: left column glossary then decisions (text + why + a `→ bead` chip from `ref`, P4 Q3; a
-      "collided" tag on F1 collisions); right column facts with ✓ ~ ✗ badges (tap for the method, × to dismiss).
+      Decide, always the last row and pinned to the window bottom: what happens next, then keyed Approve / Dismiss / Undo
+      (dismiss = close with resolution=dismissed). Keys: j/k (or [ ]) prev/next, a approve, d dismiss, u undo.
+    - Facts & decisions tab: left column decisions (text + why + a `→ bead` chip from `ref`, P4 Q3; a "collided" tag on
+      F1 collisions) then glossary; right column facts with ✓ ~ ✗ badges (tap for the method, × to dismiss with Undo until
+      the next prompt).
       Facts panel opens with filter pills that use the badge labels: All · ✓ verified · ~ inferred · ✗ unknown (data value
       `unchecked`, or no confidence), each with its count; tapping the active pill goes back to All.
       Each inferred / unknown fact has a ⌕ research pill (page op `fact research`, deferred to v2): queued for that
@@ -42,7 +44,9 @@
       "no answer" note + retry. Mock: the next prompt is simulated 3 s after the click; outcomes come from RESEARCH_OUTCOMES.
     - Tool log tab: the picked worktree's tool calls, newest first (A114: Bash shows its description only). Filters:
       session (P3 Q5; activity rows carry `sid`, Claude's and your item events don't, A123), tool, hide subagents,
-      files only, + ernie events. A new row lands every ~4 s on the working session.
+      files only, + ernie events. A divider row marks each session change. Bash and Agent descriptions and item events
+      read as prose (sans); paths, patterns and URLs stay mono. A new row lands every ~4 s on the working session.
+    - Tab keys: g then h / p / i / f / l (Home, Planning, Issues, Facts, Tool log).
     - Settings (⚙ in the top bar, key `,`, esc closes): one panel, global (every repo; server keeps it in
       ~/.config/ernie/settings.json). Only the page or your own terminal changes it, never Claude: the numbers are what stop
       the agent loop from running away. Rows: Queue running / paused (applies at once; Claude finishes the step it's on) ·
@@ -174,10 +178,15 @@
   .dec + .dec { margin-top: 16px; }
   .dec b { font-weight: 600; display: block; } .dec .why { font-size: 13px; line-height: 1.45; color: var(--text-dim); }
   .facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
-  .facts li { position: relative; padding: 0 28px 0 0; overflow-wrap: break-word; }
-  .dismiss { position: absolute; right: 0; top: -1px; width: 22px; height: 22px; border-radius: 5px; border: 1px solid transparent; background: none; cursor: pointer; color: var(--text-dim); }
+  /* badge · id · text · dismiss on one grid, so ids and text start at the same x whatever the badge width */
+  .facts li { display: grid; grid-template-columns: 88px 28px minmax(0, 1fr) 24px; align-items: baseline; overflow-wrap: break-word; }
+  .facts li > .conf { justify-self: start; margin-right: 0; white-space: nowrap; }
+  .facts li > .item-id { margin-right: 0; }
+  .facts li > .method { grid-column: 3 / -1; }
+  .dismiss { width: 22px; height: 22px; border-radius: 5px; border: 1px solid transparent; background: none; cursor: pointer; color: var(--text-dim); }
   .dismiss:hover { border-color: var(--border); color: var(--error); }
   .conf { font: 12px var(--mono); padding: 1px 6px; border-radius: 4px; border: 0; cursor: pointer; margin-right: 6px; vertical-align: 1px; }
+  button.conf:hover { text-decoration: underline; }
   .c-verified { background: var(--pass-bg); color: var(--pass-fg); } .c-inferred { background: var(--warn-bg); color: var(--warn-fg); }
   .c-unchecked { background: var(--bg-raised); color: var(--text-dim); border: 1px dashed var(--text-dim); }
   .method { font: 13px/1.5 var(--mono); color: var(--text-dim); margin: 5px 0 2px; padding: 5px 8px; border-left: 2px solid var(--border-accent); overflow-wrap: anywhere; }
@@ -238,7 +247,7 @@
   .btn--danger:hover { border-color: var(--error); color: var(--error); }
   .tbl-wrap { overflow-x: auto; border: 1px solid var(--box-edge); border-radius: 8px; background: var(--bg-card); }
   .tbl-wrap table { border-collapse: collapse; width: 100%; font: 13px/1.5 var(--mono); }
-  .tbl-wrap th, .tbl-wrap td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+  .tbl-wrap th, .tbl-wrap td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; white-space: nowrap; }
   .tbl-wrap thead th { color: var(--text-dim); font-weight: 400; background: var(--bg-recessed); }
   .tbl-wrap tbody th { color: var(--text-accent); font-weight: 400; white-space: nowrap; }
   .tbl-wrap tr:last-child td, .tbl-wrap tr:last-child th { border-bottom: 0; }
@@ -249,14 +258,22 @@
   .cmd { position: relative; margin-top: 6px; }
   .cmd pre { margin: 0; padding: 10px 70px 10px 12px; border-radius: 8px; background: var(--bg-recessed); border: 1px solid var(--border); font: 13px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
   .cmd button { position: absolute; top: 6px; right: 6px; }
-  .linked { display: grid; gap: 6px; font-size: 15px; line-height: 1.6; } .linked b { font: 12px var(--mono); color: var(--text-accent); margin-right: 6px; font-weight: 400; }
+  /* Linked rows: one sans line, id in mono, the reason as a dim suffix */
+  .linked { display: grid; gap: 6px; font-size: 15px; line-height: 1.6; }
+  .lid { font: 13px var(--mono); color: var(--text-accent); margin-right: 8px; background: none; border: 0; padding: 0; }
+  button.lid { cursor: pointer; } button.lid:hover { text-decoration: underline; }
+  .lid .g { margin-right: 4px; }
+  .linked .why { font-size: 13px; color: var(--text-dim); margin-left: 6px; }
+  /* Decide: pinned to the bottom of the window so the action row sits in one spot whatever the example's height */
+  .gut.decide { position: sticky; bottom: 0; z-index: 2; margin-top: 24px; padding: 14px 0 16px; background: var(--bg); border-top: 1px solid var(--border); }
+  .decide .msg { margin: 0 0 8px; font-size: 13px; line-height: 1.45; color: var(--text-dim); }
   .ws-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 32px; font: 13px/1.45 var(--sans); color: var(--text-dim); align-items: center; flex-wrap: wrap; }
 
   /* Home: open questions */
   .home-grid { display: grid; gap: 16px; align-items: start; grid-template-columns: minmax(0, 1fr) 340px; }
   @media (max-width: 999px) { .home-grid { grid-template-columns: minmax(0, 1fr); } }
   /* Open questions: focus list (one line each, the selected one opens; labels in a left gutter) */
-  .qf-hint { font: 13px/1.45 var(--sans); color: var(--text-dim); margin: 0 0 10px; }
+  .qf-keys { font: 13px/1.45 var(--sans); color: var(--text-dim); margin-top: 10px; }
   .qf-item { border: 1px solid var(--box-edge); border-radius: 12px; background: var(--bg-card); margin-bottom: 10px; overflow: hidden; min-width: 0; }
   .qf-item.sel { border-color: var(--border-accent); box-shadow: inset 3px 0 0 var(--accent); }
   .qf-line { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 14px; align-items: baseline; width: 100%; padding: 14px 18px;
@@ -288,13 +305,16 @@
   .kbtn.danger:hover { border-color: var(--error); color: var(--error); }
   .kbtn kbd { font: 12px var(--mono); padding: 0 5px; border-radius: 4px; border: 1px solid var(--border); color: var(--text-dim); }
   .kbtn small { font: 400 13px var(--sans); color: var(--text-accent); }
-  .kbtns .msg { font-size: 13px; line-height: 1.45; color: var(--text-dim); flex: 1 1 220px; }
   .qf-sent { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font: 13px/1.45 var(--sans); color: var(--warning-text); }
   .other { display: flex; gap: 6px; min-width: 0; margin-top: 10px; max-width: 460px; }
   .other input { flex: 1; min-width: 0; font: 15px var(--sans); padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-recessed); color: var(--text); }
-  .kv { display: grid; gap: 5px; font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
-  .kv .k { font: 600 13px/1.3 var(--sans); color: var(--text-dim); margin-right: 6px; }
-  .inbox pre { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--bg-recessed); border: 1px solid var(--border); font: 13px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .kv { display: grid; gap: 8px; font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
+  /* Reason: chips are inline-blocks whose baseline is their last line, so labels align to the top instead */
+  .kv > div { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; align-items: start; }
+  .kv .k { font: 600 13px/1.3 var(--sans); color: var(--text-dim); padding-top: 5px; }
+  .kv .bar { display: inline-flex; width: 96px; vertical-align: middle; margin: 0 0 0 8px; }
+  .inbox { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--bg-recessed); border: 1px solid var(--border); font: 13px/1.5 var(--mono); overflow-wrap: break-word; }
+  .inbox div + div { padding-left: 2ch; text-indent: -2ch; }
   .ops { margin: 0; padding-left: 20px; font-size: 15px; line-height: 1.6; display: grid; gap: 4px; overflow-wrap: anywhere; }
   .note-form { display: flex; gap: 6px; }
   .note-form input { flex: 1; min-width: 0; font: 15px var(--sans); padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-recessed); color: var(--text); }
@@ -336,15 +356,16 @@
   .chip { font: 13px var(--mono); padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-card); cursor: pointer; text-align: left; }
   .chip:hover { border-color: var(--accent); }
   .chip .g { margin-right: 5px; }
+  .chip kbd { font: 11px var(--mono); margin-left: 6px; padding: 0 4px; border-radius: 3px; border: 1px solid var(--border); color: var(--text-dim); }
   .blocked-msg { font: 12px var(--mono); color: var(--warning-text); margin-top: 6px; }
   .files { list-style: none; margin: 0; padding: 0; font: 13px var(--mono); color: var(--text-accent); display: grid; gap: 3px; overflow-wrap: anywhere; }
   .prd-open { margin: -4px 4px 12px; }
   .prd-open .chip[aria-pressed="true"] { border-color: var(--accent); }
   /* PRD reader: replaces the bead detail; body capped at the reading measure */
   .prd-path { font: 13px var(--mono); color: var(--text-accent); margin: -14px 0 14px; overflow-wrap: anywhere; }
-  .prd-toc { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 22px; }
+  .prd-toc { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 22px; position: sticky; top: 52px; z-index: 2; padding: 10px 0; background: var(--bg); }
   .md { max-width: 62ch; font-size: 15px; line-height: 1.6; overflow-wrap: break-word; }
-  .md h3 { font: 600 17px/1.35 var(--sans); margin: 26px 0 8px; scroll-margin-top: 72px; }
+  .md h3 { font: 600 17px/1.35 var(--sans); margin: 26px 0 8px; scroll-margin-top: 140px; }
   .md h4 { font: 600 15px/1.35 var(--sans); margin: 18px 0 6px; }
   .md p { margin: 0 0 12px; }
   .md ul, .md ol { margin: 0 0 12px; padding-left: 22px; display: grid; gap: 4px; }
@@ -361,15 +382,17 @@
     font: 13px var(--sans); color: var(--text-dim); }
   .filters label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
   .feed { list-style: none; margin: 0; padding: 0 0 8px; font: 12px/1.5 var(--mono); }
-  .feed li { display: grid; grid-template-columns: 70px 76px 96px minmax(0, 1fr); gap: 10px; padding: 6px 16px;
+  .feed li { display: grid; grid-template-columns: 70px 96px minmax(0, 1fr); gap: 10px; padding: 4px 16px; line-height: 1.4;
     color: var(--text-dim); align-items: baseline; }
   .feed li.head { font: 600 13px/1.3 var(--sans); }
   .feed .cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .feed .tool { color: var(--text); }
   .feed .txt { font-size: 13px; overflow-wrap: anywhere; color: var(--text); }
-  .feed .txt.none { color: var(--text-dim); font-style: italic; }
+  .feed .txt.prose { font: 14px/1.4 var(--sans); }
+  .feed .txt.none { color: var(--text-dim); }
+  .feed li.sess { display: block; font: 600 13px/1.3 var(--sans); color: var(--text-dim); padding: 14px 16px 4px; }
+  .feed li.sess.now { color: var(--success); }
   .feed li.file .tool { color: var(--warning-text); }
-  .feed .sid { color: var(--text-dim); } .feed .sid.now { color: var(--success); }
   .feed li.ev .tool { color: var(--accent); } .feed li.ev.by-user .tool { color: var(--success); }
   .tag { font-size: 12px; padding: 0 5px; margin-left: 6px; border-radius: 4px; background: var(--info-bg); color: var(--info-fg); white-space: nowrap; }
   .tag.file { background: var(--warn-bg); color: var(--warn-fg); }
@@ -378,8 +401,7 @@
   @media (max-width: 720px) {
     .feed li { grid-template-columns: 62px minmax(0, 1fr); gap: 2px 8px; }
     .feed li.head { display: none; }
-    .feed .sidcell { grid-column: 2; grid-row: 1; }
-    .feed .tool { grid-column: 1; grid-row: 2; }
+    .feed .tool { grid-column: 2; grid-row: 1; }
     .feed .txt { grid-column: 2; grid-row: 2; }
   }
 </style>
@@ -495,13 +517,14 @@
       let badge = '';
       if (p.key === 'log' && view.active !== 'log' && view.logUnseen) badge = `<span class="badge" title="new tool calls">${view.logUnseen}</span>`;
       if (p.key === 'issues' && toApprove) badge = `<span class="badge" style="background:var(--warning)" title="waiting for your approval">${toApprove}</span>`;
-      return `<div class="tab ${view.active === p.key ? 'active' : ''}"><button type="button" data-tab="${p.key}">${p.label}${badge}</button></div>`;
+      const goKey = Object.keys(GO_KEYS).find(k => GO_KEYS[k] === p.key);
+      return `<div class="tab ${view.active === p.key ? 'active' : ''}"><button type="button" data-tab="${p.key}" title="g ${goKey}">${p.label}${badge}</button></div>`;
     }).join('');
   }
 
-  // Page events for this worktree that its session's next prompt will deliver
+  // Page events for this worktree that its session's next prompt will deliver; dismissed facts show their own Undo line
   function queuedLine() {
-    const queued = view.queued.filter(q => q.key === view.wt);
+    const queued = view.queued.filter(q => q.key === view.wt && !q.fact);
     return queued.length ? `<div class="queued">queued for the next prompt: ${queued.map(q => esc(q.label)).join(' · ')}</div>` : '';
   }
 
@@ -513,7 +536,7 @@
   // ---------- Facts & decisions tab ----------
   function confBadge(item, key) {
     if (!item.confidence) return `<span class="conf c-unchecked" title="no confidence given">${confGlyph.unchecked}</span>`;
-    return `<button class="conf c-${item.confidence}" type="button" data-method="${esc(key)}" title="${esc(item.method || 'no method given')}">${confGlyph[item.confidence]}</button>`;
+    return `<button class="conf c-${item.confidence}" type="button" data-method="${esc(key)}" title="show the method: ${esc(item.method || 'none given')}">${confGlyph[item.confidence]}</button>`;
   }
 
   function renderFacts() {
@@ -532,8 +555,8 @@
     const factHtml = f => {
       const methodKey = `${l.key}:${f.id}`;
       const method = view.shownMethods.has(methodKey) ? `<div class="method">method: ${esc(f.method || 'none given')}</div>` : '';
-      return `<li class="${f.fresh ? 'fresh' : ''}">${confBadge(f, methodKey)}<span class="item-id">${f.id}</span>${esc(f.text)}${researchHtml(l, f)}
-        <button class="dismiss" type="button" data-dismiss="${esc(l.key)}|${f.id}" title="Dismiss">×</button>${method}${researchNote(l, f)}</li>`;
+      return `<li class="${f.fresh ? 'fresh' : ''}">${confBadge(f, methodKey)}<span class="item-id">${f.id}</span><span>${esc(f.text)}${researchHtml(l, f)}</span>
+        <button class="dismiss" type="button" data-dismiss="${esc(l.key)}|${f.id}" title="Dismiss (undo until the next prompt)">×</button>${method}${researchNote(l, f)}</li>`;
     };
     const allFacts = st.facts.filter(f => f.kind !== 'term');
     const factCount = allFacts.length;
@@ -547,6 +570,9 @@
       return `<button class="fpill k-${p.key} ${on ? 'on' : ''}" type="button" data-fact-kind="${p.key}" aria-pressed="${on}">${p.label}<span class="n">${n}</span></button>`;
     }).join('')}</div>`;
     const noFacts = factCount ? '<div class="empty">No facts match this filter.</div>' : '<div class="empty">No facts pinned.</div>';
+    // Page op `fact dismiss` waits for the next prompt, so it can be undone until then (same pattern as Home answers)
+    const dismissed = view.queued.filter(q => q.key === l.key && q.fact).map(q =>
+      `<div class="qf-sent" style="margin-top:12px">dismissed ${esc(q.fact.id)} · goes with your next prompt <button class="btn" type="button" data-fact-undo="${esc(l.key)}|${esc(q.fact.id)}">Undo</button></div>`).join('');
 
     const terms = st.facts.filter(f => f.kind === 'term');
     const glossary = terms.length ? `<dl class="gloss">${terms.map(t => `<dt>${esc(t.term)}</dt><dd>${esc(t.text)}</dd>`).join('')}</dl>` : '<div class="empty">No terms yet.</div>';
@@ -556,11 +582,11 @@
         <span class="meta">${decisionCount} decisions · ${factCount} facts · ${terms.length} terms</span></div>
       <div class="fd-grid">
         <div class="fd-col">
-          ${panel('Glossary', terms.length, glossary)}
           ${panel('Decisions', decisionCount, decisions || '<div class="empty">No decisions yet.</div>')}
+          ${panel('Glossary', terms.length, glossary)}
         </div>
         <div class="fd-col">
-          ${panel('Facts', shownFactCount === factCount ? factCount : `${shownFactCount}/${factCount}`, pills + (facts || noFacts) + queuedLine(), '<span class="hint">tap a badge for its method · × to dismiss</span>')}
+          ${panel('Facts', shownFactCount === factCount ? factCount : `${shownFactCount}/${factCount}`, pills + (facts || noFacts) + dismissed + queuedLine())}
         </div>
       </div>`;
   }
@@ -672,6 +698,9 @@
 
   const checklist = items => `<ul class="checks">${items.map(c => `<li class="${c.done ? 'on' : ''}">${esc(c.text)}</li>`).join('')}</ul>`;
 
+  // Status glyph; its title names the status, so lists need no legend
+  const glyph = (status, text, title = status) => `<span class="g g--${status}" title="${esc(title)}">${text}</span>`;
+
   function beadChip(entry) {
     return `<button class="chip" type="button" data-bead-open="${esc(entry.key)}" title="${esc(epicLabel(entry.ep))} · ${entry.b.status}">
       <span class="g g--${entry.b.status}">${BEAD_GLYPH[entry.b.status]}</span>${esc(entry.b.id)} ${esc(entry.b.title)}</button>`;
@@ -681,16 +710,21 @@
     return `<button class="chip" type="button" data-issue-jump="${esc(logKey)}|${esc(issue.id)}"><span class="g g--${issue.status}">${STATUS_GLYPH[issue.status]}</span>${esc(issue.id)}</button>`;
   }
 
+  // Linked id: mono, accent; a finding's id opens it on the Issues tab
+  function issueLid(logKey, issue) {
+    return `<button class="lid" type="button" data-issue-jump="${esc(logKey)}|${esc(issue.id)}" title="${issue.status} · open on Issues">${glyph(issue.status, STATUS_GLYPH[issue.status])}${esc(issue.id)}</button>`;
+  }
+
   // Ids that match a decision, finding, fact or note in the same worktree show its text; findings open the Issues tab.
   // `why` labels links that come from the other side (a decision's ref, a finding's parent)
   function linkHTML(logKey, ref, why = '') {
     const st = S.states[logKey];
-    const hint = why ? ` <span class="hint">${esc(why)}</span>` : '';
+    const reason = why ? `<span class="why">${esc(why)}</span>` : '';
     const issue = st.issues.find(i => i.id === ref);
-    if (issue) return `<div>${issueChip(logKey, issue)} ${esc(issue.title)}${hint}</div>`;
+    if (issue) return `<div>${issueLid(logKey, issue)}${esc(issue.title)}${reason}</div>`;
     const known = st.decisions.find(d => d.id === ref) || st.facts.find(f => f.id === ref) || st.notes.find(n => n.id === ref);
-    if (known) return `<div><b>${esc(ref)}</b>${esc(known.text)}${hint}</div>`;
-    return `<div><b>${esc(ref)}</b><span class="hint">not on this page</span></div>`;
+    if (known) return `<div><span class="lid">${esc(ref)}</span>${esc(known.text)}${reason}</div>`;
+    return `<div><span class="lid">${esc(ref)}</span><span class="why">not on this page</span></div>`;
   }
 
   function beadHTML(entry, list) {
@@ -724,16 +758,16 @@
         <dt>What</dt><dd>${esc(b.what || '—')}</dd>
         ${b.notes ? `<dt>Notes</dt><dd>${esc(b.notes)}</dd>` : ''}
         <dt>Done when</dt><dd>${checks.length ? `${checklist(checks)}<div class="dim" style="font-size:13px;margin-top:4px">${checksDone} of ${checks.length} done</div>` : '<span class="dim">No checks yet.</span>'}</dd>
-        <dt>Depends on</dt><dd class="wide">${deps.length ? `<div class="chips">${deps.map(beadChip).join('')}</div>` : '<span class="dim">Nothing; can start any time.</span>'}</dd>
-        <dt>Unblocks</dt><dd class="wide">${unblocks.length ? `<div class="chips">${unblocks.map(beadChip).join('')}</div>` : '<span class="dim">Nothing waits on this bead.</span>'}</dd>
+        ${deps.length ? `<dt>Depends on</dt><dd class="wide"><div class="chips">${deps.map(beadChip).join('')}</div></dd>` : ''}
+        ${unblocks.length ? `<dt>Unblocks</dt><dd class="wide"><div class="chips">${unblocks.map(beadChip).join('')}</div></dd>` : ''}
         ${linked.length ? `<dt>Linked</dt><dd><div class="linked">${linked.join('')}</div></dd>` : ''}
         ${b.files?.length ? `<dt>Files</dt><dd><ul class="files">${b.files.map(f => `<li>${esc(f)}</li>`).join('')}</ul></dd>` : ''}
         ${b.commit ? `<dt>Commit</dt><dd><code>${esc(b.commit)}</code></dd>` : ''}
       </dl>
       <footer class="ws-foot">
-        ${prev ? `<button class="btn" type="button" data-bead-open="${esc(prev.key)}">‹ ${esc(prev.b.id)}</button>` : '<span></span>'}
-        <span>[ ] bead · { } epic</span>
-        ${next ? `<button class="btn" type="button" data-bead-open="${esc(next.key)}">${esc(next.b.id)} ›</button>` : '<span></span>'}
+        ${prev ? `<button class="btn" type="button" data-bead-open="${esc(prev.key)}" title="k">‹ ${esc(prev.b.id)}</button>` : '<span></span>'}
+        <span>j / k bead · { } epic · p PRD</span>
+        ${next ? `<button class="btn" type="button" data-bead-open="${esc(next.key)}" title="j">${esc(next.b.id)} ›</button>` : '<span></span>'}
       </footer></article>`;
   }
 
@@ -780,16 +814,14 @@
     const body = prd.md.replace(/^# .*\n?/m, '');
     const sections = [...body.matchAll(/^## (.*)/gm)].map(m => m[1]);
     return `<article class="ws">
-      <div class="ws-meta"><span>PRD</span><span class="pill p-ours">${esc(epicLabel(epic.ep))}</span>
-        <span>plan=${esc(prd.plan)} · ${plural(prd.review, 'review round')}</span></div>
+      <div class="ws-meta">${bead ? `<button class="btn" type="button" data-prd-toggle>‹ bead ${esc(bead.b.id)} · esc</button>` : ''}
+        <span>PRD</span><span class="pill p-ours">${esc(epicLabel(epic.ep))}</span>
+        <span>Plan: ${esc(prd.plan)} · ${plural(prd.review, 'review round')}</span></div>
       <h2>${esc(title)}</h2>
       <div class="prd-path">${esc(prd.path)}</div>
       <nav class="prd-toc" aria-label="PRD sections">${sections.map(t => `<button class="chip" type="button" data-prd-jump="prd-${slug(t)}">${esc(t)}</button>`).join('')}</nav>
       <div class="md">${mdToHTML(body)}</div>
-      <footer class="ws-foot">
-        ${bead ? `<button class="btn" type="button" data-prd-toggle>‹ bead ${esc(bead.b.id)}</button>` : '<span></span>'}
-        <span>p PRD · esc back</span><span></span>
-      </footer></article>`;
+      <footer class="ws-foot"><span>p PRD · esc back</span></footer></article>`;
   }
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
@@ -812,9 +844,8 @@
     const st = cur();
     const epicRow = x => {
       const isAdhoc = x.ep.id === ADHOC;
-      const glyph = isAdhoc ? '◇' : BEAD_GLYPH[x.ep.status];
       return `<button class="ph-row ${x.key === view.selectedEpic ? 'sel' : ''}" type="button" data-epic-open="${esc(x.key)}" title="${isAdhoc ? 'no epic' : x.ep.status}">
-        <span class="g g--${isAdhoc ? 'todo' : x.ep.status}">${glyph}</span><span class="id">${isAdhoc ? '' : esc(x.ep.id)}</span>
+        ${isAdhoc ? glyph('todo', '◇', 'ad hoc: beads with no epic') : glyph(x.ep.status, BEAD_GLYPH[x.ep.status])}<span class="id">${isAdhoc ? '' : esc(x.ep.id)}</span>
         <span class="t"><b>${esc(x.ep.title)}</b>${progressBar(x.ep.beads)}</span></button>`;
     };
     const epicCol = epics.map(epicRow).join('');
@@ -826,7 +857,7 @@
     const beadRow = x => {
       const waiting = x.b.status === 'blocked' ? blockedBy(x) : [];
       return `<button class="bd-row st-${x.b.status} ${x.key === view.selectedBead ? 'sel' : ''}" type="button" data-bead-open="${esc(x.key)}" title="${x.b.status}">
-        <span class="g g--${x.b.status}">${BEAD_GLYPH[x.b.status]}</span><span class="id">${esc(x.b.id)}</span>
+        ${glyph(x.b.status, BEAD_GLYPH[x.b.status])}<span class="id">${esc(x.b.id)}</span>
         <span class="t">${esc(x.b.title)}${waiting.length ? `<span class="why">needs ${waiting.map(esc).join(', ')}</span>` : ''}</span></button>`;
     };
     // P3 Q2: PRD-review findings hang off the epic itself
@@ -834,11 +865,10 @@
     const beadCol = epic ? `
       <div class="is-group"><span>${esc(epicLabel(epic.ep))}</span><span>${beads.length} beads</span></div>
       <p class="ph-goal">${esc(epic.ep.goal || '')}</p>
-      ${epic.ep.prd ? `<div class="prd-open"><button class="chip" type="button" data-prd-toggle aria-pressed="${view.prdOpen}">▤ PRD · ${esc(epic.ep.prd.path.split('/').pop())}</button></div>` : ''}
+      ${epic.ep.prd ? `<div class="prd-open"><button class="chip" type="button" data-prd-toggle aria-pressed="${view.prdOpen}">▤ PRD · ${esc(epic.ep.prd.path.split('/').pop())}<kbd>p</kbd></button></div>` : ''}
       ${beads.map(beadRow).join('')}
       ${epic.ep.doneWhen?.length ? `<div class="ph-checks"><div class="sub">Epic done when</div>${checklist(epic.ep.doneWhen)}</div>` : ''}
-      ${prdFindings.length ? `<div class="ph-checks"><div class="sub">PRD review findings</div><div class="chips">${prdFindings.map(i => issueChip(view.wt, i)).join('')}</div></div>` : ''}
-      <div class="legend">${Object.entries(BEAD_GLYPH).map(([s, g]) => `${g} ${s}`).join(' ')} ◇ ad hoc</div>` : '<div class="empty">No epic selected.</div>';
+      ${prdFindings.length ? `<div class="ph-checks"><div class="sub">PRD review findings</div><div class="chips">${prdFindings.map(i => issueChip(view.wt, i)).join('')}</div></div>` : ''}` : '<div class="empty">No epic selected.</div>';
     const selected = beads.find(x => x.key === view.selectedBead);
     const epicBeads = (st.epics || []).flatMap(ep => ep.beads);
     const adhocCount = (st.adhoc || []).length;
@@ -958,14 +988,13 @@
         <dt>How sure</dt><dd>${confBadge(iss, `${entry.key}:method`)}
           ${iss.method ? `<div class="cmd"><pre>${esc(iss.method)}</pre><button class="btn" type="button" data-copy="${esc(iss.method)}">${view.copied === iss.method ? 'copied' : 'copy'}</button></div>` : '<span class="dim">No method given.</span>'}</dd>
         ${notes.length || terms.length ? `<dt>Linked</dt><dd><div class="linked">
-          ${notes.map(n => `<div><b>${esc(n.id)}</b>${esc(n.text)}</div>`).join('')}
-          ${terms.map(f => `<div><b>${esc(f.term)}</b>${esc(f.text)}</div>`).join('')}</div></dd>` : ''}
-        <dt>Decide</dt><dd class="wide"><div class="kbtns">${decide[0]}<span class="msg">${decide[1]}</span></div></dd>
+          ${notes.map(n => `<div><span class="lid">${esc(n.id)}</span>${esc(n.text)}</div>`).join('')}
+          ${terms.map(f => `<div><span class="lid">${esc(f.term)}</span>${esc(f.text)}</div>`).join('')}</div></dd>` : ''}
       </dl>
+      <dl class="gut decide"><dt>Decide</dt><dd class="wide"><p class="msg">${decide[1]}</p>${decide[0] ? `<div class="kbtns">${decide[0]}</div>` : ''}</dd></dl>
       <footer class="ws-foot">
-        ${prev ? `<button class="btn" type="button" data-issue-open="${esc(prev.key)}">‹ ${esc(prev.iss.id)}</button>` : '<span></span>'}
-        <span>[ ] prev/next · a approve · d dismiss · u undo</span>
-        ${next ? `<button class="btn" type="button" data-issue-open="${esc(next.key)}">${esc(next.iss.id)} ›</button>` : '<span></span>'}
+        ${prev ? `<button class="btn" type="button" data-issue-open="${esc(prev.key)}" title="k">‹ ${esc(prev.iss.id)}</button>` : '<span></span>'}
+        ${next ? `<button class="btn" type="button" data-issue-open="${esc(next.key)}" title="j">${esc(next.iss.id)} ›</button>` : '<span></span>'}
       </footer></article>`;
   }
 
@@ -1053,16 +1082,23 @@
     return seen;
   }
 
+  // Descriptions (Bash, Agent) and item events read as prose; paths, globs, patterns and URLs stay mono
+  const PROSE_TOOLS = ['Bash', 'Agent'];
   function rowHtml(a) {
     const kind = a.t === 'tool' ? 'tl' : a.t === 'file' ? 'file' : `ev by-${a.by}`;
     const who = isToolRow(a) ? a.tool : a.by === 'user' ? 'you' : a.by;
     const text = a.text ? esc(a.text) : '';
+    const prose = !isToolRow(a) || PROSE_TOOLS.includes(a.tool);
     const tags = (a.t === 'file' ? '<span class="tag file">file</span>' : '') + (a.agent ? `<span class="tag">${esc(a.agent)}</span>` : '');
-    const live = a.sid && a.sid === curLog().session.id;
     return `<li class="${kind} ${a.fresh ? 'fresh' : ''}"><span class="cell">${esc(a.ts.replace('yesterday', 'yday'))}</span>
-      <span class="cell sidcell sid ${live ? 'now' : ''}" title="${a.sid ? `session ${esc(a.sid)}` : 'item event, no session'}">${esc(a.sid || '·')}</span>
       <span class="cell tool" title="${esc(who)}">${esc(who)}</span>
-      <span class="txt ${text ? '' : 'none'}">${text || '(no description)'}${tags}</span></li>`;
+      <span class="txt ${text ? (prose ? 'prose' : '') : 'none'}" ${text ? '' : 'title="no description"'}>${text || '—'}${tags}</span></li>`;
+  }
+
+  // One divider row each time the session changes; item events carry no session and stay under the one above them
+  function sessionDivider(sid) {
+    const live = sid === curLog().session.id;
+    return `<li class="sess ${live ? 'now' : ''}">session ${esc(sid)}${live ? ' · current' : ''}</li>`;
   }
 
   function renderLogTab() {
@@ -1091,8 +1127,14 @@
     const feed = document.getElementById('feed');
     if (!feed) return;
     const rows = mergedRows();
-    feed.innerHTML = `<li class="head"><span>Time</span><span>Session</span><span>Tool</span><span>What</span></li>`
-      + (rows.map(rowHtml).join('') || '<li><span></span><span></span><span></span><span class="txt none">nothing matches</span></li>');
+    let lastSid = null;
+    const body = rows.map(a => {
+      const divider = a.sid && a.sid !== lastSid ? sessionDivider(a.sid) : '';
+      if (a.sid) lastSid = a.sid;
+      return divider + rowHtml(a);
+    }).join('');
+    feed.innerHTML = `<li class="head"><span>Time</span><span>Tool</span><span>What</span></li>`
+      + (body || '<li><span></span><span></span><span class="txt none">nothing matches</span></li>');
     document.getElementById('log-count').textContent = `${rows.length} rows · newest first · Bash shows its description, never the command`;
   }
 
@@ -1106,8 +1148,7 @@
   // If wrong / Example / Answer in a left gutter. Keys on Home: j/k move, 1–9 answer, m need more context, u undo
   function questionList(open) {
     if (!open.some(q => `${view.wt}|${q.id}` === view.selectedQuestion)) view.selectedQuestion = open[0] ? `${view.wt}|${open[0].id}` : null;
-    return `<p class="qf-hint">j / k move · 1–9 answer · m need more context · u undo · click a line to open it</p>`
-      + open.map((q, i) => {
+    return open.map((q, i) => {
         const k = `${view.wt}|${q.id}`;
         const on = k === view.selectedQuestion;
         const sent = view.queued.find(x => x.questionKey === k);
@@ -1116,7 +1157,7 @@
         const status = sent ? `<span class="s warn">sent · ${esc(sent.label)}</span>`
           : q.more ? '<span class="s warn">asked for more context</span>'
           : q.recommended ? `<span class="s rec">★ ${esc(q.recommended)}</span>`
-          : `<span class="s">${choices.map(esc).join(' / ')}</span>`;
+          : '<span class="s"></span>';
         const ex = q.example && cur().examples.find(e => e.name === q.example);
         // Reason: assumption checks are yes/no only (A113), so they get no free-text box
         const other = q.kind === 'assume' ? '' : `<form class="other" data-answer-form="${esc(k)}">
@@ -1131,7 +1172,7 @@
           ${q.impact ? `<dt>If wrong</dt><dd class="impact">${esc(q.impact)}</dd>` : ''}
           ${ex ? `<dt>Example</dt><dd>${exampleHTML(ex)}</dd>` : ''}
           ${q.ref ? `<dt>About</dt><dd>${esc(q.ref)}</dd>` : ''}
-          <dt>Answer</dt><dd>${answerRow}</dd></dl></div>`;
+          <dt>Answer</dt><dd>${answerRow}<div class="qf-keys">j / k next question${sent ? ' · u undo' : ''}</div></dd></dl></div>`;
         return `<div class="qf-item ${on ? 'sel' : ''}"><button class="qf-line" type="button" data-question="${esc(k)}">
           <span class="n">Q${i + 1}</span><span class="t">${title}</span>${status}</button>${body}</div>`;
       }).join('');
@@ -1169,9 +1210,9 @@
     const doneIds = new Set(all.filter(x => x.b.status === 'done').map(x => x.b.id));
     const ready = all.filter(x => x.b.status === 'todo' && (x.b.deps || []).every(id => doneIds.has(id)));
     return panel('Where work is', '', `<div class="kv">
-      ${activeEpic ? `<div><span class="k">Epic</span><button class="chip" type="button" data-epic-open="${esc(view.wt)}|${esc(activeEpic.id)}">${esc(epicLabel(activeEpic))}</button> ${progressBar(activeEpic.beads)}</div>` : ''}
-      <div><span class="k">Now</span>${activeBead ? beadChip(activeBead) : '<span class="hint">no active bead</span>'}</div>
-      <div><span class="k">Ready</span>${ready.length ? `<div class="chips" style="margin-top:4px">${ready.slice(0, 3).map(beadChip).join('')}</div>` : '<span class="hint">nothing ready</span>'}</div>
+      ${activeEpic ? `<div><span class="k">Epic</span><span><button class="chip" type="button" data-epic-open="${esc(view.wt)}|${esc(activeEpic.id)}">${esc(epicLabel(activeEpic))}</button>${progressBar(activeEpic.beads)}</span></div>` : ''}
+      <div><span class="k">Now</span><span>${activeBead ? beadChip(activeBead) : '<span class="hint">no active bead</span>'}</span></div>
+      <div><span class="k">Ready</span>${ready.length ? `<div class="chips">${ready.slice(0, 3).map(beadChip).join('')}</div>` : '<span class="hint">nothing ready</span>'}</div>
     </div>`);
   }
 
@@ -1180,7 +1221,7 @@
     const st = cur();
     const lines = [...st.pending.map(p => p.label), ...view.queued.filter(q => q.key === view.wt).map(q => q.label)];
     const body = lines.length
-      ? `<div class="inbox"><pre>ernie inbox · turn ${st.turn + 1}\n${lines.map(t => `- ${esc(t)}`).join('\n')}</pre></div>`
+      ? `<div class="inbox"><div>ernie inbox · turn ${st.turn + 1}</div>${lines.map(t => `<div>- ${esc(t)}</div>`).join('')}</div>`
       : '<div class="empty">Nothing queued; the next prompt delivers nothing.</div>';
     return panel('Next prompt delivers', lines.length, body);
   }
@@ -1416,6 +1457,14 @@
     if (question) { view.selectedQuestion = question.dataset.question; return renderAll(); }
     const answer = t.closest('[data-answer]');
     if (answer) return answerQuestion(answer.dataset.answer, answer.dataset.text, !!answer.dataset.more);
+    const factUndo = t.closest('[data-fact-undo]');
+    if (factUndo) {
+      const [key, id] = factUndo.dataset.factUndo.split('|');
+      const sent = view.queued.find(q => q.key === key && q.fact?.id === id);
+      S.states[key].facts.splice(sent.index, 0, sent.fact);
+      view.queued = view.queued.filter(q => q !== sent);
+      return renderAll();
+    }
     const answerUndo = t.closest('[data-answer-undo]');
     if (answerUndo) return undoAnswer(answerUndo.dataset.answerUndo);
     const issueOpen = t.closest('[data-issue-open]');
@@ -1440,8 +1489,8 @@
       const [key, id] = dismiss.dataset.dismiss.split('|');
       const st = S.states[key];
       const fact = st.facts.find(f => f.id === id);
+      view.queued.push({ key, label: `dismissed ${id}`, fact, index: st.facts.indexOf(fact) });
       st.facts = st.facts.filter(f => f !== fact);
-      view.queued.push({ key, label: `dismissed ${id}` });
       st.activity.unshift({ ts: clock(), by: 'user', t: 'fact', op: 'dismiss', text: `dismissed ${id} "${fact.text}"`, fresh: true });
       return renderAll();
     }
@@ -1486,7 +1535,11 @@
     renderFeed();
   });
 
-  // Settings: `,` opens or closes, esc closes. Home keys: j/k, 1–9, m, u (open questions). Planning keys: [ ] prev/next bead, { } prev/next epic, p PRD, esc back. Issues keys: [ ] prev/next, a approve, d dismiss, u undo. Ignored while typing.
+  // Settings: `,` opens or closes, esc closes. Any tab: g then h/p/i/f/l switches tab. Home keys: j/k, 1–9, m, u (open
+  // questions). Planning keys: j/k (or [ ]) prev/next bead, { } prev/next epic, p PRD, esc back. Issues keys: j/k (or [ ])
+  // prev/next, a approve, d dismiss, u undo. Ignored while typing.
+  const GO_KEYS = { h: 'home', p: 'planning', i: 'issues', f: 'facts', l: 'log' };
+  let goPending = 0; // time `g` was pressed; the next key within 1 s picks a tab
   document.addEventListener('keydown', e => {
     if (view.settingsOpen && e.key === 'Escape') {
       toggleSettings(false);
@@ -1496,6 +1549,11 @@
     if (e.key === ',') return toggleSettings();
     // Tab keys stay off while the panel is open
     if (view.settingsOpen) return;
+    if (Date.now() - goPending < 1000) {
+      goPending = 0;
+      return GO_KEYS[e.key] && openTab(GO_KEYS[e.key]);
+    }
+    if (e.key === 'g') { goPending = Date.now(); return; }
     if (view.active === 'home') {
       if (e.key === 'j' || e.key === 'k') return stepQuestion(e.key === 'j' ? 1 : -1);
       return questionKey(e.key);
@@ -1505,12 +1563,12 @@
         view.prdOpen = e.key === 'p' ? !view.prdOpen : false;
         return renderAll();
       }
-      const step = { '[': () => stepBead(-1), ']': () => stepBead(1), '{': () => stepEpic(-1), '}': () => stepEpic(1) }[e.key];
+      const step = { k: () => stepBead(-1), j: () => stepBead(1), '[': () => stepBead(-1), ']': () => stepBead(1), '{': () => stepEpic(-1), '}': () => stepEpic(1) }[e.key];
       return step?.();
     }
     if (view.active !== 'issues') return;
-    if (e.key === '[') return stepIssue(-1);
-    if (e.key === ']') return stepIssue(1);
+    if (e.key === 'k' || e.key === '[') return stepIssue(-1);
+    if (e.key === 'j' || e.key === ']') return stepIssue(1);
     if (!view.selectedIssue) return;
     const [key, id] = view.selectedIssue.split('|');
     const status = S.states[key].issues.find(i => i.id === id)?.status;

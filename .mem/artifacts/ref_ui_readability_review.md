@@ -14,6 +14,12 @@ Line numbers are from before the edits; re-find by selector.
 - 2026-10-15 — reading panels on ground: `.panel--ground` / `.tbl-wrap` (page brown + `--border` edge) for Facts panels, Home side cards, Tool log, example tables; orange box only for pick-from things (lifted brown #513d2f rejected: dim 4.36:1, salmon 4.15:1)
 - 2026-10-15 — `--warning` (marks) vs `--warning-text` (words) split; answer kbtn brown fill in retro; input placeholders `--text-dim`; Facts `.method` 2px bar kept
 - 2026-10-15 — ref_ernie_views/index.html links Template + Style guide
+- 2026-10-15 — Home: question status slot empty when no recommendation (no raw "yes / no"); key hint moved under the selected question's answer row ("j / k next question · u undo"); Where work is = 56px label gutter, bar inline 96px beside the epic chip; inbox lines wrap with a hanging indent
+- 2026-10-15 — Planning: empty Depends on / Unblocks rows omitted; Linked = one sans line, id mono 13 accent (findings clickable), reason dim 13 suffix (Issues Linked too); `<kbd>p</kbd>` on the PRD chip, footer "j / k bead · { } epic · p PRD"; PRD reader: "‹ bead 2.1 · esc" at top, "Plan: building", sticky section chips; legend dropped, glyphs carry `title=` status
+- 2026-10-15 — Issues: Decide moved out of the gutter list, `position: sticky; bottom: 0` on ground; message on its own line above the buttons; footer = ‹ prev / next › only (title j / k); example table cells `nowrap` (scrolls sideways when narrow)
+- 2026-10-15 — Facts: Decisions above Glossary; fact rows grid `88px 28px 1fr 24px`; panel-head hint dropped (badge title "show the method…", hover underline); dismiss × queues with "dismissed f2 · goes with your next prompt · Undo"
+- 2026-10-15 — Tool log: session column → divider row per session change ("session 4995d496 · current"); Bash/Agent descriptions + item events in sans 14, paths/globs/URLs mono; "(no description)" → dim "—"; rows 4px padding, 1.4 leading
+- 2026-10-15 — Keys: j/k prev/next on Planning + Issues (`[ ]` kept as alias); `g h / g p / g i / g f / g l` switch tabs (1 s window; tab buttons' title shows the key); Facts + Tool log get only the tab keys
 
 ## Not applied — remaining
 ### Top bar
@@ -22,45 +28,9 @@ Line numbers are from before the edits; re-find by selector.
 - long worktree names hard-clip under select arrow (no ellipsis; native select)
 - `.tab-head h1` repeats tab name at 22/800, costs ~50px every tab → drop h1, keep meta line (sans 13) or counts in tab badge
 
-### Home
-- "Where work is": `.bar` full-width own line, "0/3" far from epic chip → `.kv .bar { display:inline-flex; width:96px; vertical-align:middle }`
-- `.qf-line .s` status slot shows raw choices "yes / no" when no recommendation → show nothing (or "open")
-- `.qf-hint` floats above list detached from buttons → move into selected item's answer row ("j/k next · u undo", 13px) or a sticky shared key bar
-- `.kv .k` labels inline → 56px gutter column so chips align
-- Next prompt delivers `pre` breaks mid-phrase → wrap at word boundary
-
-### Planning
-- empty Depends on / Unblocks rows render "Nothing; can start any time." → omit empty rows or merge into one "Deps" row
-- Linked row mixes 3 type styles → one sans 15 line, id mono 13, reason dim 13 suffix
-- `p` key not shown on ▤ PRD chip or bead footer → add `<kbd>p</kbd>`
-- PRD reader: back button only at bottom → "‹ bead 2.1 · esc" in `.ws-meta` at top; "plan=building" raw → "Plan: building"; `.prd-toc` sticky
-- legend → glyph `title=` or key bar
-
-### Issues
-- Decide row not in a fixed spot (moves w/ example table; footer follows) → `position:sticky; bottom:0` on Decide; footer keeps only ‹ prev / next ›; drop duplicate "a approve · d dismiss · u undo"
-- `.kbtns .msg` wraps beside buttons at 1000px → own line ABOVE buttons (13px dim)
-- example table header/values wrap at 1000px (13px mono)
-
-### Facts
-- badges vary in width → ids/text start at different x → `.facts li` grid `88px 28px 1fr 24px`
-- hint "tap a badge for its method · × to dismiss" in panel head → badge `title` + hover underline
-- dismiss × has no Undo → use qf-sent-style "dismissed f2 · Undo"
-- order: Decisions | Facts side by side, Glossary below Decisions
-- wrapped fact's 2nd line returns under badge at 1000px (fixed by the grid above)
-
-### Tool log
-- session id repeated every row → divider row on session change ("session 4995d496 · current", sans 13 600), drop column (~86px)
-- Bash descriptions are prose in mono → sans 14 when description; mono for paths/globs/URLs
-- "(no description)" italic mono → dim "—"
-- rows ~20% taller after #4 (6px padding, 1.5 leading)
-
-### Keyboard (principle: keyboard-first)
-- Home j/k vs Issues/Planning `[ ]` → j/k everywhere, `[ ]` alias
-- no tab-switch keys → `g h / g p / g i / g f / g l`
-- Facts + Tool log have no keys
-
 ### Hierarchy inside boxes (colour-adjacent, deferred)
 - `--text-dim` #f2e3d2 vs `--text` #f9f3e4 inside orange boxes → muted vs body hierarchy lost; restore dim ink or lean on size/weight
+- 2026-10-15: no dim ink can pass 4.5:1 on orange (cream itself is only 4.74:1) → only size/weight left; not done
 
 ## Rejected
 ### #5 one line per list item (Issues, Planning)

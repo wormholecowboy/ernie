@@ -35,5 +35,5 @@ updated: 2026-10-15
 - [ernie] spec amendment page buttons: server runs `bd` directly (fixed subcommand allowlist, id validation); Issues-tab dismiss = `--set-metadata resolution=dismissed` + `bd close --reason`; review round N prompt lists that bead's dismissed findings → backlog "Open qs walk"
 - [ernie] spec v2 amendment: `*um` page button (C4) + fact research via fresh headless `claude -p` (ERNIE_HEADLESS guard, tool allowlist, run cap/timeout, prompt-injection note) → backlog "Fact research trigger"
 - [ui] option: bead detail links to its PRD section (bead metadata.prd=<path>#<section>)
-- [ui] remaining readability items (Home/Planning/Issues/Facts/Tool log/keys per tab) → ref_ui_readability_review.md "Not applied"
+- [ui] readability left: top bar (clipping, worktree name ellipsis, drop `.tab-head h1`?) + dim vs body hierarchy inside orange boxes → ref_ui_readability_review.md "Not applied"
 - [ui] tab strip still clips <~1000px (780: Planning, Tool log); long worktree names hard-clip in picker (no ellipsis)
