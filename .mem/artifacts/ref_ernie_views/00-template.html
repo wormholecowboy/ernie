@@ -45,8 +45,8 @@
       "no answer" note + retry. Mock: the next prompt is simulated 3 s after the click; outcomes come from RESEARCH_OUTCOMES.
     - Scratch tab: explanations Claude writes when you ask, each in a fixed format, one collapsible row per pad, newest
       on top (the newest starts open). Only `flow` so far: Asked (your words) · Traced with (one real example) · Steps
-      (numbered; each says what happens, where in mono, and what it leaves behind after →) · End state. Read-only; how
-      Claude writes a pad (`ernie scratch …`) and where pads are kept are not in the spec yet. A Coming soon box under the
+      (numbered; each says what happens, where in mono, and what it leaves behind after →) · End state. Read-only. Spec:
+      "Scratch pads" (D13: `ernie scratch flow`, one git-tracked JSON file per pad, slots filled per kind). A Coming soon box under the
       pads lists other formats from ref_ernie_formats.md. Keys: j/k (or [ ]) prev/next pad (opens it), o open/close.
     - Files tab: every markdown file in the worktree's .ernie/mem/<branch>/artifacts/, listed by kind (filename prefix):
       PRD (one per epic, from the epics) · Plan · Spec · Ref · Other. The reader shows kind, updated time and author, the

@@ -1,6 +1,6 @@
 # Live Context UI — Plan
 
-**Status:** ready to build, nothing built yet · **Updated:** 2026-10-09 (build-plan amendments A1–A35, A51–A92 and A95–A113 folded in)
+**Status:** ready to build, nothing built yet · **Updated:** 2026-10-09 (build-plan amendments A1–A35, A51–A92 and A95–A113 folded in; Scratch pads and ask fields added 2026-10-15)
 
 Files (all in `.mem/artifacts/`):
 - `spec_ernie.md` — this doc (the build spec)
@@ -28,6 +28,8 @@ A browser page next to the terminal that shows structured session state: plan, d
 | D10 | Plan docs live in the ernie repo's `.mem/artifacts/` (`spec_ernie.md`, `plan_ernie_build.md`, `spec_ernie_mock.html`, `ref_ernie_proposal.html`) | The spec lives with the code, in the same memory store as the rest of the repo's context | decided 2026-10-02; moved 2026-10-05 (was: `docs/`) |
 | D11 | CLI built on `spf13/cobra`, the one exception to stdlib-only | Flags can go after positionals (`ernie decide "x" --why "y"`), nested subcommands, generated help, and zsh completion for free. Startup cost < 1ms | decided 2026-10-03 (impl A16) |
 | D12 | Hooks are global (in `claude/.claude/settings.json`) and do nothing unless the branch has a log. Only `ernie init` creates a log. Claude can't run `init`; only you can, from your own shell (A70) | One config for every repo; repos without a log are unaffected; the skill can't quietly turn ernie on everywhere | decided 2026-10-02 (impl A1, A2) |
+| D13 | Scratch pads: Claude's longer explanations go to the page as typed JSON payloads (one file per pad, git-tracked) that the page pours into a fixed layout per format | You ask for more context when a terminal explanation doesn't land; a fixed shape per format reads the same every time, and git keeps pads across machines | decided 2026-10-15 |
+| D14 | Every open question and open issue has an ask field: you type your own question about the item, and it goes to Claude with your next prompt | "Need more context" says you're lost but not where; a typed question points Claude at the exact gap | decided 2026-10-15 |
 
 ## Q1: Go vs bash + jq vs Bun
 
@@ -108,10 +110,10 @@ flowchart TD
 |---|---|---|---|
 | `plan` | `add`, `set` | claude, user | `text`, `status`: todo/active/done/dropped |
 | `decision` | `add`, `set` | claude; user via terminal (A53) | `text`, `why` |
-| `question` | `add`, `answer`, `set` | claude, user via terminal / claude, user / claude, user via terminal (A53) | `text`, `choices[]?`, `context?`, `impact?`, `recommended?` (one of `choices`), `example?` (an example name) (A88), `kind?` (`assume`: choices fixed to yes/no, A113) / `text`, `more?` (true = "need more context"; the question stays open, A88) / `status`: dropped (A34) |
+| `question` | `add`, `answer`, `set`, `ask` | claude, user via terminal / claude, user / claude, user via terminal (A53) | `text`, `choices[]?`, `context?`, `impact?`, `recommended?` (one of `choices`), `example?` (an example name) (A88), `kind?` (`assume`: choices fixed to yes/no, A113) / `text`, `more?` (true = "need more context"; the question stays open, A88) / `status`: dropped (A34) |
 | `diagram` | `put` | claude; user via terminal (A53) | `name`, `mermaid` |
 | `example` | `put` | claude; user via terminal (A53) | `name`, `title`, `columns[]`, `rows[][]`, `caption?`, `run?` (repo-relative path you can run; ernie never runs it). Caps: ≤ 8 columns, ≤ 20 rows, cells ≤ 200 chars (A90) |
-| `issue` | `add`, `set` | claude; user via terminal / claude, user | `title`, `cause`, `fix`, `impact`, `owner`: us/other, `example?`, `confidence`, `method?` (A89, A91) / `status`: explained → approved → fixed, or dropped; `fix?`; `quote?` (A105) |
+| `issue` | `add`, `set`, `ask` | claude; user via terminal / claude, user | `title`, `cause`, `fix`, `impact`, `owner`: us/other, `example?`, `confidence`, `method?` (A89, A91) / `status`: explained → approved → fixed, or dropped; `fix?`; `quote?` (A105) |
 | `fact` | `add`, `dismiss` | claude, user | `text`, `confidence?`, `method?` (A91), `kind?`: term + `term` (the label, e.g. `G0`) (A92) |
 | `note` | `add` | user | `text`, `ref?` |
 | `file` | `touch` | hook | `path`, `tool`, `agent?` (`cmd run` is deferred to v1.1, A62) |
@@ -119,6 +121,8 @@ flowchart TD
 | `turn` | `mark` | hook | `n` |
 | `mem` | `sync` | claude; user via terminal (A53) | `upto` (byte offset of the log covered by that `*um`) |
 | `meta` | `init` | user (via `ernie init`) | `root`, `name`; always the first line. Not part of the inbox |
+
+`ask` (on `question` and `issue`, D14): written by you from the page; `text` (your question about the item, 1–500 chars). Allowed only while the item is open (question not answered or dropped; issue explained or approved). The item stays open.
 
 Items Claude writes (`plan`, `decision`, `question`, `fact`) take an optional `tag` field that matches `.mem/tags.md` vocabulary (e.g. `auth`), so `*um` can carry it over and `*mr` can find it.
 
@@ -142,6 +146,7 @@ ernie answer q2 go                          # close a question you answered in t
 ernie answer q2 --drop                      # retire a question that no longer matters
 printf '%s' '…' | ernie diagram arch       # source on stdin (no heredoc: Bash(ernie:*) doesn't cover it, A100); errors on empty input (A98)
 printf '%s' '{"title":…,"columns":[…],"rows":[[…]]}' | ernie example e1   # scoped table (A90)
+printf '%s' '{"v":1,"kind":"flow","title":…,"example":…,"steps":[…]}' | ernie scratch flow [--ref q3]   # → "scratch #2  <title>" + file (Scratch pads)
 ernie issue "Retry drops 429s" --cause … --fix … --impact … --owner us --confidence inferred --method "…" [--example e1]   # → i1 (A89, A91)
 ernie issue set i1 fixed|dropped [--fix …]   # Claude: fixed only after approved
 ernie issue set i1 approved --quote "approved, fix it"   # Claude may approve only with words from your last prompt (A105, A110)
@@ -189,11 +194,50 @@ FACTS     ✓f1 Hooks must exit 0 on any error
 TERMS     G0 = throwaway probe script against stage
 NOTES     n1 3 workers on 2 hosts
 EXAMPLES  e1
+SCRATCH   #2 (q3) What happens when you answer a question · #1 How one hit gets its dedupe_key
 ```
 
 Glyphs: ✓ verified · ~ inferred · ✗ unchecked (A91). Questions show `recommended` as `[go* | bash + jq]` (A88).
 
-Target ≤ 1.5 KB, hard cap 4 KB. `NOTES` holds the last 3 notes, so a note survives `/clear` and compaction (A106). Past the cap, sections are cut from the end in this order of priority: open questions, open issues (A89), active steps, todo steps, decisions, facts, terms, notes, done/answered, diagram and example names. Each cut section ends with `+N more` (A59).
+Target ≤ 1.5 KB, hard cap 4 KB. `NOTES` holds the last 3 notes, so a note survives `/clear` and compaction (A106). Past the cap, sections are cut from the end in this order of priority: open questions, open issues (A89), active steps, todo steps, decisions, facts, terms, notes, done/answered, diagram and example names, scratch titles (last 3). Each cut section ends with `+N more` (A59).
+
+## Scratch pads
+
+A pad is one explanation Claude writes for you in a fixed format. It lives on the page's Scratch tab, not in the terminal.
+
+**Example.** You press "need more context" on Q3. Claude runs `printf '%s' '{…}' | ernie scratch flow --ref q3`; the CLI checks the payload and writes `.ernie/mem/main/scratch/20261015T141200Z-3f2a.json`; the page shows it as Scratch #2, open at the top, and Q3 links to it. In the terminal Claude says one line: `Explained in Scratch #2 (q3).`
+
+**When Claude writes one (`ernie` skill):**
+- You answer a question with "need more context" (`more: true` in the inbox).
+- You ask about a question or finding in its ask field (D14), ask for more context on a finding, or say you don't understand an explanation.
+- You ask for a flow "in order" or step by step.
+
+Claude doesn't repeat the pad in the terminal. The question or finding stays open until you answer it.
+
+**Storage:**
+- One JSON file per pad in `.ernie/mem/<branch>/scratch/`, named `<UTC yyyymmddThhmmssZ>-<4 hex>.json` (P4 store: git-tracked in personal repos, excluded in work repos like the rest of `.ernie/`).
+- New file per pad and never edited, so merges between machines only add files and never conflict. A better explanation is a new pad. You delete one by hand (`git rm`).
+- Written to a temp file and renamed, so a reader never sees half a pad.
+- The CLI also appends a `scratch put` event (`file`, `kind`, `title`, `ref?`) to the activity log. It feeds the Tool log's ernie events and tells the server to rescan the folder; the server also scans it whenever it rebuilds state, so pads from a `git pull` show up.
+- Pads have no item id. The page numbers them `#n` by file name (oldest = #1). The CLI prints the number and the file.
+
+**Payload.** Common fields, then the fields of its kind. Unknown fields, an unknown kind or a field over its cap → exit 1, nothing written (the error names the field). Text is plain: no markdown, HTML or links.
+
+| Field | Kinds | Rule |
+|---|---|---|
+| `v` | all | `1` |
+| `kind` | all | `flow` (v1). The other formats on the Scratch tab's Coming soon list are v2 |
+| `title` | all | ≤ 100 chars |
+| `asked` | all | your words, ≤ 300 chars, optional |
+| `ref` | all | a question or issue id the pad explains, optional (`--ref` sets it; must exist) |
+| `ts`, `by` | all | set by the CLI, never by the payload |
+| `example` | flow | required: the one real case the steps trace, ≤ 300 chars |
+| `steps[]` | flow | 2–20 steps, each `{text ≤ 300, at? ≤ 160, result? ≤ 200}`: what happens, where (file, command or endpoint, shown mono), what it leaves behind |
+| `end` | flow | the end state, ≤ 300 chars, optional |
+
+Whole payload ≤ 16 KB.
+
+**Page.** Each kind has its own prebuilt layout (a `<template>` element per kind in `index.html`). `app.js` clones it and fills each slot with `textContent`, never `innerHTML`, so a payload can't add markup or scripts. A payload the page can't render (newer `v`, a kind it doesn't know) shows a one-line "can't show this pad" row with the file name.
 
 ## Hooks
 
@@ -227,7 +271,7 @@ The existing `SessionStart` herdr hook stays; the `ernie` hook goes alongside it
   - a random token generated per server start, sent to the page in an `event: hello` frame (`data: {"token":"…","version":"…"}`) at the start of every `/stream` connection, and required on every POST. A cross-origin page can't read the SSE response (no CORS headers), and the Host allowlist blocks rebinding, so only the page sees it
   - `Origin` must be the server's own origin
   - `Content-Type: application/json` only, with no CORS preflight handling
-  - an allowlist of ops users may send: `question answer` (incl. `more: true`, A88), `plan set`, `note add`, `fact dismiss`, `issue set` (approved / explained for undo / dropped) (`PostOps`, A71, A89)
+  - an allowlist of ops users may send: `question answer` (incl. `more: true`, A88), `question ask` and `issue ask` (D14), `plan set`, `note add`, `fact dismiss`, `issue set` (approved / explained for undo / dropped) (`PostOps`, A71, A89)
   - 409 `{"error":"outbox full"}` when an event would push the inbox past its cap (A57; the same `FitsInbox` check the CLI uses, A69)
   - inbox output is framed as "user notes from the page"
   - no third-party code or assets: every response sets `Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:`. Any script loaded from a CDN would run in the origin that holds the token and could POST text into Claude's context, and pinning a version doesn't stop a compromised response (A23)
@@ -268,9 +312,11 @@ The browser never reads the JSONL. The server tails it, keeps the folded state i
 - Paths are shown relative to the repo root from the log's `meta init` line; the index page (`/` without `?log`) is a plain list of links, one per log key (`<repo-slug>/<branch>`), from the directory listing.
 - **Explaining issues (A88–A92, A105):**
   - open questions show their position (`Q2/5`), context, impact, a linked example, and the recommended choice marked; a **need more context** button posts `question answer {more: true}`
+  - every open question and open issue has an **ask** field under its answer or decide row ("ask about this…"); Send posts `question ask` / `issue ask`, shows "sent · goes with your next prompt", and past asks list under the item with a link to the scratch pad that answered each (D14)
   - issues are listed in order with an N/M position, grouped by owner (us / other), each with an approve button; an issue Claude approved from chat shows "approved in chat: '…'" with an undo that posts `issue set {status: explained}`
   - examples render as small tables with caption and the `run` path (shown, never run)
   - facts and issues carry ✓ / ~ / ✗ badges with the method on hover; terms appear in a glossary
+- **Scratch tab:** pads newest first, one collapsible row each (`#n`, title, kind, step count, time); the newest starts open. A question or issue with pads shows "explained in Scratch #n" linking to them. Read-only.
 - `spec_ernie_mock.html` is the visual target; its `render*` functions are the starting point.
 - Render rules:
   - every `state` frame redraws each panel from scratch, with no partial patching
@@ -290,10 +336,11 @@ The browser never reads the JSONL. The server tails it, keeps the folded state i
 | unknown `t` / `op` | ignored silently (forward compatibility) |
 | `question set {status: dropped}` | question leaves OPEN in dumps; its `queue.md` mirror is deleted on the next `*um` (A34) |
 | `question answer {more: true}` | question stays open; the answer text is kept as a follow-up request (A88) |
+| `question ask` / `issue ask` | appended to the item's `asks[]` (text, ts); status unchanged (D14) |
 | `issue set` | status changes as written; the approval gate lives in the CLI and POST, not the fold, so old or hand-edited logs still fold (A89) |
 | `turn mark` | resets the turn-scoped fields (file touched, claude logged, `pending`) and sets `Turn = max(Turn+1, n)` (A81), so a fold before the next mark describes the turn that just ended (what the A21 reminder reads) |
 
-`Inbox(state)` returns `state.Pending` (`pending` in the state JSON, A81): the `by:user` events after the last `turn mark` (from the page or your own terminal, A53), limited to `InboxOps`: the five page ops (`issue set` included, A89) plus your terminal `question set` and `decision set` (A71); `meta` events don't count. Repeats collapse: only the latest `plan set` / `question answer` per id since the last mark is kept, and notes stay one per line (A107). `InboxText(state)` renders it (a `more: true` answer reads `q2: need more context`, A88), plus the A21 reminder, plus the A104 line when the turn that just ended edited files and an issue is `approved`: *"ernie: i1 is approved; `ernie issue set i1 fixed` if this fixed it."* It takes no clock (A63).
+`Inbox(state)` returns `state.Pending` (`pending` in the state JSON, A81): the `by:user` events after the last `turn mark` (from the page or your own terminal, A53), limited to `InboxOps`: the page ops (`issue set` included, A89; `question ask` / `issue ask`, D14) plus your terminal `question set` and `decision set` (A71); `meta` events don't count. Repeats collapse: only the latest `plan set` / `question answer` per id since the last mark is kept (asks never collapse: each one is delivered), and notes stay one per line (A107). `InboxText(state)` renders it (a `more: true` answer reads `q2: need more context`, A88; an ask reads `q2: you ask "…"`, D14), plus the A21 reminder, plus the A104 line when the turn that just ended edited files and an issue is `approved`: *"ernie: i1 is approved; `ernie issue set i1 fixed` if this fixed it."* It takes no clock (A63).
 
 ## Tests (`go test`)
 
@@ -313,10 +360,12 @@ Each function gets one expected case, one edge case and one failure case. Use `t
 | hook `post-tool-use` | Edit → `file touch`; Bash → `tool run` with its description | Bash without a description → empty `text`, command never written | bad stdin JSON → exit 0, nothing written |
 | hook `user-prompt-submit` | inbox printed, then turn mark appended | edits without claude events → reminder line added | stdout write fails → no turn mark, inbox redelivered |
 | `POST /events` | valid answer appended | disallowed op → 400 | bad/missing token → 403 |
+| `question ask` / `issue ask` | ask appended to `asks[]`, item stays open, inbox reads `q3: you ask "…"` | two asks on one id before a prompt → both delivered | ask on an answered question or fixed issue, empty text or > 500 chars → 400, nothing written |
 | `ernie mem delta` | mixed events → grouped by target, mirror markers included | nothing since last sync → "nothing new" | no log for branch → exit 0, "no ernie log" (so `*um` falls back) |
 | `ernie mem synced` | appends a `mem sync` with the given `upto` | same cursor as the last sync → no duplicate marker | no log → exit 0, no-op; cursor not on a line boundary → exit 1, nothing written |
 | CLI `issue` | `issue add` → `i1`; your `issue set i1 approved` → written | Claude `issue set i1 approved --quote "…"` with the quote in your last prompt → written with `quote` (A105, A110) | Claude `approved` without `--quote` → exit 1; quote not in your last prompt, or no saved prompt → exit 1 (A110); Claude `fixed` on an unapproved issue → exit 1 `i1 not approved`; missing `--cause` → exit 1 |
 | CLI `example` | valid JSON → stored | exactly 8 columns × 20 rows | 9 columns or a 201-char cell → exit 1 |
+| CLI `scratch` | valid flow → file in `scratch/`, `scratch put` event, prints `#n` + file | exactly 20 steps and 16 KB; `--ref` to a closed question → accepted | unknown kind, unknown field, 21 steps, missing `example`, `--ref` never added → exit 1, no file |
 | CLI id commands | known id → event written | `answer q3 --drop` → `question set {status: dropped}`; reopening a done step → accepted | never-added id → exit 1, lists open ids; bad status or wrong-type id → exit 1 (A75) |
 
 ## Integration with skills and `.mem`
@@ -385,7 +434,7 @@ judge       d1 JSONL over JSON — append-only… · f1 Hooks exit 0 on any erro
 | `handoff` | Build the HANDOFF file from `ernie dump` + a pointer to the plan doc. Tell the next agent to run `ernie dump` for fresh state |
 | `mem` `/mem` resume | After reading `.mem`, add `ernie dump` for the current branch to the resume summary if a log exists |
 | `mem` `*mr` | No change. Mirrors carry tags and markers, so grep still finds them |
-| new `ernie` skill | When to log (plan changes, decisions, questions via `ernie ask` with Qx/total; `ernie answer --drop` for questions that no longer matter), what the reminder line means (act only if plan state actually changed), and when to tag. `ernie` calls go in their own Bash call, and a turn's `ernie` writes are batched into one call, one command per line (not `;` or `&&`); after a denial, re-run the whole batch and check with `ernie dump` (A101). Source goes in through `printf '%s' '…' \| ernie …`, never a heredoc (A100). Don't restate the page: name the ids and send every question through `ernie ask` (A108). Promote durable notes to a fact or decision (A106). Explaining issues: one `ernie issue` per finding with `--confidence` (never claim ✓ without a `--method`); lead with an `ernie example` before any aggregate; give questions `--context`/`--impact`/`--recommend`; add a `--term` the first time a label is coined; put any stand-in source or guess through `ernie ask --assume` before the result that depends on it (A113); when you approve in chat, `issue set approved --quote` with your words (A88–A92, A105). General writing rules aren't in the skill; `init` puts them in `CLAUDE.local.md` (A112) |
+| new `ernie` skill | When to log (plan changes, decisions, questions via `ernie ask` with Qx/total; `ernie answer --drop` for questions that no longer matter), what the reminder line means (act only if plan state actually changed), and when to tag. `ernie` calls go in their own Bash call, and a turn's `ernie` writes are batched into one call, one command per line (not `;` or `&&`); after a denial, re-run the whole batch and check with `ernie dump` (A101). Source goes in through `printf '%s' '…' \| ernie …`, never a heredoc (A100). Don't restate the page: name the ids and send every question through `ernie ask` (A108). Promote durable notes to a fact or decision (A106). Explaining issues: one `ernie issue` per finding with `--confidence` (never claim ✓ without a `--method`); lead with an `ernie example` before any aggregate; give questions `--context`/`--impact`/`--recommend`; add a `--term` the first time a label is coined; put any stand-in source or guess through `ernie ask --assume` before the result that depends on it (A113); when you approve in chat, `issue set approved --quote` with your words (A88–A92, A105). More context or "I don't understand" on a question or finding, or a flow asked for in order → write a scratch pad (`ernie scratch`, with `--ref`), one terminal line pointing at it (D13). General writing rules aren't in the skill; `init` puts them in `CLAUDE.local.md` (A112) |
 | everything else | No change (response-style skills, task skills, `visual-explainer`) |
 
 **Edge cases:**
@@ -496,3 +545,4 @@ None open. Left to verify during build: everything listed under the hook spike (
 - the page starting a turn (see v2)
 - `share` blocks for handoff text with a copy button (A93, a v2 candidate); in v1, Claude writes copy-ready text as a terminal blockquote
 - a primitive for annotated mini-lessons: they stay in the terminal and go to pnotes via `/pnotes` (A94)
+- scratch formats besides `flow` (atomic example, options on one example, mapping table, timeline, before/after, mini-lesson, handoff, arrow chain); editing or deleting pads from the page

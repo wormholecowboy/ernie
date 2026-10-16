@@ -21,6 +21,8 @@ updated: 2026-10-15
 - [ernie] P7: template → spec audit: every convenience feature in 00-template written into spec (overlaps "template-only page features" amendment below)
 - [ernie] P7: spec → template audit: every v1 spec element shows in 00-template
 - [ernie] P7: security model review, before bootstrap (1.1)
+- [ernie] P8 debug logging for ernie (hooks, CLI, server, POSTs, fold warnings: what/where/levels/rotation/how to read); before phase 1 build → ref_ernie_backlog.md priority 8
+- [ui] template: ask field on every open question (Home) + open finding (Issues worksheet), sent state, past asks listed w/ scratch pad link (spec D14)
 - [beads] design approval guard: Claude can't `bd gate resolve`/close an unapproved finding (PreToolUse deny? ernie wrapper?)
 - [beads] required finding fields (cause/impact/owner/confidence/method in metadata): enforce via ernie wrapper or `bd lint`?
 - [ernie] spec amendment: drop ernie `plan` + `issue` types → Beads (epics/beads, findings); ernie keeps question/decision/fact/diagram/example/note; integrate via `bd --json` + events tail
@@ -28,7 +30,7 @@ updated: 2026-10-15
 - [ernie] spec amendment for C1 (memory → ernie, `.ernie/mem/<branch>/`; drops D9, mem delta/synced, mem-ops) → ref_ernie_backlog.md "C1 — DECIDED"
 - [ernie] when ernie memory lands: update global ~/.claude/CLAUDE.md §7 (Memory) + retire mem skill/mem-ops; user migrates old `.mem/` dirs manually
 - [beads] `/gtg` + `*um` run `bd dolt push` (personal repos) to flush writes held by the 5-min auto-push window; update gtg + mem skills when ernie lands
-- [ernie] spec amendment for template-only page features: Ops panel (reads memory `## ops`), colour scheme select (_tokens.css), Planning PRD reader (keys p/esc), question keys j/k/1–9/m/u, Issues keys a/d/u, Files tab (artifacts by prefix kind, PRDs via epics, read-only reader, key `g a`), Scratch tab (Claude-written explanation pads, `flow` format only; `ernie scratch` CLI + storage undecided; key `g s`) → backlog/plan when folding (Open #11)
+- [ernie] spec amendment for template-only page features: Ops panel (reads memory `## ops`), colour scheme select (_tokens.css), Planning PRD reader (keys p/esc), question keys j/k/1–9/m/u, Issues keys a/d/u, Files tab (artifacts by prefix kind, PRDs via epics, read-only reader, key `g a`) → backlog/plan when folding (Open #11)
 - [ernie] spec amendments the template now needs: phases/beads model (plan is flat), page op `fact research` in PostOps, CLI to update a fact's confidence/method/text (only add/dismiss today)
 - [ernie] phase 1 build per .mem/artifacts/plan_ernie_build.md — not started; blocked until P7. Order: 1.1 bootstrap (git init done; go mod, install.sh, README, .gitignore left) → 1.1s hook spike (must finish before 1.6, A28) → rest
 - [ernie] 1.1s spike remaining: A58 (CLAUDECODE leak into own panes/! mode), A67 interactive (! / queued / interactive slash), cwd follows cd, fork source, SessionStart on clear, A114 item 9 (`*` covers MCP/Agent, tool_input fields, failing Bash → PostToolUseFailure?); fixtures → testdata/hooks (A76). Settled ones: ref_ernie_flow_test.md
@@ -38,5 +40,7 @@ updated: 2026-10-15
 - [ui] option: bead detail links to its PRD section (bead metadata.prd=<path>#<section>)
 - [ui] option: Planning PRD reader → link to the same file on the Files tab
 - [ui] readability left: dim vs body inside orange boxes; drop `.tab-head h1`? → ref_ui_readability_review.md "Not applied"
+- [ui] template gaps vs spec Scratch pads: `ref` on sample pads + "explained in Scratch #n" link on Home question / Issues worksheet; "can't show this pad" row
 ## qs
-- [ui] Scratch pads: store w/ durable items (.ernie/mem/<branch>/items.jsonl, git) or local only like activity (Claude leans local)? Tab position Facts|Scratch|Files ok? (asked 2026-10-15)
+- [ui] Scratch tab position Facts|Scratch|Files ok? (asked 2026-10-15)
+- [ernie] Scratch pads: one JSON file per pad (vs items.jsonl line) ok? pads have no ernie id (page numbers #n, `ref` links to q/issue) — enough, or want `x3` ids? (asked 2026-10-15)

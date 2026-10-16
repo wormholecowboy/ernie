@@ -16,6 +16,7 @@ Worked one at a time with the user, in this order. Recommended order puts items 
    - **Template → spec audit** — walk 00-template; every small convenience feature (keys, Undo, chips, jump links, badges, etc.) must be written into the spec.
    - **Spec → template audit** — walk the spec; every v1 element must show in 00-template.
    - **Security model review** — go over the security model before bootstrap (1.1).
+8. **Debug logging for ernie** (added 2026-10-15) — how ernie logs its own behaviour for debugging (hooks, CLI, server, page POSTs, fold warnings): what gets logged, where, levels, rotation, how to read it. Goal since day one: "robust debug logging from the start". Must finish before phase 1 build starts.
 
 User's original order: data model, UI tabs, tab scopes, review visualization, v1 scope, Beads (planning flow added later).
 
