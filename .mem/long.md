@@ -31,6 +31,7 @@
 - [ui] check local mocks w/o browser tools: headless Chrome `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --hide-scrollbars --window-size=1400,1500 --virtual-time-budget=4000 --user-data-dir=<scratch dir> --screenshot=<out.png> file://…#tab` (relative css/js load fine over file://); measure layout: copy page to a probe file w/ a script that writes getBoundingClientRect values into a body data-attr, run `--dump-dom`, grep it, delete the probe
 - [ui] readability decisions (2026-10-14/15, user-approved): type roles (12px floor, body 15/1.6, labels 13/600 sans sentence case, secondary 13 dim, mono only ids/paths/code), spacing scale 4/8/12/16/24/32/48, space not inner rules, Home = card row on top, questions, Answered | Ops below (right rail dropped 2026-10-15), Planning epic row on top → ref_ui_readability_review.md
 - [ernie] "PRD" in user speech about ernie itself = the ernie spec (.mem/artifacts/spec_ernie.md); converting spec to a PRD wanted someday, not now
+- [ui] user wants HTML mocks for UI layout option questions (copy of 00-template w/ variant switch in ref_ernie_views, real tokens); ASCII previews in AskUserQuestion rejected (2026-10-16)
 ## gotchas
 - [beads] `bd init` in a git repo (non-stealth) makes its own commit (.beads/ config + 5 git hooks, .gitignore) and sets `core.hooksPath=.beads/hooks` → overrides existing repo hooks (spike 2026-10-10)
 - [beads] every `bd` cmd outside a git repo prints 3-line `beads.role not configured` stderr warning → token noise; set `beads.role` or filter
@@ -76,6 +77,7 @@
 - [ernie] ask field (D14, 2026-10-15): every open question + open issue has an "ask about this…" field; page op `question ask` / `issue ask` {text 1–500}; item stays open; asks never collapse in inbox ("q3: you ask \"…\""); Claude answers via scratch pad w/ --ref
 - [ernie] confirmed 2026-10-15: scratch pads = one JSON file per pad, no ernie id (#n + `ref`); Scratch tab stays Facts | Scratch | Files
 - [ui] P6 Q1 decided (2026-10-15): reviews show inside Planning, no new tab — epic review timeline (PRD review → breakdown → polish → your approvals), bead Reviews row (`r1 · 1 finding · r2 clean`); Issues stays where findings are acted on → ref_ernie_backlog.md "P6 review visualization"
+- [ui] P6 Q2 decided (2026-10-16): B — epic detail in right column via "Plan & reviews" row (key e), bead-style gutter Goal · Plan · Done when · PRD · Findings; Plan = one row per P2 stage, name column + what happened; opens by default while planning unfinished; done-when + PRD findings leave the orange box → ref_ernie_backlog.md "P6 review visualization"
 ## reference
 - [ernie] spec → .mem/artifacts/spec_ernie.md
 - [ernie] build plan (phases, tasks, amendments A1–A114) → .mem/artifacts/plan_ernie_build.md

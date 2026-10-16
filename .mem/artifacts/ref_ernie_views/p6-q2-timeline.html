@@ -1,0 +1,2029 @@
+<!DOCTYPE html>
+<!--
+  P6 Q2 · epic review timeline. A copy of 00-template.html; only the Planning tab differs. Switch with the chips in the
+  Planning heading or keys 1 / 2 / 3 (also ?v=a|b|c):
+    A · stage list inside the orange epic box (middle column), above the beads.
+    B · epic detail in the right column (gutter labels: Goal · Plan · Done when · PRD · Findings); opened from a
+        "Plan & reviews" row above the beads or key e; opens by default while the epic is still being planned.
+    C · horizontal stepper strip under the epic row; a step opens its rounds in the right column (esc back).
+  ?e=E3 opens that dedupe epic. Data: each dedupe epic gets `stages` (script after _sample_state.js). Round counts are made up; E3 is moved to
+  "waiting on you: approve the breakdown" to show that state. B picked (2026-10-16); delete once B is in 00-template.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ernie · P6 Q2 timeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Fragment+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--sans); font-size: 15px; line-height: 1.6; color: var(--text);
+    background-color: var(--bg); overflow-x: hidden;
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 24px 24px; background-attachment: fixed; }
+  code { font-family: var(--mono); font-size: .92em; }
+  button { font: inherit; color: inherit; }
+  .mock-banner { font: 11px var(--mono); text-align: center; padding: 5px 16px; background: var(--warn-bg); color: var(--warn-fg); letter-spacing: .05em; }
+
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+  .badge { font: 12px var(--mono); min-width: 18px; padding: 1px 6px; border-radius: 9px; background: var(--accent); color: var(--bg); text-align: center; }
+
+  /* Top bar: brand · tabs · status */
+  .topbar { position: sticky; top: 0; z-index: 50; display: flex; align-items: flex-end; gap: 10px; padding: 8px 20px 0;
+    border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(8px); }
+  .brand { font-family: var(--display); font-weight: 800; font-size: 19px; letter-spacing: -.02em; padding-bottom: 7px; }
+  .brand span { color: var(--accent); }
+  .tabstrip { display: flex; align-items: flex-end; gap: 2px; min-width: 0; flex: 1; overflow-x: auto; scrollbar-width: thin; }
+  .tab { display: flex; align-items: center; border: 1px solid var(--border); border-bottom: none; border-radius: 8px 8px 0 0;
+    background: var(--bg-recessed); color: var(--text-dim); flex: none; max-width: 260px; }
+  .tab.active { background: var(--bg-card); color: var(--text); border-color: var(--border-accent); box-shadow: inset 0 2px 0 var(--accent); }
+  .tab > button { background: none; border: 0; cursor: pointer; padding: 7px 12px; display: flex; align-items: center; gap: 7px;
+    font: 600 13px var(--sans); min-width: 0; }
+  .status { display: flex; align-items: center; gap: 12px; font: 13px var(--sans); color: var(--text-dim); padding-bottom: 7px; flex: none; }
+  .live { color: var(--success); display: inline-flex; align-items: center; gap: 6px; }
+  .live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--success); animation: pulse 1.8s infinite; }
+  .icon-btn { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; font: 12px var(--mono); }
+  .icon-btn:hover { border-color: var(--accent); }
+  .settings-btn { font: 16px/1 var(--sans); padding: 3px 8px; }
+  .settings-btn[aria-expanded=true] { border-color: var(--accent); }
+  .paused-pill { font: 600 12px var(--sans); padding: 1px 8px; border-radius: 9px; background: var(--warn-bg); color: var(--warn-fg); }
+
+  /* Settings panel: opens under the top bar's ⚙, right-aligned */
+  .settings { position: fixed; z-index: 60; top: 56px; right: 20px; width: min(600px, calc(100vw - 32px));
+    max-height: calc(100dvh - 76px); overflow-y: auto; box-shadow: 0 12px 32px var(--shadow); }
+  .settings .panel-body { display: grid; gap: 24px; padding: 8px 20px 20px; }
+  .settings .sub { margin: 0 0 12px; }
+  .settings .hint { margin: 4px 0 0; }
+  .settings .gut { grid-template-columns: 130px minmax(0, 1fr); gap: 16px 18px; }
+  .settings input[type=number] { width: 72px; font: 13px var(--mono); padding: 4px 6px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--bg-raised); color: var(--text); }
+  .settings .pair { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+  .settings .err { color: var(--warning-text); font-size: 13px; }
+  .settings .ro { font: 13px var(--mono); }
+  .settings .ro + .hint { display: inline; margin: 0 0 0 10px; }
+  .settings .kbtn[aria-pressed=true] { background: var(--bg-raised); border-color: var(--accent); }
+  .settings .kbtn[aria-pressed=false] { color: var(--text-dim); }
+  .settings .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding-top: 4px; }
+  .settings .actions .msg { font-size: 13px; line-height: 1.45; color: var(--text-dim); flex: 1 1 200px; }
+  .btn[disabled] { opacity: .5; cursor: default; }
+  @media (max-width: 720px) { .settings { right: 16px; top: 96px; max-height: calc(100dvh - 112px); } }
+  @media (max-width: 640px) { .settings .gut { grid-template-columns: minmax(0, 1fr); gap: 4px; } .settings .gut dd { margin-bottom: 12px; } }
+
+  @media (max-width: 720px) {
+    .topbar { flex-wrap: wrap; padding: 8px 16px 0; }
+    .status { margin-left: auto; }
+    .tabstrip { order: 3; flex-basis: 100%; }
+  }
+
+  main { max-width: 1680px; margin: 0 auto; padding: 16px 20px 48px; }
+  @media (max-width: 720px) { main { padding: 12px 16px 48px; } }
+
+  /* Empty tab body */
+  .canvas { min-height: calc(100dvh - 140px); border: 1.5px dashed var(--border); border-radius: 12px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 24px 16px; }
+  .canvas h1 { margin: 0; font: 800 20px var(--display); letter-spacing: -.02em; overflow-wrap: anywhere; }
+  .canvas p { margin: 0; font: 13px/1.45 var(--sans); color: var(--text-dim); overflow-wrap: anywhere; }
+
+  /* Tab header: title + meta */
+  .tab-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px; margin: 2px 0 14px; }
+  .tab-head h1 { margin: 0; font: 800 22px var(--display); letter-spacing: -.02em; }
+  .tab-head .meta { font: 13px/1.45 var(--sans); color: var(--text-dim); }
+  select.wt-pick, .filters select, select.scheme-pick { max-width: 100%; font: 12px var(--mono); background: var(--bg-card); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; }
+
+  /* Worktree picker (top bar) + worktree banners */
+  .wt-pick-wrap { padding-bottom: 6px; flex: none; max-width: 240px; min-width: 0; }
+  select.wt-pick { font-weight: 600; border-color: var(--border-accent); width: 100%; }
+  .wt-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 14px; padding: 8px 12px; border-radius: 8px;
+    font: 13px/1.45 var(--sans); border: 1px solid var(--border); background: var(--bg-card); overflow-wrap: anywhere; }
+  .wt-banner.warn { border-color: var(--warning); background: var(--warn-bg); color: var(--warn-fg); }
+  .wt-banner.dim { color: var(--text-dim); border-style: dashed; }
+  .wt-banner span { flex: 1 1 260px; }
+
+  /* Panels (from 01) */
+  .panel { background: var(--bg-card); border: 1px solid var(--box-edge); border-radius: 10px; min-width: 0; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 12px 16px 4px;
+    font: 600 13px/1.3 var(--sans); color: var(--text-dim); }
+  .panel-head .count { color: var(--text-accent); }
+  .panel-body { padding: 12px 16px 16px; min-width: 0; }
+  .panel-head + .panel-body { padding-top: 4px; }
+  .empty { color: var(--text-dim); font-size: 13px; line-height: 1.45; padding: 4px 0; }
+  .hint { font: 13px/1.45 var(--sans); color: var(--text-dim); }
+  .item-id { font: 12px var(--mono); color: var(--text-dim); margin-right: 6px; }
+  .sub { font: 600 13px/1.3 var(--sans); color: var(--text-dim); margin: 14px 0 6px; }
+  .sub:first-child { margin-top: 0; }
+  .wt { font: 12px var(--mono); color: var(--text-accent); background: var(--accent-soft); border-radius: 4px; padding: 0 6px; margin-right: 6px; white-space: nowrap; }
+  .collided { font: 12px var(--mono); color: var(--warn-fg); background: var(--warn-bg); border-radius: 4px; padding: 0 6px; margin-left: 6px; white-space: nowrap; }
+  .dec .refs { margin-top: 4px; }
+
+  /* Facts & decisions */
+  .fd-grid { display: grid; gap: 16px; align-items: start; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  @media (max-width: 860px) { .fd-grid { grid-template-columns: minmax(0, 1fr); } }
+  .fd-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .dec { overflow-wrap: break-word; }
+  .dec + .dec { margin-top: 16px; }
+  .dec b { font-weight: 600; display: block; } .dec .why { font-size: 13px; line-height: 1.45; color: var(--text-dim); }
+  .facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  /* badge · id · text · dismiss on one grid, so ids and text start at the same x whatever the badge width */
+  .facts li { display: grid; grid-template-columns: 88px 28px minmax(0, 1fr) 24px; align-items: baseline; overflow-wrap: break-word; }
+  .facts li > .conf { justify-self: start; margin-right: 0; white-space: nowrap; }
+  .facts li > .item-id { margin-right: 0; }
+  .facts li > .method { grid-column: 3 / -1; }
+  .dismiss { width: 22px; height: 22px; border-radius: 5px; border: 1px solid transparent; background: none; cursor: pointer; color: var(--text-dim); }
+  .dismiss:hover { border-color: var(--border); color: var(--error); }
+  .conf { font: 12px var(--mono); padding: 1px 6px; border-radius: 4px; border: 0; cursor: pointer; margin-right: 6px; vertical-align: 1px; }
+  button.conf:hover { text-decoration: underline; }
+  .c-verified { background: var(--pass-bg); color: var(--pass-fg); } .c-inferred { background: var(--warn-bg); color: var(--warn-fg); }
+  .c-unchecked { background: var(--bg-raised); color: var(--text-dim); border: 1px dashed var(--text-dim); }
+  .method { font: 13px/1.5 var(--mono); color: var(--text-dim); margin: 5px 0 2px; padding: 5px 8px; border-left: 2px solid var(--border-accent); overflow-wrap: anywhere; }
+  .gloss { margin: 0; display: grid; grid-template-columns: auto minmax(0,1fr); gap: 6px 12px; align-items: baseline; font-size: 15px; line-height: 1.6; }
+  .gloss dt { font: 13px/1.6 var(--mono); color: var(--text-accent); } .gloss dd { margin: 0; overflow-wrap: break-word; }
+  .pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; }
+  .fpill { font: 12px var(--mono); padding: 2px 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-recessed); color: var(--text-dim); cursor: pointer; }
+  .fpill:hover { border-color: var(--accent); }
+  .fpill .n { opacity: .7; margin-left: 5px; }
+  .fpill.on { border-color: transparent; }
+  .fpill.on.k-all { background: var(--accent); color: var(--bg); }
+  .fpill.on.k-verified { background: var(--pass-bg); color: var(--pass-fg); }
+  .fpill.on.k-inferred { background: var(--warn-bg); color: var(--warn-fg); }
+  .fpill.on.k-unchecked { background: var(--bg-raised); color: var(--text); border: 1px dashed var(--text-dim); }
+  .queued { font: 13px/1.45 var(--sans); color: var(--warning-text); margin-top: 10px; overflow-wrap: anywhere; }
+  .rpill { font: 12px var(--mono); padding: 1px 8px; margin-left: 8px; border-radius: 10px; border: 1px solid var(--border-accent);
+    background: var(--accent-soft); color: var(--text-accent); cursor: pointer; vertical-align: 1px; white-space: nowrap; }
+  .rpill:hover { border-color: var(--accent); }
+  .rpill.wait { cursor: default; border-style: dashed; background: none; color: var(--warning-text); border-color: var(--warning); }
+  .rpill.running { cursor: default; background: none; }
+  .rpill.running::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 50%;
+    border: 1.5px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; vertical-align: -1px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .found { border-left-color: var(--success); } .found s { opacity: .7; }
+  .no-answer { border-left-color: var(--warning); }
+
+  /* Issues: list + worksheet (from 03) */
+  .is-grid { display: grid; gap: 16px; align-items: start; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); }
+  @media (max-width: 900px) { .is-grid { grid-template-columns: minmax(0, 1fr); } }
+  .is-list { position: sticky; top: 64px; }
+  @media (max-width: 900px) { .is-list { position: static; } }
+  .is-group { font: 600 13px/1.3 var(--sans); color: var(--text-dim); margin: 12px 4px 4px; display: flex; justify-content: space-between; }
+  .is-group:first-child { margin-top: 0; }
+  .is-row { width: 100%; display: grid; grid-template-columns: 14px auto minmax(0, 1fr) auto; gap: 7px; align-items: baseline; border: 0; border-radius: 6px;
+    background: none; padding: 7px 6px; text-align: left; cursor: pointer; }
+  .is-row:hover { background: var(--bg-recessed); } .is-row.sel { background: var(--accent-soft); }
+  .is-row .t { font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
+  .is-row.sel .t { font-weight: 600; }
+  .is-row .t .wt { margin: 4px 0 0; display: inline-block; }
+  .is-row.st-fixed .t, .is-row.st-dropped .t { color: var(--text-dim); }
+  .is-row.st-dropped .t { text-decoration: line-through; }
+  .is-row .id, .is-row .cf { font: 12px var(--mono); color: var(--text-dim); }
+  .g { font: 12px var(--mono); text-align: center; }
+  .g--explained { color: var(--warning); } .g--approved { color: var(--accent); } .g--fixed { color: var(--success); } .g--dropped { color: var(--text-dim); }
+  .legend { margin-top: 24px; font: 13px/1.45 var(--sans); color: var(--text-dim); padding: 0 4px; }
+  .ws { max-width: 780px; }
+  .ws-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font: 13px/1.45 var(--sans); color: var(--text-dim); }
+  .ws h2 { font-family: var(--display); font-size: 20px; line-height: 1.3; font-weight: 700; margin: 8px 0 22px; letter-spacing: -.01em; overflow-wrap: break-word; }
+  .ws h2 .id { font: 13px var(--mono); color: var(--text-dim); margin-right: 4px; }
+  .pill { font: 12px var(--mono); padding: 1px 8px; border-radius: 10px; white-space: nowrap; }
+  .p-ours { background: var(--info-bg); color: var(--info-fg); } .p-other { background: var(--warn-bg); color: var(--warn-fg); }
+  .p-src { background: var(--bg-raised); color: var(--text-dim); border: 1px solid var(--border); cursor: pointer; }
+  .p-src:hover { border-color: var(--accent); }
+  .is-row .src { display: block; font: 13px/1.45 var(--sans); color: var(--text-dim); margin-top: 2px; }
+  .quote { margin-top: 8px; font: 13px/1.45 var(--sans); color: var(--text-accent); }
+  .btn { font: 13px var(--sans); padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-card); cursor: pointer; }
+  .btn:hover { border-color: var(--accent); } .btn--primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+  .btn--danger:hover { border-color: var(--error); color: var(--error); }
+  .tbl-wrap { overflow-x: auto; border: 1px solid var(--box-edge); border-radius: 8px; background: var(--bg-card); }
+  .tbl-wrap table { border-collapse: collapse; width: 100%; font: 13px/1.5 var(--mono); }
+  .tbl-wrap th, .tbl-wrap td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; white-space: nowrap; }
+  .tbl-wrap thead th { color: var(--text-dim); font-weight: 400; background: var(--bg-recessed); }
+  .tbl-wrap tbody th { color: var(--text-accent); font-weight: 400; white-space: nowrap; }
+  .tbl-wrap tr:last-child td, .tbl-wrap tr:last-child th { border-bottom: 0; }
+  .ok { color: var(--success); } .bad { color: var(--error); }
+  .ex-title { font-weight: 600; margin-bottom: 6px; } .cap { font-size: 13px; line-height: 1.45; color: var(--text-dim); margin: 6px 0 0 !important; }
+  .run { font: 13px/1.45 var(--sans); color: var(--text-dim); margin-top: 4px; } .run code { color: var(--text-accent); }
+  .impact { border-left: 3px solid var(--warning); padding: 4px 0 4px 10px; }
+  .cmd { position: relative; margin-top: 6px; }
+  .cmd pre { margin: 0; padding: 10px 70px 10px 12px; border-radius: 8px; background: var(--bg-recessed); border: 1px solid var(--border); font: 13px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .cmd button { position: absolute; top: 6px; right: 6px; }
+  /* Linked rows: one sans line, id in mono, the reason as a dim suffix */
+  .linked { display: grid; gap: 6px; font-size: 15px; line-height: 1.6; }
+  .lid { font: 13px var(--mono); color: var(--text-accent); margin-right: 8px; background: none; border: 0; padding: 0; }
+  button.lid { cursor: pointer; } button.lid:hover { text-decoration: underline; }
+  .lid .g { margin-right: 4px; }
+  .linked .why { font-size: 13px; color: var(--text-dim); margin-left: 6px; }
+  /* Decide: pinned to the bottom of the window so the action row sits in one spot whatever the example's height */
+  .gut.decide { position: sticky; bottom: 0; z-index: 2; margin-top: 24px; padding: 14px 0 16px; background: var(--bg); border-top: 1px solid var(--border); }
+  .decide .msg { margin: 0 0 8px; font-size: 13px; line-height: 1.45; color: var(--text-dim); }
+  .ws-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 32px; font: 13px/1.45 var(--sans); color: var(--text-dim); align-items: center; flex-wrap: wrap; }
+
+  /* Home: open questions */
+  /* Home: status cards in one row on top, then the questions, then Answered | Ops below them */
+  .home-top { display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 24px; }
+  @media (max-width: 899px) { .home-top { grid-template-columns: minmax(0, 1fr); } }
+  .home-bottom { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 24px; }
+  @media (max-width: 640px) { .home-bottom { grid-template-columns: minmax(0, 1fr); } }
+  /* Open questions: focus list (one line each, the selected one opens; labels in a left gutter) */
+  .qf-keys { font: 13px/1.45 var(--sans); color: var(--text-dim); margin-top: 10px; }
+  .qf-item { border: 1px solid var(--box-edge); border-radius: 12px; background: var(--bg-card); margin-bottom: 10px; overflow: hidden; min-width: 0; }
+  .qf-item.sel { border-color: var(--border-accent); box-shadow: inset 3px 0 0 var(--accent); }
+  .qf-line { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 14px; align-items: baseline; width: 100%; padding: 14px 18px;
+    border: 0; background: none; text-align: left; cursor: pointer; }
+  .qf-line .n { font: 13px var(--mono); color: var(--text-dim); }
+  .qf-line .t { font-size: 16px; font-weight: 600; line-height: 1.35; overflow-wrap: break-word; min-width: 0; }
+  .qf-line .s { font: 13px/1.45 var(--sans); color: var(--text-dim); white-space: nowrap; }
+  .qf-line .s.rec { color: var(--text-accent); } .qf-line .s.warn { color: var(--warning-text); }
+  @media (max-width: 640px) { .qf-line { grid-template-columns: 28px minmax(0, 1fr); } .qf-line .s { grid-column: 2; white-space: normal; } }
+  .qf-body { padding: 4px 18px 20px 66px; }
+  @media (max-width: 640px) { .qf-body { padding-left: 18px; } }
+  /* Detail gutter (questions, findings, beads): labels in a left column, content capped at a reading measure */
+  .gut { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 18px 18px; align-items: baseline; margin: 0; }
+  @media (max-width: 640px) { .gut { grid-template-columns: minmax(0, 1fr); gap: 4px; } .gut dd { margin-bottom: 12px; } }
+  .gut dt { font: 600 13px/1.3 var(--sans); color: var(--text-dim); }
+  .gut dd { margin: 0; max-width: 62ch; font-size: 15px; line-height: 1.6; min-width: 0; overflow-wrap: break-word; }
+  .gut dd.wide { max-width: none; }
+  .gut dd.impact { color: var(--warning-text); }
+  .gut dd .dim { color: var(--text-dim); }
+  .gut dd .cmd { margin-top: 6px; }
+  .steps { color: var(--text-dim); }
+  .steps b { font-weight: 400; color: var(--text-accent); background: var(--accent-soft); padding: 1px 7px; border-radius: 5px; }
+  .steps .past { color: var(--success); }
+  .steps.off { text-decoration: line-through; }
+  .kbtns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .kbtn { display: inline-flex; align-items: center; gap: 8px; font: 600 15px/1.35 var(--sans); padding: 7px 14px; border-radius: 8px;
+    border: 1.5px solid var(--border); background: var(--bg-recessed); cursor: pointer; }
+  .kbtn:hover, .kbtn.rec { border-color: var(--accent); }
+  .kbtn.danger:hover { border-color: var(--error); color: var(--error); }
+  .kbtn kbd { font: 12px var(--mono); padding: 0 5px; border-radius: 4px; border: 1px solid var(--border); color: var(--text-dim); }
+  .kbtn small { font: 400 13px var(--sans); color: var(--text-accent); }
+  .qf-sent { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font: 13px/1.45 var(--sans); color: var(--warning-text); }
+  .other { display: flex; gap: 6px; min-width: 0; margin-top: 10px; max-width: 460px; }
+  .other input { flex: 1; min-width: 0; font: 15px var(--sans); padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-recessed); color: var(--text); }
+  .kv { display: grid; gap: 8px; font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
+  /* Reason: chips are inline-blocks whose baseline is their last line, so labels align to the top instead */
+  .kv > div { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; align-items: start; }
+  .kv .k { font: 600 13px/1.3 var(--sans); color: var(--text-dim); padding-top: 5px; }
+  .kv .bar { display: inline-flex; width: 96px; vertical-align: middle; margin: 0 0 0 8px; }
+  .inbox { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--bg-recessed); border: 1px solid var(--border); font: 13px/1.5 var(--mono); overflow-wrap: break-word; }
+  .inbox div + div { padding-left: 2ch; text-indent: -2ch; }
+  .ops { margin: 0; padding-left: 20px; font-size: 15px; line-height: 1.6; display: grid; gap: 4px; overflow-wrap: anywhere; }
+  .note-form { display: flex; gap: 6px; }
+  .note-form input { flex: 1; min-width: 0; font: 15px var(--sans); padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-recessed); color: var(--text); }
+  :is(.other, .note-form) input::placeholder { color: var(--text-dim); opacity: 1; }
+  .answered { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 15px; line-height: 1.6; }
+  .answered li { overflow-wrap: anywhere; } .answered .a { color: var(--success); }
+
+  /* Planning: epic row on top, then beads | bead detail */
+  .pl-grid { display: grid; gap: 16px; align-items: start; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); }
+  .pl-phases { grid-column: 1 / -1; }
+  @media (max-width: 1199px) { .pl-grid { grid-template-columns: minmax(0, 280px) minmax(0, 1fr); } }
+  @media (max-width: 799px) { .pl-grid { grid-template-columns: minmax(0, 1fr); } }
+  .pl-col { position: sticky; top: 64px; max-height: calc(100dvh - 80px); overflow-y: auto; }
+  .pl-col.pl-phases { position: static; max-height: none; }
+  @media (max-width: 799px) { .pl-col { position: static; max-height: none; } }
+  .ph-row, .bd-row { width: 100%; display: grid; gap: 7px; align-items: baseline; border: 0; border-radius: 6px;
+    background: none; padding: 7px 6px; text-align: left; cursor: pointer; }
+  .ph-row { grid-template-columns: 14px auto minmax(0, 1fr); }
+  .bd-row { grid-template-columns: 14px auto minmax(0, 1fr); }
+  .ph-row:hover, .bd-row:hover { background: var(--bg-recessed); }
+  .ph-row.sel, .bd-row.sel { background: var(--accent-soft); }
+  .ph-row .id, .bd-row .id { font: 12px var(--mono); color: var(--text-dim); }
+  .ph-row .t, .bd-row .t { font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; min-width: 0; }
+  .ph-row .t b { font-weight: 400; display: block; }
+  .ph-row.sel .t b, .bd-row.sel .t { font-weight: 600; }
+  .bd-row.st-done .t { color: var(--text-dim); }
+  .bd-row .why { display: block; font: 13px/1.45 var(--sans); color: var(--warning-text); margin-top: 2px; }
+  .g--todo { color: var(--text-dim); } .g--active { color: var(--accent); } .g--done { color: var(--success); } .g--blocked { color: var(--warning); }
+  .bar { display: flex; align-items: center; gap: 6px; margin-top: 4px; font: 12px var(--mono); color: var(--text-dim); }
+  .bar i { flex: 1; height: 4px; border-radius: 2px; background: var(--bg-raised); border: 1px solid var(--border); overflow: hidden; display: block; }
+  .bar i b { display: block; height: 100%; background: var(--success); }
+  .ph-goal { font-size: 13px; line-height: 1.45; color: var(--text-dim); margin: 0 4px 10px; overflow-wrap: break-word; }
+  .checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 15px; line-height: 1.6; }
+  .checks li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 6px; overflow-wrap: anywhere; }
+  .checks li::before { content: '☐'; color: var(--text-dim); font-family: var(--mono); }
+  .checks li.on { color: var(--text-dim); } .checks li.on::before { content: '☑'; color: var(--success); }
+  .ph-checks { margin: 24px 4px 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font: 13px var(--mono); padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-card); cursor: pointer; text-align: left; }
+  .chip:hover { border-color: var(--accent); }
+  .chip .g { margin-right: 5px; }
+  .chip kbd { font: 11px var(--mono); margin-left: 6px; padding: 0 4px; border-radius: 3px; border: 1px solid var(--border); color: var(--text-dim); }
+  .blocked-msg { font: 12px var(--mono); color: var(--warning-text); margin-top: 6px; }
+  .files { list-style: none; margin: 0; padding: 0; font: 13px var(--mono); color: var(--text-accent); display: grid; gap: 3px; overflow-wrap: anywhere; }
+  .prd-open { margin: -4px 4px 12px; }
+  .prd-open .chip[aria-pressed="true"] { border-color: var(--accent); }
+  /* PRD reader: replaces the bead detail; body capped at the reading measure */
+  .prd-path { font: 13px var(--mono); color: var(--text-accent); margin: -14px 0 14px; overflow-wrap: anywhere; }
+  .prd-toc { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 22px; position: sticky; top: 52px; z-index: 2; padding: 10px 0; background: var(--bg); }
+  .md { max-width: 62ch; font-size: 15px; line-height: 1.6; overflow-wrap: break-word; }
+  .md h3 { font: 600 17px/1.35 var(--sans); margin: 26px 0 8px; scroll-margin-top: 140px; }
+  .md h4 { font: 600 15px/1.35 var(--sans); margin: 18px 0 6px; }
+  .md p { margin: 0 0 12px; }
+  .md ul, .md ol { margin: 0 0 12px; padding-left: 22px; display: grid; gap: 4px; }
+  .md code { color: var(--text-accent); }
+  .md pre { margin: 0 0 12px; padding: 10px 12px; border-radius: 8px; background: var(--bg-recessed); border: 1px solid var(--border);
+    font: 13px/1.5 var(--mono); overflow-x: auto; }
+  .md pre code { color: var(--text); }
+  .pl-phases .panel-body { display: flex; flex-wrap: wrap; gap: 4px; }
+  .pl-phases .ph-row { width: auto; }
+  .pl-phases .bar i { flex: 1 0 56px; }
+
+  /* P6 Q2 mock: variant chips + the epic review timeline (A middle column, B epic detail, C stepper) */
+  .vbar { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font: 13px var(--sans); color: var(--text-dim); }
+  .vbar .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--bg-raised); }
+  .tl { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .tl li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 0 8px; align-items: baseline; }
+  .tl .lbl { font-size: 15px; line-height: 1.45; overflow-wrap: anywhere; }
+  .tl .det { grid-column: 2; font-size: 13px; line-height: 1.45; color: var(--text-dim); overflow-wrap: anywhere; }
+  .tl li.st-todo .lbl { color: var(--text-dim); }
+  .tl li.st-waiting .lbl { color: var(--warning-text); font-weight: 600; }
+  .warn { color: var(--warning-text); }
+  .rnds { display: inline-flex; flex-wrap: wrap; gap: 2px 14px; }
+  .rnd { white-space: nowrap; }
+  .rnd .n { font: 12px var(--mono); color: var(--text-dim); margin-right: 4px; }
+  .rnd.clean { color: var(--success); }
+  .tl--wide li { grid-template-columns: 16px 11em minmax(0, 1fr); gap: 0 12px; }
+  .tl--wide .det { grid-column: auto; font-size: 15px; color: var(--text); }
+  .tl--wide .rnd .n { font-size: 13px; }
+  .tl-box { margin: 4px 4px 18px; }
+  .tl-box .sub { margin-top: 0; }
+  .ep-row .why.dim { color: var(--text-dim); }
+  .pl-steps { grid-column: 1 / -1; }
+  .pl-steps .panel-body { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); padding: 10px 8px; }
+  .stp { position: relative; border: 0; background: none; text-align: left; cursor: pointer; padding: 6px 10px 8px;
+    border-radius: 6px; display: grid; gap: 2px; align-content: start; }
+  .stp::before { content: ''; position: absolute; top: 17px; left: 30px; right: -6px; height: 2px; background: var(--border); }
+  .stp:last-child::before { display: none; }
+  .stp.st-done::before { background: var(--success); }
+  .stp .g { position: relative; justify-self: start; padding-right: 6px; background: var(--bg-card); font-size: 15px; }
+  .stp .lbl { font: 600 13px/1.3 var(--sans); }
+  .stp .det { font: 13px/1.45 var(--sans); color: var(--text-dim); }
+  .stp:hover { background: var(--bg-recessed); }
+  .stp:hover .g { background: var(--bg-recessed); }
+  .stp.sel { box-shadow: inset 0 -2px 0 var(--accent); }
+  .stp.st-waiting .lbl, .stp.st-waiting .det { color: var(--warning-text); }
+  .stp.st-todo .lbl { color: var(--text-dim); }
+
+  /* Scratch: collapsible pads on the ground (reading panels), newest first */
+  .sc-item { margin-bottom: 10px; overflow: hidden; }
+  .sc-item.sel { border-color: var(--border-accent); box-shadow: inset 3px 0 0 var(--accent); }
+  .sc-item .qf-line .n { color: var(--text-accent); }
+  .sc-item .qf-line .t::before { content: '▸'; display: inline-block; width: 1.2em; color: var(--text-dim); }
+  .sc-item.open .qf-line .t::before { content: '▾'; }
+  .sc-asked { color: var(--text-dim); }
+  .sc-flow { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; counter-reset: step; }
+  .sc-flow li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; counter-increment: step; }
+  .sc-flow li::before { content: counter(step); font: 600 13px/24px var(--mono); text-align: center; height: 24px; border-radius: 12px;
+    background: var(--accent-soft); color: var(--text-accent); border: 1px solid var(--border-accent); }
+  .sc-flow .at { display: block; font: 13px/1.5 var(--mono); color: var(--text-accent); overflow-wrap: anywhere; }
+  .sc-flow .res { display: block; color: var(--text-dim); }
+  .sc-flow .res::before { content: '→ '; color: var(--accent); }
+  .sc-soon { border: 1.5px dashed var(--border); border-radius: 10px; padding: 14px 18px 16px; margin-top: 24px; }
+  .sc-soon h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font: 600 15px var(--sans); }
+  .sc-soon ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px 24px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+  .sc-soon li { font-size: 14px; line-height: 1.5; color: var(--text-dim); }
+  .sc-soon li b { display: block; font-weight: 600; color: var(--text); }
+
+  /* Files: list | reader (layout shared with Issues) */
+  .fl-row { grid-template-columns: minmax(0, 1fr); }
+  .fl-row .fn { display: block; font: 12px var(--mono); color: var(--text-dim); margin-top: 2px; overflow-wrap: anywhere; }
+
+  /* Tool log */
+  .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 12px 16px 16px;
+    font: 13px var(--sans); color: var(--text-dim); }
+  .filters label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+  .feed { list-style: none; margin: 0; padding: 0 0 8px; font: 12px/1.5 var(--mono); }
+  .feed li { display: grid; grid-template-columns: 70px 96px minmax(0, 1fr); gap: 10px; padding: 4px 16px; line-height: 1.4;
+    color: var(--text-dim); align-items: baseline; }
+  .feed li.head { font: 600 13px/1.3 var(--sans); }
+  .feed .cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .feed .tool { color: var(--text); }
+  .feed .txt { font-size: 13px; overflow-wrap: anywhere; color: var(--text); }
+  .feed .txt.prose { font: 14px/1.4 var(--sans); }
+  .feed .txt.none { color: var(--text-dim); }
+  .feed li.sess { display: block; font: 600 13px/1.3 var(--sans); color: var(--text-dim); padding: 14px 16px 4px; }
+  .feed li.sess.now { color: var(--success); }
+  .feed li.file .tool { color: var(--warning-text); }
+  .feed li.ev .tool { color: var(--accent); } .feed li.ev.by-user .tool { color: var(--success); }
+  .tag { font-size: 12px; padding: 0 5px; margin-left: 6px; border-radius: 4px; background: var(--info-bg); color: var(--info-fg); white-space: nowrap; }
+  .tag.file { background: var(--warn-bg); color: var(--warn-fg); }
+  .fresh { animation: flash 1.6s ease-out; }
+  @keyframes flash { from { background: var(--accent-soft); } to { background: transparent; } }
+  @media (max-width: 720px) {
+    .feed li { grid-template-columns: 62px minmax(0, 1fr); gap: 2px 8px; }
+    .feed li.head { display: none; }
+    .feed .tool { grid-column: 2; grid-row: 1; }
+    .feed .txt { grid-column: 2; grid-row: 2; }
+  }
+</style>
+</head>
+<body>
+<div class="mock-banner">MOCK · P6 Q2 · epic review timeline · Planning tab: pick A / B / C (keys 1 2 3) · E3 shows "waiting on you"</div>
+
+<header class="topbar">
+  <div class="brand">ernie<span>.</span></div>
+  <div class="wt-pick-wrap" id="wt-pick-wrap"></div>
+  <nav class="tabstrip" id="tabstrip" aria-label="Tabs"></nav>
+  <div class="status"><span class="paused-pill" id="queue-paused" hidden>queue paused</span><span class="live">live</span>
+    <select class="scheme-pick" id="scheme-pick" aria-label="Colour scheme">
+      <option value="retro">retro</option><option value="original">original dark</option><option value="original-light">original light</option>
+    </select>
+    <button class="icon-btn settings-btn" type="button" id="settings-btn" data-settings-toggle aria-label="Settings" aria-expanded="false" title="Settings (,)">⚙</button></div>
+</header>
+
+<div class="panel settings" id="settings" role="dialog" aria-label="Settings" hidden></div>
+
+<main id="main"></main>
+
+<script src="_sample_state.js"></script>
+<script>
+  // P6 Q2 mock data: each dedupe epic's plan history, in P2 order. Counts are made up; E1/E2 review totals match their
+  // PRDs, i2 (PRD review) and i4 (2.1 code review) come from the sample. E3 moves to "waiting on you" to show that state.
+  // state: done · now · waiting (on you) · todo. PRD rounds count findings; polish rounds count edits (one epic comment each).
+  (() => {
+    const epics = ERNIE_SAMPLE.states['glue/CDIT-2631-ga4-dedupe'].epics;
+    const byId = id => epics.find(ep => ep.id === id);
+    byId('E1').stages = [
+      { kind: 'prd', state: 'done', rounds: [{ n: 1, found: 1, note: '1 found, fixed in the PRD' }, { n: 2, found: 0 }] },
+      { kind: 'approve-prd', state: 'done', at: 'Oct 9' },
+      { kind: 'breakdown', state: 'done', beads: 2 },
+      { kind: 'polish', state: 'done', rounds: [{ n: 1, edits: 2, major: 0 }, { n: 2, edits: 0 }] },
+      { kind: 'audit', state: 'done', gaps: [] },
+      { kind: 'approve-breakdown', state: 'done', at: 'Oct 9' },
+      { kind: 'build', state: 'done', at: 'Oct 11' },
+    ];
+    byId('E2').stages = [
+      { kind: 'prd', state: 'done', rounds: [
+        { n: 1, found: 2, ids: ['i2'], note: 'i2 approved and fixed · 1 dismissed' },
+        { n: 2, found: 1, note: '1 found, fixed in the PRD' },
+        { n: 3, found: 0 }] },
+      { kind: 'approve-prd', state: 'done', at: 'Oct 12' },
+      { kind: 'breakdown', state: 'done', beads: 3 },
+      { kind: 'polish', state: 'done', rounds: [{ n: 1, edits: 4, major: 1 }, { n: 2, edits: 1, major: 0 }, { n: 3, edits: 0 }] },
+      { kind: 'audit', state: 'done', gaps: [] },
+      { kind: 'approve-breakdown', state: 'done', at: 'Oct 13' },
+      { kind: 'build', state: 'now', note: '2.1 in code review r2' },
+    ];
+    byId('E3').stages = [
+      { kind: 'prd', state: 'done', rounds: [{ n: 1, found: 1, note: '1 found, fixed in the PRD' }, { n: 2, found: 0 }] },
+      { kind: 'approve-prd', state: 'done', at: 'Oct 14' },
+      { kind: 'breakdown', state: 'done', beads: 2 },
+      { kind: 'polish', state: 'done', rounds: [{ n: 1, edits: 3, major: 1 }, { n: 2, edits: 0 }] },
+      { kind: 'audit', state: 'done', gaps: ['PRD § Rollback has no bead'] },
+      { kind: 'approve-breakdown', state: 'waiting' },
+      { kind: 'build', state: 'todo' },
+    ];
+    byId('E3').prd.plan = 'breakdown-review';
+  })();
+</script>
+<script>
+  // S stands in for the server's SSE frames; `view` holds view-only state.
+  const S = structuredClone(ERNIE_SAMPLE);
+  // P3 Q4: archived and folder-gone worktrees join the picker; the older views never see them
+  S.logs.push(...S.lifecycleLogs);
+  // Findings closed with resolution=dismissed; the shared sample still says `dropped`
+  Object.values(S.states).forEach(st => st.issues.forEach(i => { if (i.status === 'dropped') i.status = 'dismissed'; }));
+  const TABS = [
+    { key: 'home', label: '⌂ Home' },
+    { key: 'planning', label: '▤ Planning' },
+    { key: 'issues', label: '◎ Issues' },
+    { key: 'facts', label: '◆ Facts' },
+    { key: 'scratch', label: '✎ Scratch' },
+    { key: 'files', label: '▧ Files' },
+    { key: 'log', label: '≡ Tool log' },
+  ];
+  const view = {
+    active: 'home',
+    wt: null, // the one worktree every tab shows (P3 Q1); null → first with a working session
+    factsKind: 'all', // pill filter: all / verified / inferred / unchecked
+    research: {}, // "<log key>|<fact id>" → { stage: queued | running | found | none, note, oldText, from }
+    selectedQuestion: null, // "<log key>|<question id>"; Home's focus list opens one at a time
+    selectedIssue: null, // "<log key>|<issue id>"
+    selectedFile: null, // "<log key>|<path>"
+    selectedScratch: null, // "<log key>|<pad id>"; j/k move it
+    scratchOpen: new Set(), // open pad keys
+    scratchSeen: new Set(), // worktrees whose Scratch tab has rendered once; the first render opens the newest pad
+    selectedEpic: null, // "<log key>|<epic id>", or "<log key>|adhoc"
+    selectedBead: null, // "<log key>|<epic id or adhoc>|<bead id>"
+    prdOpen: false, // Planning: the selected epic's PRD replaces the bead detail
+    variant: ['a', 'b', 'c'].includes(new URLSearchParams(location.search).get('v')) ? new URLSearchParams(location.search).get('v') : 'b',
+    epicOpen: null, // B: true/false once picked; null = open while the epic is still being planned
+    stageOpen: null, // C: index of the step whose rounds fill the right column
+    copied: null,
+    shownMethods: new Set(),
+    queued: [], // page events waiting for each session's next prompt: { key, label }
+    logFilter: { session: 'all', tool: 'all', hideAgents: false, filesOnly: false, events: false },
+    logUnseen: 0,
+    settingsOpen: false,
+    settingsDraft: null, // number rows being edited; copied from S.settings when the panel opens
+    settingsMsg: '',
+  };
+
+  // Settings: global, the server's copy of ~/.config/ernie/settings.json
+  const SETTINGS_DEFAULTS = { queuePaused: false, polishBatch: 10, polishRounds: 5, prdMin: 2, prdMax: 5, reviewMin: 2, reviewMax: 5 };
+  const SETTING_RANGES = { polishBatch: [3, 20], polishRounds: [2, 8], prdMin: [1, 10], prdMax: [1, 10], reviewMin: [1, 10], reviewMax: [1, 10] };
+  S.settings = { ...SETTINGS_DEFAULTS };
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const logOf = key => S.logs.find(l => l.key === key);
+  const isTab = key => TABS.some(p => p.key === key);
+  const curLog = () => logOf(view.wt);
+  const cur = () => S.states[view.wt];
+
+  // ---------- Worktree picker (P3 Q1, Q4) ----------
+  // Grouped by repo; archived worktrees sit in their own group so they can be viewed and restored
+  function pickWorktree() {
+    if (logOf(view.wt) && S.states[view.wt]) return;
+    const live = S.logs.filter(l => !l.archived);
+    view.wt = (live.find(l => l.session.state === 'working') || live.find(l => l.on) || live[0]).key;
+  }
+
+  function renderPicker() {
+    const optionLabel = l => l.branch
+      + (l.folderGone ? ' · folder gone' : '')
+      + (!l.on && !l.archived ? ' · off' : '')
+      + (l.session.state === 'waiting on you' ? ' · needs you' : '');
+    const option = l => `<option value="${esc(l.key)}" ${l.key === view.wt ? 'selected' : ''}>${esc(optionLabel(l))}</option>`;
+    const live = S.logs.filter(l => !l.archived);
+    const archived = S.logs.filter(l => l.archived);
+    // Reason: a repo leaves the picker once all its worktrees are archived
+    const repos = [...new Set(live.map(l => l.repo))];
+    document.getElementById('wt-pick-wrap').innerHTML = `<select class="wt-pick" id="wt-pick" aria-label="Worktree">
+      ${repos.map(r => `<optgroup label="${esc(r)}">${live.filter(l => l.repo === r).map(option).join('')}</optgroup>`).join('')}
+      ${archived.length ? `<optgroup label="Archived (${archived.length})">${archived.map(l => `<option value="${esc(l.key)}" ${l.key === view.wt ? 'selected' : ''}>${esc(l.key)}</option>`).join('')}</optgroup>` : ''}
+    </select>`;
+  }
+
+  // One line above every tab for the worktree's lifecycle: archived, folder gone, off, an id collision
+  function wtBanner() {
+    const l = curLog(), st = cur();
+    const lines = [];
+    if (l.archived) lines.push(['dim', `Archived · hidden from the picker; log, memory and beads kept.`, `<button class="btn" type="button" data-restore="${esc(l.key)}">Restore</button>`]);
+    else if (l.folderGone) lines.push(['warn', `Folder gone · ${esc(l.worktree)} no longer exists. Nothing is hidden until you archive it.`, `<button class="btn" type="button" data-archive="${esc(l.key)}">Archive</button>`]);
+    else if (!l.on) lines.push(['dim', 'ernie is off here (logging paused) · the page still shows what was logged.', '']);
+    (st.collisions || []).forEach(id => lines.push(['warn',
+      `⚠ ${esc(id)} collided · two machines logged a different ${esc(id)} (forgot to pull); the second is kept as ${esc(id)}′. Rename one by hand.`, '']));
+    return lines.map(([kind, text, action]) => `<div class="wt-banner ${kind}"><span>${text}</span>${action}</div>`).join('');
+  }
+  // One label set for badges, filter pills and legends; `unchecked` stays the stored value
+  const confGlyph = { verified: '✓ verified', inferred: '~ inferred', unchecked: '✗ unknown' };
+  const FACT_PILLS = [{ key: 'all', label: 'All' }, ...['verified', 'inferred', 'unchecked'].map(key => ({ key, label: confGlyph[key] }))];
+  // Facts with no confidence count as unknown
+  const factKind = f => f.confidence || 'unchecked';
+
+  // ---------- Tabs ----------
+  function renderTabs() {
+    const toApprove = issueList().filter(x => x.iss.status === 'explained').length;
+    document.getElementById('tabstrip').innerHTML = TABS.map(p => {
+      let badge = '';
+      if (p.key === 'log' && view.active !== 'log' && view.logUnseen) badge = `<span class="badge" title="new tool calls">${view.logUnseen}</span>`;
+      if (p.key === 'issues' && toApprove) badge = `<span class="badge" style="background:var(--warning)" title="waiting for your approval">${toApprove}</span>`;
+      const goKey = Object.keys(GO_KEYS).find(k => GO_KEYS[k] === p.key);
+      return `<div class="tab ${view.active === p.key ? 'active' : ''}"><button type="button" data-tab="${p.key}" title="g ${goKey}">${p.label}${badge}</button></div>`;
+    }).join('');
+  }
+
+  // Page events for this worktree that its session's next prompt will deliver; dismissed facts show their own Undo line
+  function queuedLine() {
+    const queued = view.queued.filter(q => q.key === view.wt && !q.fact);
+    return queued.length ? `<div class="queued">queued for the next prompt: ${queued.map(q => esc(q.label)).join(' · ')}</div>` : '';
+  }
+
+  function panel(title, count, body, extraHead = '') {
+    return `<section class="panel panel--ground"><div class="panel-head"><span>${title}</span>${extraHead}${count !== '' ? `<span class="count">${count}</span>` : ''}</div>
+      <div class="panel-body">${body}</div></section>`;
+  }
+
+  // ---------- Facts & decisions tab ----------
+  function confBadge(item, key) {
+    if (!item.confidence) return `<span class="conf c-unchecked" title="no confidence given">${confGlyph.unchecked}</span>`;
+    return `<button class="conf c-${item.confidence}" type="button" data-method="${esc(key)}" title="show the method: ${esc(item.method || 'none given')}">${confGlyph[item.confidence]}</button>`;
+  }
+
+  function renderFacts() {
+    const l = curLog(), st = cur();
+    const collided = new Set(st.collisions || []);
+    // P4 Q3: a decision's `ref` points at the bead it shaped; the chip opens it on the Planning tab
+    const refChip = d => {
+      const bead = d.ref && beadsOf(l.key).find(x => x.b.id === d.ref);
+      return bead ? `<div class="refs chips">${beadChip(bead)}</div>` : '';
+    };
+    const decisions = st.decisions.map(d => `<div class="dec"><b><span class="item-id">${esc(d.id)}</span>${esc(d.text)}${
+      collided.has(d.id) || d.collidedWith ? `<span class="collided" title="id collision, see the banner">collided</span>` : ''}</b>
+      <span class="why">${esc(d.why)}</span>${refChip(d)}</div>`).join('');
+    const decisionCount = st.decisions.length;
+
+    const factHtml = f => {
+      const methodKey = `${l.key}:${f.id}`;
+      const method = view.shownMethods.has(methodKey) ? `<div class="method">method: ${esc(f.method || 'none given')}</div>` : '';
+      return `<li class="${f.fresh ? 'fresh' : ''}">${confBadge(f, methodKey)}<span class="item-id">${f.id}</span><span>${esc(f.text)}${researchHtml(l, f)}</span>
+        <button class="dismiss" type="button" data-dismiss="${esc(l.key)}|${f.id}" title="Dismiss (undo until the next prompt)">×</button>${method}${researchNote(l, f)}</li>`;
+    };
+    const allFacts = st.facts.filter(f => f.kind !== 'term');
+    const factCount = allFacts.length;
+    const kindMatch = f => view.factsKind === 'all' || factKind(f) === view.factsKind;
+    const shownFacts = allFacts.filter(kindMatch);
+    const facts = shownFacts.length ? `<ul class="facts">${shownFacts.map(factHtml).join('')}</ul>` : '';
+    const shownFactCount = shownFacts.length;
+    const pills = `<div class="pills" role="group" aria-label="Filter facts">${FACT_PILLS.map(p => {
+      const n = p.key === 'all' ? factCount : allFacts.filter(f => factKind(f) === p.key).length;
+      const on = view.factsKind === p.key;
+      return `<button class="fpill k-${p.key} ${on ? 'on' : ''}" type="button" data-fact-kind="${p.key}" aria-pressed="${on}">${p.label}<span class="n">${n}</span></button>`;
+    }).join('')}</div>`;
+    const noFacts = factCount ? '<div class="empty">No facts match this filter.</div>' : '<div class="empty">No facts pinned.</div>';
+    // Page op `fact dismiss` waits for the next prompt, so it can be undone until then (same pattern as Home answers)
+    const dismissed = view.queued.filter(q => q.key === l.key && q.fact).map(q =>
+      `<div class="qf-sent" style="margin-top:12px">dismissed ${esc(q.fact.id)} · goes with your next prompt <button class="btn" type="button" data-fact-undo="${esc(l.key)}|${esc(q.fact.id)}">Undo</button></div>`).join('');
+
+    const terms = st.facts.filter(f => f.kind === 'term');
+    const glossary = terms.length ? `<dl class="gloss">${terms.map(t => `<dt>${esc(t.term)}</dt><dd>${esc(t.text)}</dd>`).join('')}</dl>` : '<div class="empty">No terms yet.</div>';
+
+    document.getElementById('main').innerHTML = `${wtBanner()}
+      <div class="tab-head"><h1>Facts</h1>
+        <span class="meta">${decisionCount} decisions · ${factCount} facts · ${terms.length} terms</span></div>
+      <div class="fd-grid">
+        <div class="fd-col">
+          ${panel('Decisions', decisionCount, decisions || '<div class="empty">No decisions yet.</div>')}
+          ${panel('Glossary', terms.length, glossary)}
+        </div>
+        <div class="fd-col">
+          ${panel('Facts', shownFactCount === factCount ? factCount : `${shownFactCount}/${factCount}`, pills + (facts || noFacts) + dismissed + queuedLine())}
+        </div>
+      </div>`;
+  }
+
+  // ---------- Fact research (Facts panel) ----------
+  // Page action `fact research`: goes to that session's Claude on its next prompt; Claude runs a subagent and logs the answer
+  function researchHtml(l, f) {
+    const r = view.research[`${l.key}|${f.id}`];
+    if (r?.stage === 'queued') return `<span class="rpill wait" title="delivered with your next prompt to this session">⏳ queued · next prompt</span>`;
+    if (r?.stage === 'running') return `<span class="rpill running" title="subagent running in ${esc(l.key)}">subagent researching…</span>`;
+    if (factKind(f) === 'verified') return '';
+    return `<button class="rpill" type="button" data-research="${esc(l.key)}|${esc(f.id)}" title="Send a subagent to find an answer">⌕ ${r?.stage === 'none' ? 'retry' : 'research'}</button>`;
+  }
+
+  function researchNote(l, f) {
+    const r = view.research[`${l.key}|${f.id}`];
+    if (r?.stage === 'found') {
+      const oldWording = r.oldText !== f.text ? `: <s>${esc(r.oldText)}</s>` : '';
+      return `<div class="method found">found by subagent · was ${esc(confGlyph[r.from] || confGlyph.unchecked)}${oldWording}<br>method: ${esc(f.method)}</div>`;
+    }
+    if (r?.stage === 'none') return `<div class="method no-answer">no answer: ${esc(r.note)}</div>`;
+    return '';
+  }
+
+  // Mock outcomes per fact; anything not listed comes back with no answer
+  const RESEARCH_OUTCOMES = {
+    'glue/CDIT-2631-ga4-dedupe|f2': {
+      steps: [{ tool: 'Bash', text: 'Count duplicate dedupe keys by site_platform, last 30 days' }, { tool: 'Read', text: 'sql/views/sessions.sql' }],
+      text: 'Duplicates appear on Dealer Spike and Dealer Inspire hosts',
+      method: 'GROUP BY site_platform over 30 days: 96% Dealer Spike, 4% Dealer Inspire, 0 elsewhere',
+    },
+    'glue/CDIT-2631-ga4-dedupe|f3': {
+      steps: [{ tool: 'Grep', text: 'consent' }, { tool: 'WebFetch', text: 'GA4 consent mode docs' }],
+      note: 'needs read access to the platform GTM container (SSO wall); see n1',
+    },
+  };
+  const RESEARCH_FALLBACK = { steps: [{ tool: 'Grep', text: 'search the repo' }], note: 'nothing the subagent could check from here' };
+
+  function logRow(logKey, row) {
+    const st = S.states[logKey];
+    const sid = isToolRow(row) ? logOf(logKey).session.id : undefined;
+    st.activity.unshift({ ts: clock(), fresh: true, sid, ...row });
+    if (logKey !== view.wt) return;
+    if (view.active !== 'log' && (row.t === 'tool' || row.t === 'file')) view.logUnseen += 1;
+  }
+
+  function startResearch(researchKey) {
+    const [logKey, factId] = researchKey.split('|');
+    const st = S.states[logKey];
+    const fact = st.facts.find(f => f.id === factId);
+    const outcome = RESEARCH_OUTCOMES[researchKey] || RESEARCH_FALLBACK;
+    view.research[researchKey] = { stage: 'queued' };
+    view.queued.push({ key: logKey, label: `research ${factId}`, researchKey });
+    logRow(logKey, { by: 'user', t: 'fact', op: 'research', text: `research ${factId} "${fact.text}"` });
+    renderAll();
+
+    const stillThere = () => st.facts.includes(fact);
+    // Mock: the session's next prompt arrives 3 s later and Claude hands the fact to a subagent
+    setTimeout(() => {
+      view.queued = view.queued.filter(q => q.researchKey !== researchKey);
+      if (!stillThere()) { delete view.research[researchKey]; return renderAll(); }
+      view.research[researchKey] = { stage: 'running' };
+      logRow(logKey, { by: 'hook', t: 'tool', op: 'run', tool: 'Agent', text: `Research ${factId}: ${fact.text}` });
+      renderAll();
+      outcome.steps.forEach((step, i) => setTimeout(() => {
+        logRow(logKey, { by: 'hook', t: 'tool', op: 'run', agent: 'general-purpose', ...step });
+        renderAll();
+      }, 1200 * (i + 1)));
+    }, 3000);
+
+    setTimeout(() => {
+      if (!stillThere()) { delete view.research[researchKey]; return renderAll(); }
+      if (outcome.method) {
+        view.research[researchKey] = { stage: 'found', from: fact.confidence, oldText: fact.text };
+        Object.assign(fact, { confidence: 'verified', method: outcome.method, text: outcome.text || fact.text, fresh: true });
+        logRow(logKey, { by: 'claude', t: 'fact', op: 'set', text: `${factId} → verified: ${fact.text}` });
+      } else {
+        view.research[researchKey] = { stage: 'none', note: outcome.note };
+        logRow(logKey, { by: 'claude', t: 'fact', op: 'note', text: `${factId} research: no answer` });
+      }
+      renderAll();
+      fact.fresh = false;
+    }, 3000 + 1200 * (outcome.steps.length + 1));
+  }
+
+  // ---------- Planning tab ----------
+  // Epics and beads come from Beads (label wt:<branch>); ad hoc beads have no epic (P3 Q2, P4 Q2)
+  const BEAD_GLYPH = { todo: '○', active: '◐', done: '●', blocked: '⊘' };
+  const ADHOC = 'adhoc';
+
+  // The worktree's epics, then one "Ad hoc" entry holding the beads with no epic
+  function epicList(logKey) {
+    const st = S.states[logKey];
+    const epics = (st?.epics || []).map(ep => ({ ep, key: `${logKey}|${ep.id}` }));
+    if (!st?.adhoc?.length) return epics;
+    const adhoc = { id: ADHOC, title: 'Ad hoc', goal: 'Beads with no epic (what queue.md "next" used to hold).', beads: st.adhoc };
+    return [...epics, { ep: adhoc, key: `${logKey}|${ADHOC}` }];
+  }
+
+  // Every bead of one worktree with its epic, so deps can point across epics and into ad hoc
+  const beadsOf = logKey => epicList(logKey).flatMap(({ ep }) => ep.beads.map(b => ({ b, ep, key: `${logKey}|${ep.id}|${b.id}` })));
+  const epicLabel = ep => ep.id === ADHOC ? 'Ad hoc' : `${ep.id} · ${ep.title}`;
+
+  function progressBar(beads) {
+    const done = beads.filter(b => b.status === 'done').length;
+    const pct = beads.length ? Math.round(done / beads.length * 100) : 0;
+    return `<span class="bar"><i><b style="width:${pct}%"></b></i>${done}/${beads.length}</span>`;
+  }
+
+  const checklist = items => `<ul class="checks">${items.map(c => `<li class="${c.done ? 'on' : ''}">${esc(c.text)}</li>`).join('')}</ul>`;
+
+  // Status glyph; its title names the status, so lists need no legend
+  const glyph = (status, text, title = status) => `<span class="g g--${status}" title="${esc(title)}">${text}</span>`;
+
+  function beadChip(entry) {
+    return `<button class="chip" type="button" data-bead-open="${esc(entry.key)}" title="${esc(epicLabel(entry.ep))} · ${entry.b.status}">
+      <span class="g g--${entry.b.status}">${BEAD_GLYPH[entry.b.status]}</span>${esc(entry.b.id)} ${esc(entry.b.title)}</button>`;
+  }
+
+  function issueChip(logKey, issue) {
+    return `<button class="chip" type="button" data-issue-jump="${esc(logKey)}|${esc(issue.id)}"><span class="g g--${issue.status}">${STATUS_GLYPH[issue.status]}</span>${esc(issue.id)}</button>`;
+  }
+
+  // Linked id: mono, accent; a finding's id opens it on the Issues tab
+  function issueLid(logKey, issue) {
+    return `<button class="lid" type="button" data-issue-jump="${esc(logKey)}|${esc(issue.id)}" title="${issue.status} · open on Issues">${glyph(issue.status, STATUS_GLYPH[issue.status])}${esc(issue.id)}</button>`;
+  }
+
+  // Ids that match a decision, finding, fact or note in the same worktree show its text; findings open the Issues tab.
+  // `why` labels links that come from the other side (a decision's ref, a finding's parent)
+  function linkHTML(logKey, ref, why = '') {
+    const st = S.states[logKey];
+    const reason = why ? `<span class="why">${esc(why)}</span>` : '';
+    const issue = st.issues.find(i => i.id === ref);
+    if (issue) return `<div>${issueLid(logKey, issue)}${esc(issue.title)}${reason}</div>`;
+    const known = st.decisions.find(d => d.id === ref) || st.facts.find(f => f.id === ref) || st.notes.find(n => n.id === ref);
+    if (known) return `<div><span class="lid">${esc(ref)}</span>${esc(known.text)}${reason}</div>`;
+    return `<div><span class="lid">${esc(ref)}</span><span class="why">not on this page</span></div>`;
+  }
+
+  function beadHTML(entry, list) {
+    const { b, ep } = entry;
+    const logKey = entry.key.split('|')[0];
+    const st = S.states[logKey];
+    const all = beadsOf(logKey);
+    const pos = list.findIndex(x => x.key === entry.key);
+    const prev = list[pos - 1], next = list[pos + 1];
+    const deps = (b.deps || []).map(id => all.find(x => x.b.id === id)).filter(Boolean);
+    const unblocks = all.filter(x => (x.b.deps || []).includes(b.id));
+    const openDeps = deps.filter(x => x.b.status !== 'done');
+    const checks = b.doneWhen || [];
+    const checksDone = checks.filter(c => c.done).length;
+    // P4 Q3: links are stored on the ernie side; the reverse ones (decision → this bead, finding from this bead's review) are computed
+    const own = b.links || [];
+    const reverse = [
+      ...st.decisions.filter(d => d.ref === b.id && !own.includes(d.id)).map(d => [d.id, '← ref to this bead']),
+      ...st.issues.filter(i => i.parent === b.id && !own.includes(i.id)).map(i => [i.id, 'found in code review of this bead']),
+    ];
+    const linked = [...own.map(r => linkHTML(logKey, r)), ...reverse.map(([r, why]) => linkHTML(logKey, r, why))];
+    const status = b.status === 'blocked'
+      ? `<span class="steps"><b>blocked</b></span>${openDeps.length ? ` <span class="dim">on ${openDeps.map(x => esc(x.b.id)).join(', ')}</span>` : ''}`
+      : stepsHTML(['todo', 'active', 'done'], b.status);
+    return `<article class="ws">
+      <div class="ws-meta"><span>bead ${pos + 1} of ${list.length}</span>
+        <span class="pill p-ours">${esc(epicLabel(ep))}</span></div>
+      <h2><span class="id">${esc(b.id)}</span>${esc(b.title)}</h2>
+      <dl class="gut">
+        <dt>Status</dt><dd>${status}</dd>
+        <dt>What</dt><dd>${esc(b.what || '—')}</dd>
+        ${b.notes ? `<dt>Notes</dt><dd>${esc(b.notes)}</dd>` : ''}
+        <dt>Done when</dt><dd>${checks.length ? `${checklist(checks)}<div class="dim" style="font-size:13px;margin-top:4px">${checksDone} of ${checks.length} done</div>` : '<span class="dim">No checks yet.</span>'}</dd>
+        ${deps.length ? `<dt>Depends on</dt><dd class="wide"><div class="chips">${deps.map(beadChip).join('')}</div></dd>` : ''}
+        ${unblocks.length ? `<dt>Unblocks</dt><dd class="wide"><div class="chips">${unblocks.map(beadChip).join('')}</div></dd>` : ''}
+        ${linked.length ? `<dt>Linked</dt><dd><div class="linked">${linked.join('')}</div></dd>` : ''}
+        ${b.files?.length ? `<dt>Files</dt><dd><ul class="files">${b.files.map(f => `<li>${esc(f)}</li>`).join('')}</ul></dd>` : ''}
+        ${b.commit ? `<dt>Commit</dt><dd><code>${esc(b.commit)}</code></dd>` : ''}
+      </dl>
+      <footer class="ws-foot">
+        ${prev ? `<button class="btn" type="button" data-bead-open="${esc(prev.key)}" title="k">‹ ${esc(prev.b.id)}</button>` : '<span></span>'}
+        <span>j / k bead · { } epic · p PRD</span>
+        ${next ? `<button class="btn" type="button" data-bead-open="${esc(next.key)}" title="j">${esc(next.b.id)} ›</button>` : '<span></span>'}
+      </footer></article>`;
+  }
+
+  // Just enough markdown for a PRD: headings, paragraphs, lists, code fences, inline code and bold
+  function mdToHTML(md) {
+    const inline = t => esc(t).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+    const out = [];
+    let list = null, para = [], fence = null;
+    const flush = () => {
+      if (para.length) out.push(`<p>${inline(para.join(' '))}</p>`);
+      if (list) out.push(`<${list.tag}>${list.items.map(i => `<li>${inline(i)}</li>`).join('')}</${list.tag}>`);
+      para = []; list = null;
+    };
+    md.split('\n').forEach(line => {
+      if (fence) {
+        if (line.startsWith('```')) { out.push(`<pre><code>${esc(fence.join('\n'))}</code></pre>`); fence = null; }
+        else fence.push(line);
+        return;
+      }
+      if (line.startsWith('```')) { flush(); fence = []; return; }
+      const h = /^(#{2,3}) (.*)/.exec(line);
+      const li = /^(?:- |\d+\. )(.*)/.exec(line);
+      if (h) { flush(); out.push(`<h${h[1].length + 1} id="prd-${slug(h[2])}">${inline(h[2])}</h${h[1].length + 1}>`); return; }
+      if (li) {
+        const tag = line.startsWith('- ') ? 'ul' : 'ol';
+        if (para.length || (list && list.tag !== tag)) flush();
+        list = list || { tag, items: [] };
+        list.items.push(li[1]);
+        return;
+      }
+      if (!line.trim()) return flush();
+      if (list) flush();
+      para.push(line.trim());
+    });
+    flush();
+    return out.join('');
+  }
+  const slug = t => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  // P2: the epic's PRD (one per epic, path from `spec_id`), with its plan state and review count from the epic's labels
+  function prdHTML(epic, bead) {
+    const prd = epic.ep.prd;
+    const title = /^# (.*)/m.exec(prd.md)?.[1] || epic.ep.title;
+    const body = prd.md.replace(/^# .*\n?/m, '');
+    const sections = [...body.matchAll(/^## (.*)/gm)].map(m => m[1]);
+    return `<article class="ws">
+      <div class="ws-meta">${bead ? `<button class="btn" type="button" data-prd-toggle>‹ bead ${esc(bead.b.id)} · esc</button>` : ''}
+        <span>PRD</span><span class="pill p-ours">${esc(epicLabel(epic.ep))}</span>
+        <span>Plan: ${esc(prd.plan)} · ${plural(prd.review, 'review round')}</span></div>
+      <h2>${esc(title)}</h2>
+      <div class="prd-path">${esc(prd.path)}</div>
+      <nav class="prd-toc" aria-label="PRD sections">${sections.map(t => `<button class="chip" type="button" data-prd-jump="prd-${slug(t)}">${esc(t)}</button>`).join('')}</nav>
+      <div class="md">${mdToHTML(body)}</div>
+      <footer class="ws-foot"><span>p PRD · esc back</span></footer></article>`;
+  }
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+  // Keeps the epic and bead selection valid inside the picked worktree: active epic first, then its active bead
+  function planSelection() {
+    const epics = epicList(view.wt);
+    if (!epics.some(x => x.key === view.selectedEpic)) {
+      view.selectedEpic = (epics.find(x => x.ep.status === 'active') || epics[0])?.key ?? null;
+    }
+    const epic = epics.find(x => x.key === view.selectedEpic);
+    const beads = epic ? epic.ep.beads.map(b => ({ b, ep: epic.ep, key: `${epic.key}|${b.id}` })) : [];
+    if (!beads.some(x => x.key === view.selectedBead)) {
+      view.selectedBead = (beads.find(x => x.b.status === 'active') || beads.find(x => x.b.status !== 'done') || beads[0])?.key ?? null;
+    }
+    return { epics, epic, beads };
+  }
+
+  function renderPlanning() {
+    const { epics, epic, beads } = planSelection();
+    const st = cur();
+    const epicRow = x => {
+      const isAdhoc = x.ep.id === ADHOC;
+      return `<button class="ph-row ${x.key === view.selectedEpic ? 'sel' : ''}" type="button" data-epic-open="${esc(x.key)}" title="${isAdhoc ? 'no epic' : x.ep.status}">
+        ${isAdhoc ? glyph('todo', '◇', 'ad hoc: beads with no epic') : glyph(x.ep.status, BEAD_GLYPH[x.ep.status])}<span class="id">${isAdhoc ? '' : esc(x.ep.id)}</span>
+        <span class="t"><b>${esc(x.ep.title)}</b>${progressBar(x.ep.beads)}</span></button>`;
+    };
+    const epicCol = epics.map(epicRow).join('');
+
+    const blockedBy = entry => {
+      const all = beadsOf(entry.key.split('|')[0]);
+      return (entry.b.deps || []).filter(id => all.find(x => x.b.id === id)?.b.status !== 'done');
+    };
+    const beadRow = x => {
+      const waiting = x.b.status === 'blocked' ? blockedBy(x) : [];
+      return `<button class="bd-row st-${x.b.status} ${x.key === view.selectedBead && !detailOpen && !stageShown ? 'sel' : ''}" type="button" data-bead-open="${esc(x.key)}" title="${x.b.status}">
+        ${glyph(x.b.status, BEAD_GLYPH[x.b.status])}<span class="id">${esc(x.b.id)}</span>
+        <span class="t">${esc(x.b.title)}${waiting.length ? `<span class="why">needs ${waiting.map(esc).join(', ')}</span>` : ''}</span></button>`;
+    };
+    // P3 Q2: PRD-review findings hang off the epic itself
+    const prdFindings = epic ? st.issues.filter(i => i.parent === epic.ep.id) : [];
+    const stages = epic?.ep.stages || [];
+    const v = view.variant;
+    const detailOpen = v === 'b' && stages.length && (view.epicOpen ?? stillPlanning(stages));
+    const stageShown = v === 'c' && view.stageOpen != null && stages[view.stageOpen];
+    // A: the stage list sits in the epic box above the beads. B: one "Plan & reviews" row opens the epic detail
+    const timelineA = v === 'a' && stages.length ? `<div class="tl-box"><div class="sub">Plan</div>${timelineHTML(epic.ep, false)}</div>` : '';
+    const planRow = v === 'b' && stages.length ? (() => {
+      const sum = planSummary(epic.ep);
+      return `<button class="bd-row ep-row ${detailOpen ? 'sel' : ''}" type="button" data-epic-detail title="e">
+        ${glyph(STAGE_CLASS[sum.state], STAGE_GLYPH[sum.state], sum.state === 'waiting' ? 'waiting on you' : sum.state)}<span class="id"></span>
+        <span class="t">Plan &amp; reviews<span class="why ${sum.state === 'waiting' ? '' : 'dim'}">${esc(sum.text)}</span></span></button>`;
+    })() : '';
+    const readingInBox = v !== 'b' || !stages.length;
+    const beadCol = epic ? `
+      <div class="is-group"><span>${esc(epicLabel(epic.ep))}</span><span>${beads.length} beads</span></div>
+      <p class="ph-goal">${esc(epic.ep.goal || '')}</p>
+      ${epic.ep.prd ? `<div class="prd-open"><button class="chip" type="button" data-prd-toggle aria-pressed="${view.prdOpen}">▤ PRD · ${esc(epic.ep.prd.path.split('/').pop())}<kbd>p</kbd></button></div>` : ''}
+      ${timelineA}${planRow}
+      ${beads.map(beadRow).join('')}
+      ${readingInBox && epic.ep.doneWhen?.length ? `<div class="ph-checks"><div class="sub">Epic done when</div>${checklist(epic.ep.doneWhen)}</div>` : ''}
+      ${readingInBox && prdFindings.length ? `<div class="ph-checks"><div class="sub">PRD review findings</div><div class="chips">${prdFindings.map(i => issueChip(view.wt, i)).join('')}</div></div>` : ''}` : '<div class="empty">No epic selected.</div>';
+    const stepper = v === 'c' && stages.length ? `<section class="panel panel--ground pl-steps" aria-label="Plan stages"><div class="panel-body">
+      ${stages.map((s, i) => {
+        const t = stageText(epic.ep, s);
+        return `<button class="stp st-${s.state} ${view.stageOpen === i ? 'sel' : ''}" type="button" data-stage-open="${i}">
+          ${glyph(STAGE_CLASS[s.state], STAGE_GLYPH[s.state], s.state === 'waiting' ? 'waiting on you' : s.state)}<span class="lbl">${esc(t.short)}</span><span class="det">${t.shortDet}</span></button>`;
+      }).join('')}</div></section>` : '';
+    const selected = beads.find(x => x.key === view.selectedBead);
+    const variantBar = `<span class="vbar">Q2 variant ${[['a', 'A · middle column'], ['b', 'B · epic detail'], ['c', 'C · stepper']].map(([k, label], i) =>
+      `<button class="chip" type="button" data-variant="${k}" aria-pressed="${v === k}">${label}<kbd>${i + 1}</kbd></button>`).join('')}</span>`;
+    const right = view.prdOpen && epic?.ep.prd ? prdHTML(epic, selected)
+      : detailOpen ? epicDetailHTML(epic, prdFindings)
+      : stageShown ? stageDetailHTML(epic, view.stageOpen, selected)
+      : selected ? beadHTML(selected, beads) : '<div class="canvas"><p>No beads in this epic.</p></div>';
+    const epicBeads = (st.epics || []).flatMap(ep => ep.beads);
+    const adhocCount = (st.adhoc || []).length;
+    const allBeads = beadsOf(view.wt).map(x => x.b);
+
+    document.getElementById('main').innerHTML = `${wtBanner()}
+      <div class="tab-head"><h1>Planning</h1>
+        <span class="meta">${(st.epics || []).length} epics · ${epicBeads.length} beads · ${adhocCount} ad hoc · ${allBeads.filter(b => b.status === 'active').length} active · ${allBeads.filter(b => b.status === 'blocked').length} blocked</span>
+        ${variantBar}</div>
+      ${epics.length ? `<div class="pl-grid">
+        <section class="panel pl-col pl-phases"><div class="panel-body">${epicCol}</div></section>
+        ${stepper}
+        <section class="panel pl-col"><div class="panel-body">${beadCol}</div></section>
+        <div>${right}</div>
+      </div>` : '<div class="canvas"><p>No epics or ad hoc beads for this worktree.</p></div>'}`;
+  }
+
+  // ---------- P6 Q2 mock: the epic review timeline ----------
+  // One row per P2 stage: PRD review → you approve the PRD → breakdown → polish → audit → you approve the breakdown → build
+  const STAGE_GLYPH = { done: '●', now: '◐', waiting: '◔', todo: '○' };
+  const STAGE_CLASS = { done: 'done', now: 'active', waiting: 'blocked', todo: 'todo' };
+  const STAGE_NAME = { prd: 'PRD review', 'approve-prd': 'Approve PRD', breakdown: 'Breakdown', polish: 'Polish', audit: 'Audit',
+    'approve-breakdown': 'Approve breakdown', build: 'Build' };
+
+  // Still being planned = something before Build is unfinished
+  const stillPlanning = stages => stages.some(s => s.kind !== 'build' && s.state !== 'done');
+
+  function planSummary(ep) {
+    const stages = ep.stages;
+    const waiting = stages.find(s => s.state === 'waiting');
+    if (waiting) return { state: 'waiting', text: `waiting on you: ${waiting.kind === 'approve-prd' ? 'approve the PRD' : 'approve the breakdown'}` };
+    const now = stages.find(s => s.state === 'now');
+    if (now) return { state: 'now', text: now.kind === 'build' ? `building · ${stageText(ep, now).shortDet}` : `${STAGE_NAME[now.kind].toLowerCase()} running` };
+    return stages.every(s => s.state === 'done') ? { state: 'done', text: 'planned and built' } : { state: 'todo', text: 'not started' };
+  }
+
+  const roundText = (kind, r) => kind === 'prd' ? (r.found ? `${r.found} found` : 'clean')
+    : `${plural(r.edits, 'edit')}${r.major ? `, ${r.major} major` : ''}`;
+  const roundClean = (kind, r) => kind === 'prd' ? !r.found : !r.edits;
+  const roundsHTML = s => `<span class="rnds">${s.rounds.map(r =>
+    `<span class="rnd ${roundClean(s.kind, r) ? 'clean' : ''}" title="${esc(r.note || roundText(s.kind, r))}"><span class="n">r${r.n}</span>${roundText(s.kind, r)}</span>`).join('')}</span>`;
+
+  // lbl / det for the list rows (A, B); short / shortDet for the stepper (C). lbl is always the stage name, so that
+  // column scans; det says what happened in it
+  function stageText(ep, s) {
+    const beadsDone = ep.beads.filter(b => b.status === 'done').length;
+    const last = s.rounds?.[s.rounds.length - 1];
+    const name = STAGE_NAME[s.kind];
+    const row = (det, shortDet) => ({ lbl: name, det, short: name, shortDet });
+    if (s.kind === 'approve-prd' || s.kind === 'approve-breakdown') {
+      if (s.state === 'done') return row(`you approved · ${esc(s.at)}`, esc(s.at));
+      if (s.state === 'waiting') return row(`<span class="warn">waiting on you${s.kind === 'approve-breakdown' ? ' · read the audit first' : ''}</span>`, '<span class="warn">waiting on you</span>');
+      return row(s.kind === 'approve-prd' ? 'after PRD review' : 'after the audit', '—');
+    }
+    if (s.kind === 'prd' || s.kind === 'polish') {
+      if (!s.rounds?.length) return row('not started', '—');
+      const end = s.kind === 'prd' ? (roundClean('prd', last) ? 'clean' : `${last.found} open`) : (s.settled === false ? `<span class="warn">didn't settle</span>` : 'settled');
+      return row(roundsHTML(s), `${plural(s.rounds.length, 'round')} · ${end}`);
+    }
+    if (s.kind === 'breakdown') return s.state === 'todo' ? row('after you approve the PRD', '—') : row(`${plural(s.beads, 'bead')} from a fresh agent`, plural(s.beads, 'bead'));
+    if (s.kind === 'audit') {
+      if (s.state === 'todo') return row('after polish', '—');
+      return s.gaps.length
+        ? row(`<span class="warn">${plural(s.gaps.length, 'gap')}: ${esc(s.gaps.join(' · '))}</span>`, `<span class="warn">${plural(s.gaps.length, 'gap')}</span>`)
+        : row('no gaps: every PRD section has a bead, every bead cites one', 'no gaps');
+    }
+    const count = `${beadsDone} of ${ep.beads.length}`;
+    if (s.state === 'done') return row(`${count} beads closed · ${esc(s.at)}`, `${count} · done`);
+    if (s.state === 'now') return row(`${count} done · ${esc(s.note || '')}`, `${count} done`);
+    return row('beads enter the queue after your approval', '—');
+  }
+
+  function timelineHTML(ep, wide) {
+    return `<ol class="tl ${wide ? 'tl--wide' : ''}">${ep.stages.map(s => {
+      const t = stageText(ep, s);
+      return `<li class="st-${s.state}">${glyph(STAGE_CLASS[s.state], STAGE_GLYPH[s.state], s.state === 'waiting' ? 'waiting on you' : s.state)}
+        <span class="lbl">${esc(t.lbl)}</span><span class="det">${t.det}</span></li>`;
+    }).join('')}</ol>`;
+  }
+
+  // B: the epic itself in the right column, same gutter as a bead
+  function epicDetailHTML(epic, prdFindings) {
+    const ep = epic.ep;
+    return `<article class="ws">
+      <div class="ws-meta"><span>epic</span><span class="pill p-ours">${esc(epicLabel(ep))}</span>
+        ${ep.prd ? `<span>Plan: ${esc(ep.prd.plan)}</span>` : ''}</div>
+      <h2><span class="id">${esc(ep.id)}</span>${esc(ep.title)}</h2>
+      <dl class="gut">
+        <dt>Goal</dt><dd>${esc(ep.goal || '—')}</dd>
+        <dt>Plan</dt><dd class="wide">${timelineHTML(ep, true)}</dd>
+        ${ep.doneWhen?.length ? `<dt>Done when</dt><dd>${checklist(ep.doneWhen)}</dd>` : ''}
+        ${ep.prd ? `<dt>PRD</dt><dd><button class="chip" type="button" data-prd-toggle>▤ ${esc(ep.prd.path.split('/').pop())}<kbd>p</kbd></button></dd>` : ''}
+        ${prdFindings.length ? `<dt>Findings</dt><dd><div class="linked">${prdFindings.map(i => linkHTML(view.wt, i.id, 'found in PRD review')).join('')}</div></dd>` : ''}
+      </dl>
+      <footer class="ws-foot"><span></span><span>e epic · j / k bead · p PRD</span><span></span></footer></article>`;
+  }
+
+  // C: one step's rounds in the right column
+  function stageDetailHTML(epic, i, bead) {
+    const ep = epic.ep, s = ep.stages[i], t = stageText(ep, s);
+    const st = S.states[view.wt];
+    const rounds = s.rounds?.length ? `<dt>Rounds</dt><dd><ol class="tl">${s.rounds.map(r => `<li class="st-done">
+        <span class="g g--${roundClean(s.kind, r) ? 'done' : 'active'}">${roundClean(s.kind, r) ? '●' : '◐'}</span>
+        <span class="lbl"><span class="rnd"><span class="n">r${r.n}</span>${roundText(s.kind, r)}</span></span>
+        ${r.note || r.ids ? `<span class="det">${(r.ids || []).map(id => { const iss = st.issues.find(x => x.id === id); return iss ? issueLid(view.wt, iss) : esc(id); }).join('')}${esc(r.note || '')}</span>` : ''}</li>`).join('')}</ol></dd>` : '';
+    return `<article class="ws">
+      <div class="ws-meta">${bead ? `<button class="btn" type="button" data-stage-close>‹ bead ${esc(bead.b.id)} · esc</button>` : ''}
+        <span>stage ${i + 1} of ${ep.stages.length}</span><span class="pill p-ours">${esc(epicLabel(ep))}</span></div>
+      <h2>${esc(t.lbl)}</h2>
+      <dl class="gut">
+        <dt>Status</dt><dd>${s.state === 'waiting' ? '<span class="warn">waiting on you</span>' : esc(s.state)}</dd>
+        ${!s.rounds && t.det ? `<dt>What</dt><dd>${t.det}</dd>` : ''}
+        ${rounds}
+      </dl>
+      <footer class="ws-foot"><span></span><span>esc back to the bead</span><span></span></footer></article>`;
+  }
+
+  function stepBead(delta) {
+    const { beads } = planSelection();
+    const next = beads[beads.findIndex(x => x.key === view.selectedBead) + delta];
+    if (!next) return;
+    view.selectedBead = next.key;
+    view.prdOpen = false;
+    view.epicOpen = false;
+    view.stageOpen = null;
+    renderAll();
+  }
+
+  function stepEpic(delta) {
+    const { epics } = planSelection();
+    const next = epics[epics.findIndex(x => x.key === view.selectedEpic) + delta];
+    if (!next) return;
+    view.selectedEpic = next.key;
+    view.epicOpen = null;
+    view.stageOpen = null;
+    renderAll();
+  }
+
+  function setVariant(v) {
+    view.variant = v;
+    view.epicOpen = null;
+    view.stageOpen = null;
+    history.replaceState(null, '', `?v=${v}${location.hash}`);
+    renderAll();
+  }
+
+  // ---------- Issues tab ----------
+  // Findings are Beads bugs (P4). Source = parent: an epic (PRD review), a bead (code review) or none (ad hoc) (P3 Q2)
+  const STATUS_ORDER = { explained: 0, approved: 1, fixed: 2, dismissed: 3 };
+  const STATUS_GLYPH = { explained: '○', approved: '◐', fixed: '●', dismissed: '⊘' };
+  const CONF_GLYPH = { verified: '✓', inferred: '~', unchecked: '✗' };
+
+  // Where a finding came from and which epic it lists under; null epic → the Ad hoc group
+  function findingSource(logKey, iss) {
+    const epic = (S.states[logKey].epics || []).find(ep => ep.id === iss.parent);
+    if (epic) return { epic, label: 'PRD review', bead: null };
+    const bead = beadsOf(logKey).find(x => x.b.id === iss.parent);
+    if (bead) return { epic: bead.ep.id === ADHOC ? null : bead.ep, label: `code review · ${bead.b.id}`, bead };
+    return { epic: null, label: 'ad hoc', bead: null };
+  }
+
+  // Epics in plan order, then Ad hoc; inside each, waiting-for-approval first so the next thing you act on is on top
+  function issueList() {
+    const logKey = view.wt;
+    const epicOrder = (S.states[logKey].epics || []).map(ep => ep.id);
+    const rank = x => x.src.epic ? epicOrder.indexOf(x.src.epic.id) : epicOrder.length;
+    return S.states[logKey].issues
+      .map(iss => ({ iss, log: logOf(logKey), key: `${logKey}|${iss.id}`, src: findingSource(logKey, iss) }))
+      .sort((a, b) => rank(a) - rank(b) || STATUS_ORDER[a.iss.status] - STATUS_ORDER[b.iss.status]);
+  }
+
+  const cell = v => {
+    const s = esc(v);
+    return s.startsWith('✓') ? `<span class="ok">${s}</span>` : s.startsWith('✗') ? `<span class="bad">${s}</span>` : s;
+  };
+  function exampleHTML(ex) {
+    return `<div class="ex-title"><span class="item-id">${esc(ex.name)}</span>${esc(ex.title)}</div>
+      <div class="tbl-wrap"><table><thead><tr>${ex.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
+      <tbody>${ex.rows.map(r => `<tr><th>${esc(r[0])}</th>${r.slice(1).map(v => `<td>${cell(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+      ${ex.caption ? `<p class="cap">${esc(ex.caption)}</p>` : ''}
+      ${ex.run ? `<div class="run">see for yourself: <code>${esc(ex.run)}</code> · shown, never run</div>` : ''}`;
+  }
+
+  // Status as one line of text: past steps green, the current one highlighted. `off` strikes it through (dismissed)
+  function stepsHTML(steps, current, off = false) {
+    const at = steps.indexOf(current);
+    return `<span class="steps ${off ? 'off' : ''}">${steps.map((s, i) =>
+      i === at ? `<b>${s}</b>` : i < at ? `<span class="past">${s}</span>` : s).join(' → ')}</span>`;
+  }
+
+  // Finding detail: labels in a gutter, the example first (lead with an example), Decide always the last row
+  function worksheetHTML(entry, list) {
+    const { iss, log } = entry;
+    const st = S.states[log.key];
+    const pos = list.findIndex(x => x.key === entry.key);
+    const prev = list[pos - 1], next = list[pos + 1];
+    const ex = iss.example && st.examples.find(e => e.name === iss.example);
+    const blob = [iss.title, iss.cause, iss.fix, iss.impact].join(' ');
+    const terms = st.facts.filter(f => f.kind === 'term' && (new RegExp(`\\b${f.term}\\b`).test(blob) || new RegExp(`\\b${iss.id}\\b`).test(f.text)));
+    const notes = st.notes.filter(n => n.ref === iss.id);
+    const k = esc(entry.key);
+    const btn = (to, key, label, cls = '') => `<button class="kbtn ${cls}" type="button" data-issue-set="${k}" data-to="${to}"><kbd>${key}</kbd>${label}</button>`;
+    // Dismiss = close the finding with metadata.resolution = dismissed; a later review round sees it and won't re-raise it
+    const decide = {
+      explained: [btn('approved', 'a', 'Approve', 'rec') + btn('dismissed', 'd', 'Dismiss', 'danger'), 'Claude can\'t fix this until you approve it.'],
+      approved: [btn('explained', 'u', 'Undo') + btn('dismissed', 'd', 'Dismiss', 'danger'), 'Approved. Claude can fix it after your next prompt.'],
+      fixed: ['', 'Fixed by Claude. Nothing for you to do.'],
+      dismissed: [btn('explained', 'u', 'Undo'), 'Dismissed. Claude won\'t act on it, and later reviews skip it.'],
+    }[iss.status];
+    const src = entry.src;
+    const srcAttr = src.bead ? `data-bead-open="${esc(src.bead.key)}"` : src.epic ? `data-epic-open="${esc(log.key)}|${esc(src.epic.id)}"` : '';
+    const srcPill = srcAttr
+      ? `<button class="pill p-src" type="button" ${srcAttr} title="open on the Planning tab">${esc(src.label)}${src.epic ? ` · ${esc(src.epic.id)}` : ''}</button>`
+      : `<span class="pill p-src">ad hoc</span>`;
+    const status = iss.status === 'dismissed'
+      ? `${stepsHTML(['explained', 'approved', 'fixed'], 'explained', true)} <span class="steps"><b>dismissed</b></span>`
+      : stepsHTML(['explained', 'approved', 'fixed'], iss.status);
+    return `<article class="ws">
+      <div class="ws-meta"><span>finding ${pos + 1} of ${list.length}</span>
+        <span class="pill ${iss.owner === 'us' ? 'p-ours' : 'p-other'}">${iss.owner === 'us' ? 'ours' : 'platform / other'}</span>
+        ${srcPill}</div>
+      <h2><span class="id">${esc(iss.id)}</span>${esc(iss.title)}</h2>
+      <dl class="gut">
+        <dt>Status</dt><dd>${status}${iss.quote ? `<div class="quote">approved in chat: “${esc(iss.quote)}”</div>` : ''}</dd>
+        <dt>Example</dt><dd class="wide">${ex ? exampleHTML(ex) : '<span class="dim">No example attached.</span>'}</dd>
+        <dt>Cause</dt><dd>${esc(iss.cause)}</dd>
+        <dt>Fix</dt><dd>${esc(iss.fix)}</dd>
+        <dt>If skipped</dt><dd class="impact">${esc(iss.impact)}</dd>
+        <dt>How sure</dt><dd>${confBadge(iss, `${entry.key}:method`)}
+          ${iss.method ? `<div class="cmd"><pre>${esc(iss.method)}</pre><button class="btn" type="button" data-copy="${esc(iss.method)}">${view.copied === iss.method ? 'copied' : 'copy'}</button></div>` : '<span class="dim">No method given.</span>'}</dd>
+        ${notes.length || terms.length ? `<dt>Linked</dt><dd><div class="linked">
+          ${notes.map(n => `<div><span class="lid">${esc(n.id)}</span>${esc(n.text)}</div>`).join('')}
+          ${terms.map(f => `<div><span class="lid">${esc(f.term)}</span>${esc(f.text)}</div>`).join('')}</div></dd>` : ''}
+      </dl>
+      <dl class="gut decide"><dt>Decide</dt><dd class="wide"><p class="msg">${decide[1]}</p>${decide[0] ? `<div class="kbtns">${decide[0]}</div>` : ''}</dd></dl>
+      <footer class="ws-foot">
+        ${prev ? `<button class="btn" type="button" data-issue-open="${esc(prev.key)}" title="k">‹ ${esc(prev.iss.id)}</button>` : '<span></span>'}
+        ${next ? `<button class="btn" type="button" data-issue-open="${esc(next.key)}" title="j">${esc(next.iss.id)} ›</button>` : '<span></span>'}
+      </footer></article>`;
+  }
+
+  function renderIssues() {
+    const list = issueList();
+    if (!list.some(x => x.key === view.selectedIssue)) {
+      view.selectedIssue = (list.find(x => x.iss.status === 'explained') || list[0])?.key ?? null;
+    }
+    const row = x => `<button class="is-row st-${x.iss.status} ${x.key === view.selectedIssue ? 'sel' : ''}" type="button" data-issue-open="${esc(x.key)}" title="${x.iss.status}">
+      <span class="g g--${x.iss.status}">${STATUS_GLYPH[x.iss.status]}</span><span class="id">${esc(x.iss.id)}</span>
+      <span class="t">${esc(x.iss.title)}<span class="src">${esc(x.src.label)}${x.iss.owner === 'us' ? '' : ' · platform / other'}</span></span>
+      <span class="cf" title="${esc(confGlyph[x.iss.confidence] || 'no confidence given')}">${CONF_GLYPH[x.iss.confidence] || '?'}</span></button>`;
+    // One group per epic that has findings, then Ad hoc (P3 Q2)
+    const groups = [];
+    list.forEach(x => {
+      const label = x.src.epic ? epicLabel(x.src.epic) : 'Ad hoc';
+      let group = groups.find(g => g.label === label);
+      if (!group) groups.push(group = { label, items: [] });
+      group.items.push(x);
+    });
+    const groupHtml = g => `<div class="is-group"><span>${esc(g.label)}</span><span>${g.items.length}</span></div>` + g.items.map(row).join('');
+    const waiting = list.filter(x => x.iss.status === 'explained').length;
+    const selected = list.find(x => x.key === view.selectedIssue);
+
+    document.getElementById('main').innerHTML = `${wtBanner()}
+      <div class="tab-head"><h1>Issues</h1>
+        <span class="meta">${list.length} findings · ${waiting} waiting for your approval</span></div>
+      <div class="is-grid">
+        <section class="panel is-list"><div class="panel-body">
+          ${groups.map(groupHtml).join('') || '<div class="empty">No findings for this worktree.</div>'}
+          <div class="legend">status ○ explained ◐ approved ● fixed ⊘ dismissed<br>sure ✓ verified ~ inferred ✗ unknown</div>
+          ${queuedLine()}</div></section>
+        <div>${selected ? worksheetHTML(selected, list) : '<div class="canvas"><p>No findings logged.</p></div>'}</div>
+      </div>`;
+  }
+
+  function setIssue(entryKey, status) {
+    const [key, id] = entryKey.split('|');
+    const st = S.states[key];
+    const iss = st.issues.find(i => i.id === id);
+    const prior = view.queued.find(q => q.key === key && q.issueId === id);
+    const origin = prior ? prior.from : iss.status;
+    iss.status = status;
+    if (status !== 'approved') delete iss.quote;
+    // Page action `issue set`: goes to that session's Claude on its next prompt.
+    // Reason: setting it back to the status Claude already has cancels the queued change instead of sending a no-op
+    const label = status === 'explained' ? `${id} → explained (undo)` : `${id} → ${status}`;
+    view.queued = view.queued.filter(q => q !== prior);
+    if (status !== origin) view.queued.push({ key, label, issueId: id, from: origin });
+    st.activity.unshift({ ts: clock(), by: 'user', t: 'issue', op: 'set', text: label, fresh: true });
+    renderAll();
+  }
+
+  function stepIssue(delta) {
+    const list = issueList();
+    const pos = list.findIndex(x => x.key === view.selectedIssue);
+    const next = list[pos + delta];
+    if (!next) return;
+    view.selectedIssue = next.key;
+    renderAll();
+  }
+
+  // ---------- Files tab ----------
+  // Kind comes from the filename prefix (same prefixes as repo memory artifacts); order = group order in the list
+  const FILE_KINDS = [
+    { prefix: 'prd_', label: 'PRD', what: 'one per epic; the epic points at it' },
+    { prefix: 'plan_', label: 'Plan', what: 'a plan to execute' },
+    { prefix: 'spec_', label: 'Spec', what: 'decisions other work must follow' },
+    { prefix: 'ref_', label: 'Ref', what: 'facts captured from the world' },
+    { prefix: '', label: 'Other', what: 'no known prefix' },
+  ];
+  const fileName = path => path.split('/').pop();
+  const fileKind = path => FILE_KINDS.find(k => fileName(path).startsWith(k.prefix));
+
+  // PRDs come from the epics (P2: `spec_id`); the rest from the artifacts folder. Grouped by kind, newest first inside a kind
+  function fileList() {
+    const logKey = view.wt;
+    const st = S.states[logKey];
+    const prds = (st.epics || []).filter(ep => ep.prd).map(ep => ({ path: ep.prd.path, md: ep.prd.md, epic: ep, prd: ep.prd }));
+    const files = [...prds, ...(st.artifacts || [])].map(f => ({ ...f, key: `${logKey}|${f.path}`, kind: fileKind(f.path) }));
+    const kindRank = f => FILE_KINDS.indexOf(f.kind);
+    return files.sort((a, b) => kindRank(a) - kindRank(b) || sortKey(b.updated || '').localeCompare(sortKey(a.updated || '')));
+  }
+
+  function fileTitle(f) {
+    return /^# (.*)/m.exec(f.md)?.[1] || fileName(f.path);
+  }
+
+  function fileHTML(f, list) {
+    const pos = list.findIndex(x => x.key === f.key);
+    const prev = list[pos - 1], next = list[pos + 1];
+    const body = f.md.replace(/^# .*\n?/m, '');
+    const sections = [...body.matchAll(/^## (.*)/gm)].map(m => m[1]);
+    const epicPill = f.epic
+      ? `<button class="pill p-src" type="button" data-epic-open="${esc(view.wt)}|${esc(f.epic.id)}" title="open on the Planning tab">${esc(epicLabel(f.epic))}</button>
+        <span>Plan: ${esc(f.prd.plan)} · ${plural(f.prd.review, 'review round')}</span>`
+      : '';
+    const updated = f.updated ? `<span>updated ${esc(f.updated)}${f.by ? ` by ${esc(f.by)}` : ''}</span>` : '';
+    return `<article class="ws">
+      <div class="ws-meta"><span>file ${pos + 1} of ${list.length}</span><span class="pill p-ours" title="${esc(f.kind.what)}">${esc(f.kind.label)}</span>${epicPill}${updated}</div>
+      <h2>${esc(fileTitle(f))}</h2>
+      <div class="prd-path">${esc(f.path)}</div>
+      ${sections.length ? `<nav class="prd-toc" aria-label="Sections">${sections.map(t => `<button class="chip" type="button" data-prd-jump="prd-${slug(t)}">${esc(t)}</button>`).join('')}</nav>` : ''}
+      <div class="md">${mdToHTML(body)}</div>
+      <footer class="ws-foot">
+        ${prev ? `<button class="btn" type="button" data-file-open="${esc(prev.key)}" title="k">‹ ${esc(fileName(prev.path))}</button>` : '<span></span>'}
+        ${next ? `<button class="btn" type="button" data-file-open="${esc(next.key)}" title="j">${esc(fileName(next.path))} ›</button>` : '<span></span>'}
+      </footer></article>`;
+  }
+
+  function renderFiles() {
+    const list = fileList();
+    if (!list.some(x => x.key === view.selectedFile)) view.selectedFile = list[0]?.key ?? null;
+    const row = f => `<button class="is-row fl-row ${f.key === view.selectedFile ? 'sel' : ''}" type="button" data-file-open="${esc(f.key)}">
+      <span class="t">${esc(fileTitle(f))}<span class="fn">${esc(fileName(f.path))}${f.updated ? ` · ${esc(f.updated)}` : ''}</span></span></button>`;
+    const groups = FILE_KINDS.map(k => ({ k, items: list.filter(f => f.kind === k) })).filter(g => g.items.length);
+    const selected = list.find(f => f.key === view.selectedFile);
+
+    document.getElementById('main').innerHTML = `${wtBanner()}
+      <div class="tab-head"><h1>Files</h1>
+        <span class="meta">${plural(list.length, 'file')} in .ernie/mem/${esc(curLog().branch)}/artifacts/ · read-only</span></div>
+      <div class="is-grid">
+        <section class="panel is-list"><div class="panel-body">
+          ${groups.map(g => `<div class="is-group" title="${esc(g.k.what)}"><span>${esc(g.k.label)}</span><span>${g.items.length}</span></div>${g.items.map(row).join('')}`).join('')
+            || '<div class="empty">No files yet. Claude writes PRDs, plans, specs and refs here.</div>'}
+        </div></section>
+        <div>${selected ? fileHTML(selected, list) : '<div class="canvas"><p>No files for this worktree.</p></div>'}</div>
+      </div>`;
+  }
+
+  function stepFile(delta) {
+    const list = fileList();
+    const next = list[list.findIndex(x => x.key === view.selectedFile) + delta];
+    if (!next) return;
+    view.selectedFile = next.key;
+    renderAll();
+  }
+
+  // ---------- Scratch tab ----------
+  // Other formats from ref_ernie_formats.md the tab may take later (codes = that file's sections)
+  const SCRATCH_SOON = [
+    { name: 'Atomic example', what: 'Two real rows side by side, field names as row labels (B1).' },
+    { name: 'Options on one example', what: 'Each option run on the same rows, ★ on the recommended one (B9).' },
+    { name: 'Mapping table', what: 'A-field → B-field, with an analogy (B12).' },
+    { name: 'Timeline', what: 'State over time; good for races and retries (A6).' },
+    { name: 'Before / after', what: '3–5 lines each side instead of a diff (A5).' },
+    { name: 'Annotated mini-lesson', what: 'A code block with notes under it, ready for /pnotes (B11).' },
+    { name: 'Handoff text', what: 'Rewritten for another audience, with a copy button (B8, v2 per A93).' },
+    { name: 'Arrow chain', what: 'Up to 4 hops as a diagram; longer flows stay numbered (A3).' },
+  ];
+
+  const scratchList = () => cur().scratch || [];
+
+  function flowHTML(pad) {
+    const steps = pad.steps.map(s => `<li><div>${esc(s.text)}${s.at ? `<span class="at">${esc(s.at)}</span>` : ''}${s.result ? `<span class="res">${esc(s.result)}</span>` : ''}</div></li>`).join('');
+    return `<dl class="gut">
+      ${pad.asked ? `<dt>Asked</dt><dd class="sc-asked">"${esc(pad.asked)}"</dd>` : ''}
+      ${pad.example ? `<dt>Traced with</dt><dd>${esc(pad.example)}</dd>` : ''}
+      <dt>Steps</dt><dd><ol class="sc-flow">${steps}</ol></dd>
+      ${pad.end ? `<dt>End state</dt><dd>${esc(pad.end)}</dd>` : ''}</dl>`;
+  }
+
+  function renderScratch() {
+    const pads = scratchList();
+    const keyOf = pad => `${view.wt}|${pad.id}`;
+    if (!view.scratchSeen.has(view.wt)) {
+      view.scratchSeen.add(view.wt);
+      if (pads[0]) view.scratchOpen.add(keyOf(pads[0]));
+    }
+    if (!pads.some(p => keyOf(p) === view.selectedScratch)) view.selectedScratch = pads[0] ? keyOf(pads[0]) : null;
+    const row = (pad, i) => {
+      const k = keyOf(pad);
+      const open = view.scratchOpen.has(k);
+      return `<section class="panel panel--ground sc-item ${open ? 'open' : ''} ${k === view.selectedScratch ? 'sel' : ''}">
+        <button class="qf-line" type="button" data-scratch="${esc(k)}" aria-expanded="${open}">
+          <span class="n">#${pads.length - i}</span><span class="t">${esc(pad.title)}</span>
+          <span class="s">${esc(pad.kind)} · ${plural(pad.steps.length, 'step')} · ${esc(pad.ts)}</span></button>
+        ${open ? `<div class="qf-body">${flowHTML(pad)}</div>` : ''}</section>`;
+    };
+    const soon = `<section class="sc-soon"><h2>More formats <span class="pill p-other">coming soon</span></h2>
+      <ul>${SCRATCH_SOON.map(f => `<li><b>${esc(f.name)}</b>${esc(f.what)}</li>`).join('')}</ul></section>`;
+
+    document.getElementById('main').innerHTML = `${wtBanner()}
+      <div class="tab-head"><h1>Scratch</h1>
+        <span class="meta">${plural(pads.length, 'pad')} · Claude writes these when you ask for an explanation · newest first · read-only</span></div>
+      ${pads.map(row).join('') || '<div class="empty">No pads yet. Ask Claude to explain a flow in order and it lands here.</div>'}
+      ${pads.length ? '<div class="qf-keys">j / k next pad · o open / close</div>' : ''}
+      ${soon}`;
+  }
+
+  function toggleScratch(k) {
+    if (!k) return;
+    if (view.scratchOpen.has(k)) view.scratchOpen.delete(k);
+    else view.scratchOpen.add(k);
+    view.selectedScratch = k;
+    renderAll();
+  }
+
+  function stepScratch(delta) {
+    const pads = scratchList();
+    const next = pads[pads.findIndex(p => `${view.wt}|${p.id}` === view.selectedScratch) + delta];
+    if (!next) return;
+    view.selectedScratch = `${view.wt}|${next.id}`;
+    view.scratchOpen.add(view.selectedScratch);
+    renderAll();
+  }
+
+  // ---------- Tool log tab ----------
+  const isToolRow = a => a.t === 'tool' || a.t === 'file';
+  // Reason: sample times are bare HH:MM:SS (today) or "yesterday HH:MM"; prefix so a string sort puts today first
+  const sortKey = ts => /^\d\d:\d\d:\d\d$/.test(ts) ? '1' + ts : '0' + ts;
+
+  // P3 Q5: sessions are a filter, not a container. Only activity rows carry `sid` (A123); Claude's and your item events don't,
+  // so picking one session hides them
+  function mergedRows() {
+    const f = view.logFilter;
+    return cur().activity
+      .filter(a => (f.events || isToolRow(a))
+        && (f.session === 'all' || a.sid === f.session)
+        && (f.tool === 'all' || a.tool === f.tool)
+        && !(f.hideAgents && a.agent)
+        && (!f.filesOnly || a.t === 'file'))
+      .sort((a, b) => sortKey(b.ts).localeCompare(sortKey(a.ts)));
+  }
+
+  // Sessions seen in this worktree's activity, newest first; the live one is marked
+  function sessionsOf() {
+    const seen = [];
+    cur().activity.forEach(a => { if (a.sid && !seen.includes(a.sid)) seen.push(a.sid); });
+    return seen;
+  }
+
+  // Descriptions (Bash, Agent) and item events read as prose; paths, globs, patterns and URLs stay mono
+  const PROSE_TOOLS = ['Bash', 'Agent'];
+  function rowHtml(a) {
+    const kind = a.t === 'tool' ? 'tl' : a.t === 'file' ? 'file' : `ev by-${a.by}`;
+    const who = isToolRow(a) ? a.tool : a.by === 'user' ? 'you' : a.by;
+    const text = a.text ? esc(a.text) : '';
+    const prose = !isToolRow(a) || PROSE_TOOLS.includes(a.tool);
+    const tags = (a.t === 'file' ? '<span class="tag file">file</span>' : '') + (a.agent ? `<span class="tag">${esc(a.agent)}</span>` : '');
+    return `<li class="${kind} ${a.fresh ? 'fresh' : ''}"><span class="cell">${esc(a.ts.replace('yesterday', 'yday'))}</span>
+      <span class="cell tool" title="${esc(who)}">${esc(who)}</span>
+      <span class="txt ${text ? (prose ? 'prose' : '') : 'none'}" ${text ? '' : 'title="no description"'}>${text || '—'}${tags}</span></li>`;
+  }
+
+  // One divider row each time the session changes; item events carry no session and stay under the one above them
+  function sessionDivider(sid) {
+    const live = sid === curLog().session.id;
+    return `<li class="sess ${live ? 'now' : ''}">session ${esc(sid)}${live ? ' · current' : ''}</li>`;
+  }
+
+  function renderLogTab() {
+    const f = view.logFilter;
+    const sessions = sessionsOf();
+    if (f.session !== 'all' && !sessions.includes(f.session)) f.session = 'all';
+    const liveSid = curLog().session.id;
+    const tools = [...new Set(cur().activity.filter(isToolRow).map(a => a.tool))].sort();
+    document.getElementById('main').innerHTML = `${wtBanner()}
+      <div class="tab-head"><h1>Tool log</h1><span class="meta" id="log-count"></span></div>
+      <section class="panel panel--ground">
+        <div class="filters">
+          <select id="log-session" aria-label="Session"><option value="all">all sessions (${sessions.length})</option>${sessions.map(sid =>
+            `<option value="${esc(sid)}" ${f.session === sid ? 'selected' : ''}>${esc(sid)}${sid === liveSid ? ' · current' : ''}</option>`).join('')}</select>
+          <select id="log-tool" aria-label="Tool"><option value="all">all tools</option>${tools.map(t => `<option ${f.tool === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+          <label><input type="checkbox" id="log-agents" ${f.hideAgents ? 'checked' : ''}>hide subagents</label>
+          <label><input type="checkbox" id="log-files" ${f.filesOnly ? 'checked' : ''}>files only</label>
+          <label><input type="checkbox" id="log-events" ${f.events ? 'checked' : ''}>+ ernie events</label>
+        </div>
+        <ul class="feed" id="feed"></ul>
+      </section>`;
+    renderFeed();
+  }
+
+  function renderFeed() {
+    const feed = document.getElementById('feed');
+    if (!feed) return;
+    const rows = mergedRows();
+    let lastSid = null;
+    const body = rows.map(a => {
+      const divider = a.sid && a.sid !== lastSid ? sessionDivider(a.sid) : '';
+      if (a.sid) lastSid = a.sid;
+      return divider + rowHtml(a);
+    }).join('');
+    feed.innerHTML = `<li class="head"><span>Time</span><span>Tool</span><span>What</span></li>`
+      + (body || '<li><span></span><span></span><span class="txt none">nothing matches</span></li>');
+    document.getElementById('log-count').textContent = `${rows.length} rows · newest first · Bash shows its description, never the command`;
+  }
+
+  // ---------- Home tab: open questions ----------
+  // Questions live in items.jsonl (P4 Q1) and replace queue.md "qs" (P4 Q2). An answer is a page op `question answer`
+  // that reaches Claude with this session's next prompt; "need more context" sends `{more: true}` and keeps it open (A88)
+  // Reason: an answer still waiting for the next prompt keeps its card (with Undo) until it's delivered
+  const isOpen = q => !q.answer || q.more || view.queued.some(x => x.questionKey === `${view.wt}|${q.id}`);
+
+  // Open questions as a focus list: one line each with its status; the selected question opens with Context /
+  // If wrong / Example / Answer in a left gutter. Keys on Home: j/k move, 1–9 answer, m need more context, u undo
+  function questionList(open) {
+    if (!open.some(q => `${view.wt}|${q.id}` === view.selectedQuestion)) view.selectedQuestion = open[0] ? `${view.wt}|${open[0].id}` : null;
+    return open.map((q, i) => {
+        const k = `${view.wt}|${q.id}`;
+        const on = k === view.selectedQuestion;
+        const sent = view.queued.find(x => x.questionKey === k);
+        const choices = q.choices || [];
+        const title = `${q.kind === 'assume' ? 'I assumed ' : ''}${esc(q.text)}${q.kind === 'assume' ? '. True?' : ''}`;
+        const status = sent ? `<span class="s warn">sent · ${esc(sent.label)}</span>`
+          : q.more ? '<span class="s warn">asked for more context</span>'
+          : q.recommended ? `<span class="s rec">★ ${esc(q.recommended)}</span>`
+          : '<span class="s"></span>';
+        const ex = q.example && cur().examples.find(e => e.name === q.example);
+        // Reason: assumption checks are yes/no only (A113), so they get no free-text box
+        const other = q.kind === 'assume' ? '' : `<form class="other" data-answer-form="${esc(k)}">
+          <input name="text" placeholder="other answer…" aria-label="Other answer for ${esc(q.id)}"><button class="btn" type="submit">Send</button></form>`;
+        const answerRow = sent
+          ? `<div class="qf-sent">→ ${esc(sent.label)} · goes with your next prompt <button class="btn" type="button" data-answer-undo="${esc(k)}">Undo</button></div>`
+          : `<div class="kbtns">${choices.map((c, n) => `<button class="kbtn ${c === q.recommended ? 'rec' : ''}" type="button" data-answer="${esc(k)}" data-text="${esc(c)}">
+              <kbd>${n + 1}</kbd>${esc(c)}${c === q.recommended ? '<small>recommended</small>' : ''}</button>`).join('')}
+            <button class="kbtn" type="button" data-answer="${esc(k)}" data-more="1"><kbd>m</kbd>need more context</button></div>${other}`;
+        const body = !on ? '' : `<div class="qf-body"><dl class="gut">
+          ${q.context ? `<dt>Context</dt><dd>${esc(q.context)}</dd>` : ''}
+          ${q.impact ? `<dt>If wrong</dt><dd class="impact">${esc(q.impact)}</dd>` : ''}
+          ${ex ? `<dt>Example</dt><dd>${exampleHTML(ex)}</dd>` : ''}
+          ${q.ref ? `<dt>About</dt><dd>${esc(q.ref)}</dd>` : ''}
+          <dt>Answer</dt><dd>${answerRow}<div class="qf-keys">j / k next question${sent ? ' · u undo' : ''}</div></dd></dl></div>`;
+        return `<div class="qf-item ${on ? 'sel' : ''}"><button class="qf-line" type="button" data-question="${esc(k)}">
+          <span class="n">Q${i + 1}</span><span class="t">${title}</span>${status}</button>${body}</div>`;
+      }).join('');
+  }
+
+  function stepQuestion(delta) {
+    const open = cur().questions.filter(isOpen);
+    const pos = open.findIndex(q => `${view.wt}|${q.id}` === view.selectedQuestion);
+    const next = open[pos + delta];
+    if (!next) return;
+    view.selectedQuestion = `${view.wt}|${next.id}`;
+    renderAll();
+  }
+
+  // Home keys act on the selected question
+  function questionKey(key) {
+    const k = view.selectedQuestion;
+    if (!k) return;
+    const sent = view.queued.some(x => x.questionKey === k);
+    if (key === 'u') return sent && undoAnswer(k);
+    if (sent) return;
+    if (key === 'm') return answerQuestion(k, '', true);
+    const [logKey, id] = k.split('|');
+    const choice = (S.states[logKey].questions.find(q => q.id === id)?.choices || [])[+key - 1];
+    if (choice) answerQuestion(k, choice, false);
+  }
+
+  // Where work is: active epic, its active bead, and what `bd ready` would hand out next (todo, every dep done)
+  function workCard() {
+    const st = cur();
+    const all = beadsOf(view.wt);
+    if (!all.length) return panel('Where work is', '', '<div class="empty">No epics or beads for this worktree.</div>');
+    const activeEpic = (st.epics || []).find(ep => ep.status === 'active');
+    const activeBead = all.find(x => x.b.status === 'active' && (!activeEpic || x.ep === activeEpic)) || all.find(x => x.b.status === 'active');
+    const doneIds = new Set(all.filter(x => x.b.status === 'done').map(x => x.b.id));
+    const ready = all.filter(x => x.b.status === 'todo' && (x.b.deps || []).every(id => doneIds.has(id)));
+    return panel('Where work is', '', `<div class="kv">
+      ${activeEpic ? `<div><span class="k">Epic</span><span><button class="chip" type="button" data-epic-open="${esc(view.wt)}|${esc(activeEpic.id)}">${esc(epicLabel(activeEpic))}</button>${progressBar(activeEpic.beads)}</span></div>` : ''}
+      <div><span class="k">Now</span><span>${activeBead ? beadChip(activeBead) : '<span class="hint">no active bead</span>'}</span></div>
+      <div><span class="k">Ready</span>${ready.length ? `<div class="chips">${ready.slice(0, 3).map(beadChip).join('')}</div>` : '<span class="hint">nothing ready</span>'}</div>
+    </div>`);
+  }
+
+  // What the next prompt's hook will inject: the sample's pending events plus this page's queued ones
+  function inboxPanel() {
+    const st = cur();
+    const lines = [...st.pending.map(p => p.label), ...view.queued.filter(q => q.key === view.wt).map(q => q.label)];
+    const body = lines.length
+      ? `<div class="inbox"><div>ernie inbox · turn ${st.turn + 1}</div>${lines.map(t => `<div>- ${esc(t)}</div>`).join('')}</div>`
+      : '<div class="empty">Nothing queued; the next prompt delivers nothing.</div>';
+    return panel('Next prompt delivers', lines.length, body);
+  }
+
+  // Page op `note add`: goes to Claude with the next prompt and stays on the page
+  function notePanel() {
+    const notes = cur().notes.slice(-3).reverse();
+    return panel('Add a note', '', `<form class="note-form" data-note-form>
+        <input name="text" placeholder="note for Claude…" aria-label="Note for Claude"><button class="btn" type="submit">Add</button></form>
+      ${notes.length ? `<ul class="answered" style="margin-top:10px">${notes.map(n => `<li><span class="item-id">${esc(n.id)}</span>${esc(n.text)}</li>`).join('')}</ul>` : ''}`);
+  }
+
+  function opsPanel() {
+    const ops = cur().ops || [];
+    return panel('Ops', ops.length, ops.length
+      ? `<ol class="ops">${ops.map(o => `<li>${esc(o)}</li>`).join('')}</ol><div class="hint" style="margin-top:8px">this worktree's standing instructions · add with *op</div>`
+      : '<div class="empty">No ops for this worktree. Add with *op.</div>');
+  }
+
+  function renderHome() {
+    const st = cur();
+    const open = st.questions.filter(isOpen);
+    const answered = st.questions.filter(q => !isOpen(q));
+    const answeredList = answered.length
+      ? `<ul class="answered">${answered.map(q => `<li><span class="item-id">${esc(q.id)}</span>${esc(q.text)}<br><span class="a">→ ${esc(q.answer)}</span></li>`).join('')}</ul>`
+      : '<div class="empty">Nothing answered yet.</div>';
+    document.getElementById('main').innerHTML = `${wtBanner()}
+      <div class="tab-head"><h1>Home</h1>
+        <span class="meta">${open.length} open question${open.length === 1 ? '' : 's'} · ${answered.length} answered</span></div>
+      <div class="home-top">${workCard()}${inboxPanel()}${notePanel()}</div>
+      ${open.length
+        ? questionList(open)
+        : '<div class="canvas" style="min-height:200px"><p>No open questions for this worktree.</p></div>'}
+      <div class="home-bottom">${panel('Answered', answered.length, answeredList)}${opsPanel()}</div>`;
+  }
+
+  function addNote(text) {
+    const st = cur();
+    const id = `n${Math.max(0, ...st.notes.map(n => +n.id.slice(1))) + 1}`;
+    st.notes.push({ id, text });
+    view.queued.push({ key: view.wt, label: `note: ${text}` });
+    logRow(view.wt, { by: 'user', t: 'note', op: 'add', text: `${id} ${text}` });
+    renderAll();
+  }
+
+  // Answer, or ask for more context. Undo before the next prompt cancels the queued answer
+  function answerQuestion(k, text, more) {
+    const [key, id] = k.split('|');
+    const q = S.states[key].questions.find(x => x.id === id);
+    const label = more ? `${id}: need more context` : `${id} → ${text}`;
+    view.queued.push({ key, label, questionKey: k, before: { answer: q.answer, more: q.more } });
+    // Reason: the fold applies the answer as soon as the page writes it; only delivery to Claude waits for the prompt
+    Object.assign(q, more ? { more: true } : { answer: text, more: false });
+    logRow(key, { by: 'user', t: 'question', op: 'answer', text: label });
+    renderAll();
+  }
+
+  function undoAnswer(k) {
+    const sent = view.queued.find(x => x.questionKey === k);
+    const [key, id] = k.split('|');
+    Object.assign(S.states[key].questions.find(x => x.id === id), sent.before);
+    view.queued = view.queued.filter(x => x !== sent);
+    renderAll();
+  }
+
+  // ---------- Settings panel ----------
+  function settingErrors(draft) {
+    const errors = {};
+    Object.entries(SETTING_RANGES).forEach(([name, [lo, hi]]) => {
+      const n = draft[name];
+      if (!Number.isInteger(n) || n < lo || n > hi) errors[name] = `${lo}–${hi}`;
+    });
+    if (!errors.prdMin && !errors.prdMax && draft.prdMin > draft.prdMax) errors.prdMax = 'max below min';
+    if (!errors.reviewMin && !errors.reviewMax && draft.reviewMin > draft.reviewMax) errors.reviewMax = 'max below min';
+    return errors;
+  }
+  const settingsDirty = () => Object.keys(SETTING_RANGES).some(name => view.settingsDraft[name] !== S.settings[name]);
+
+  function renderSettings() {
+    const box = document.getElementById('settings');
+    const btn = document.getElementById('settings-btn');
+    document.getElementById('queue-paused').hidden = !S.settings.queuePaused;
+    btn.setAttribute('aria-expanded', String(view.settingsOpen));
+    box.hidden = !view.settingsOpen;
+    if (!view.settingsOpen) return;
+    const d = view.settingsDraft;
+    const num = name => `<input type="number" inputmode="numeric" data-setting="${name}" min="${SETTING_RANGES[name][0]}" max="${SETTING_RANGES[name][1]}" value="${d[name]}" aria-label="${name}"><span class="err" data-err="${name}"></span>`;
+    const log = curLog();
+    const kind = S.repoKinds?.[log.repo] || 'not set';
+    const paused = S.settings.queuePaused;
+    box.innerHTML = `
+      <div class="panel-head"><span>Settings · every repo</span><button class="btn" type="button" data-settings-toggle aria-label="Close settings">✕</button></div>
+      <div class="panel-body">
+        <section>
+          <div class="sub">Agent loop</div>
+          <dl class="gut">
+            <dt>Queue</dt><dd><div class="kbtns">
+              <button class="kbtn ${paused ? '' : 'rec'}" type="button" data-queue-set="run" aria-pressed="${!paused}">Running</button>
+              <button class="kbtn ${paused ? 'rec' : ''}" type="button" data-queue-set="pause" aria-pressed="${paused}">Paused</button></div>
+              <p class="hint">${paused ? 'Ticked beads wait. Nothing new starts until you press Running.' : 'Claude works through ticked beads in order.'} Applies at once; Claude finishes the step it's on.</p></dd>
+            <dt>Polish batch</dt><dd>${num('polishBatch')}<p class="hint">Beads per polish agent. 30 beads at 10 → 3 agents per round.</p></dd>
+            <dt>Polish rounds</dt><dd><span class="pair">up to ${num('polishRounds')}</span><p class="hint">Stops sooner after a round with only small fixes, or when edits stop shrinking.</p></dd>
+            <dt>PRD review</dt><dd><span class="pair">min ${num('prdMin')} max ${num('prdMax')}</span><p class="hint">Rounds before you approve the PRD. Each is a fresh agent.</p></dd>
+            <dt>Code review</dt><dd><span class="pair">min ${num('reviewMin')} max ${num('reviewMax')}</span><p class="hint">Rounds per finished bead. Stops at the first clean round after the min; at the max it flags the bead and moves on.</p></dd>
+          </dl>
+        </section>
+        <section>
+          <div class="sub">This machine · read-only</div>
+          <dl class="gut">
+            <dt>Port</dt><dd><span class="ro">7477</span><span class="hint">ERNIE_PORT</span></dd>
+            <dt>State folder</dt><dd><span class="ro">~/.local/state/ernie</span><span class="hint">ERNIE_HOME</span></dd>
+            <dt>Repo kind</dt><dd><span class="ro">${esc(log.repo)} · ${esc(kind)}</span><span class="hint">git config · set by <code>ernie init</code></span></dd>
+            <dt>Beads push</dt><dd><span class="ro">${kind === 'personal' ? 'on · every 5 min' : 'off · stealth'}</span><span class="hint">bd config dolt.auto-push</span></dd>
+          </dl>
+        </section>
+        <div class="actions">
+          <button class="btn btn--primary" type="button" data-settings-save>Save</button>
+          <button class="btn" type="button" data-settings-reset>Reset to defaults</button>
+          <span class="msg" id="settings-msg"></span>
+        </div>
+      </div>`;
+    updateSettingsState();
+  }
+
+  // Refreshes Save, errors and the message without re-rendering, so a number input keeps focus while typing
+  function updateSettingsState() {
+    const errors = settingErrors(view.settingsDraft);
+    document.querySelectorAll('#settings [data-err]').forEach(el => { el.textContent = errors[el.dataset.err] || ''; });
+    const dirty = settingsDirty();
+    document.querySelector('#settings [data-settings-save]').disabled = !dirty || Object.keys(errors).length > 0;
+    document.getElementById('settings-msg').textContent = dirty ? 'Unsaved changes.' : view.settingsMsg;
+  }
+
+  function toggleSettings(open = !view.settingsOpen) {
+    view.settingsOpen = open;
+    view.settingsDraft = open ? { ...S.settings } : null;
+    view.settingsMsg = '';
+    renderSettings();
+  }
+
+  function renderAll() {
+    pickWorktree();
+    renderPicker();
+    renderTabs();
+    renderSettings();
+    if (view.active === 'planning') renderPlanning();
+    else if (view.active === 'issues') renderIssues();
+    else if (view.active === 'facts') renderFacts();
+    else if (view.active === 'scratch') renderScratch();
+    else if (view.active === 'files') renderFiles();
+    else if (view.active === 'log') renderLogTab();
+    else renderHome();
+    Object.values(S.states).forEach(st => st.activity.forEach(a => { a.fresh = false; }));
+  }
+
+  function openTab(key) {
+    view.active = key;
+    if (key === 'log') view.logUnseen = 0;
+    history.replaceState(null, '', key === 'home' ? location.pathname : `#${key}`);
+    renderAll();
+  }
+
+  // ---------- Events ----------
+  document.addEventListener('click', e => {
+    const t = e.target;
+    if (t.closest('[data-settings-toggle]')) return toggleSettings();
+    // A click outside the open panel closes it (unsaved number edits are dropped) and still does its own thing
+    if (view.settingsOpen && !t.closest('#settings')) toggleSettings(false);
+    const queueSet = t.closest('[data-queue-set]');
+    if (queueSet) {
+      S.settings.queuePaused = queueSet.dataset.queueSet === 'pause';
+      view.settingsMsg = S.settings.queuePaused ? 'Queue paused.' : 'Queue running.';
+      return renderSettings();
+    }
+    if (t.closest('[data-settings-save]')) {
+      Object.keys(SETTING_RANGES).forEach(name => { S.settings[name] = view.settingsDraft[name]; });
+      view.settingsMsg = 'Saved to ~/.config/ernie/settings.json.';
+      return renderSettings();
+    }
+    if (t.closest('[data-settings-reset]')) {
+      Object.keys(SETTING_RANGES).forEach(name => { view.settingsDraft[name] = SETTINGS_DEFAULTS[name]; });
+      return renderSettings();
+    }
+    const tab = t.closest('[data-tab]');
+    if (tab) return openTab(tab.dataset.tab);
+
+    // Epic and bead chips can sit on other tabs (a decision's ref, a finding's source); they open the Planning tab
+    const variant = t.closest('[data-variant]');
+    if (variant) return setVariant(variant.dataset.variant);
+    if (t.closest('[data-epic-detail]')) {
+      view.epicOpen = !t.closest('[data-epic-detail]').classList.contains('sel');
+      view.prdOpen = false;
+      return renderAll();
+    }
+    const stageOpen = t.closest('[data-stage-open]');
+    if (stageOpen) {
+      const i = Number(stageOpen.dataset.stageOpen);
+      view.stageOpen = view.stageOpen === i ? null : i;
+      view.prdOpen = false;
+      return renderAll();
+    }
+    if (t.closest('[data-stage-close]')) {
+      view.stageOpen = null;
+      return renderAll();
+    }
+    const epicOpen = t.closest('[data-epic-open]');
+    if (epicOpen) {
+      if (epicOpen.dataset.epicOpen !== view.selectedEpic) { view.epicOpen = null; view.stageOpen = null; }
+      view.selectedEpic = epicOpen.dataset.epicOpen;
+      return view.active === 'planning' ? renderAll() : openTab('planning');
+    }
+    const beadOpen = t.closest('[data-bead-open]');
+    if (beadOpen) {
+      const [logKey, epicId] = beadOpen.dataset.beadOpen.split('|');
+      view.wt = logKey;
+      view.selectedEpic = `${logKey}|${epicId}`;
+      view.selectedBead = beadOpen.dataset.beadOpen;
+      view.prdOpen = false;
+      view.epicOpen = false;
+      view.stageOpen = null;
+      return view.active === 'planning' ? renderAll() : openTab('planning');
+    }
+    if (t.closest('[data-prd-toggle]')) {
+      view.prdOpen = !view.prdOpen;
+      return renderAll();
+    }
+    const prdJump = t.closest('[data-prd-jump]');
+    if (prdJump) return document.getElementById(prdJump.dataset.prdJump)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const issueJump = t.closest('[data-issue-jump]');
+    if (issueJump) {
+      view.wt = issueJump.dataset.issueJump.split('|')[0];
+      view.selectedIssue = issueJump.dataset.issueJump;
+      return openTab('issues');
+    }
+    // P3 Q4: archive writes a `<branch>.archived` marker (implies off); restore removes it. Neither reaches Claude
+    const archive = t.closest('[data-archive]');
+    if (archive) {
+      Object.assign(logOf(archive.dataset.archive), { archived: true, on: false });
+      return renderAll();
+    }
+    const restore = t.closest('[data-restore]');
+    if (restore) {
+      logOf(restore.dataset.restore).archived = false;
+      return renderAll();
+    }
+    const research = t.closest('[data-research]');
+    if (research) return startResearch(research.dataset.research);
+    const factKindPill = t.closest('[data-fact-kind]');
+    if (factKindPill) {
+      const kind = factKindPill.dataset.factKind;
+      view.factsKind = view.factsKind === kind ? 'all' : kind;
+      return renderAll();
+    }
+    const question = t.closest('[data-question]');
+    if (question) { view.selectedQuestion = question.dataset.question; return renderAll(); }
+    const answer = t.closest('[data-answer]');
+    if (answer) return answerQuestion(answer.dataset.answer, answer.dataset.text, !!answer.dataset.more);
+    const factUndo = t.closest('[data-fact-undo]');
+    if (factUndo) {
+      const [key, id] = factUndo.dataset.factUndo.split('|');
+      const sent = view.queued.find(q => q.key === key && q.fact?.id === id);
+      S.states[key].facts.splice(sent.index, 0, sent.fact);
+      view.queued = view.queued.filter(q => q !== sent);
+      return renderAll();
+    }
+    const answerUndo = t.closest('[data-answer-undo]');
+    if (answerUndo) return undoAnswer(answerUndo.dataset.answerUndo);
+    const scratch = t.closest('[data-scratch]');
+    if (scratch) return toggleScratch(scratch.dataset.scratch);
+    const fileOpen = t.closest('[data-file-open]');
+    if (fileOpen) { view.selectedFile = fileOpen.dataset.fileOpen; return renderAll(); }
+    const issueOpen = t.closest('[data-issue-open]');
+    if (issueOpen) { view.selectedIssue = issueOpen.dataset.issueOpen; return renderAll(); }
+    const issueSet = t.closest('[data-issue-set]');
+    if (issueSet) return setIssue(issueSet.dataset.issueSet, issueSet.dataset.to);
+    const copy = t.closest('[data-copy]');
+    if (copy) {
+      navigator.clipboard?.writeText(copy.dataset.copy).catch(() => {});
+      view.copied = copy.dataset.copy;
+      return renderAll();
+    }
+    const method = t.closest('[data-method]');
+    if (method) {
+      const k = method.dataset.method;
+      view.shownMethods.has(k) ? view.shownMethods.delete(k) : view.shownMethods.add(k);
+      return renderAll();
+    }
+    const dismiss = t.closest('[data-dismiss]');
+    if (dismiss) {
+      // Page action `fact dismiss`: goes to that session's Claude on its next prompt
+      const [key, id] = dismiss.dataset.dismiss.split('|');
+      const st = S.states[key];
+      const fact = st.facts.find(f => f.id === id);
+      view.queued.push({ key, label: `dismissed ${id}`, fact, index: st.facts.indexOf(fact) });
+      st.facts = st.facts.filter(f => f !== fact);
+      st.activity.unshift({ ts: clock(), by: 'user', t: 'fact', op: 'dismiss', text: `dismissed ${id} "${fact.text}"`, fresh: true });
+      return renderAll();
+    }
+  });
+
+  document.addEventListener('submit', e => {
+    const noteForm = e.target.closest('[data-note-form]');
+    if (noteForm) {
+      e.preventDefault();
+      const text = noteForm.elements.text.value.trim();
+      return text && addNote(text);
+    }
+    const form = e.target.closest('[data-answer-form]');
+    if (!form) return;
+    e.preventDefault();
+    const text = form.elements.text.value.trim();
+    if (text) answerQuestion(form.dataset.answerForm, text, false);
+  });
+
+  document.addEventListener('input', e => {
+    const field = e.target.closest('[data-setting]');
+    if (!field) return;
+    view.settingsDraft[field.dataset.setting] = field.value === '' ? NaN : Number(field.value);
+    updateSettingsState();
+  });
+
+  document.addEventListener('change', e => {
+    const f = view.logFilter;
+    const id = e.target.id;
+    if (id === 'scheme-pick') return applyScheme(e.target.value);
+    if (id === 'wt-pick') {
+      view.wt = e.target.value;
+      view.logUnseen = 0;
+      return renderAll();
+    }
+    if (id === 'log-session') f.session = e.target.value;
+    else if (id === 'log-tool') f.tool = e.target.value;
+    else if (id === 'log-agents') f.hideAgents = e.target.checked;
+    else if (id === 'log-files') f.filesOnly = e.target.checked;
+    else if (id === 'log-events') f.events = e.target.checked;
+    else return;
+    renderFeed();
+  });
+
+  // Settings: `,` opens or closes, esc closes. Any tab: g then h/p/i/f/s/a/l switches tab. Files keys: j/k (or [ ]) prev/next.
+  // Scratch keys: j/k (or [ ]) prev/next pad, o open/close. Home keys: j/k, 1–9, m, u (open
+  // questions). Planning keys: j/k (or [ ]) prev/next bead, { } prev/next epic, p PRD, esc back. Issues keys: j/k (or [ ])
+  // prev/next, a approve, d dismiss, u undo. Ignored while typing.
+  const GO_KEYS = { h: 'home', p: 'planning', i: 'issues', f: 'facts', s: 'scratch', a: 'files', l: 'log' };
+  let goPending = 0; // time `g` was pressed; the next key within 1 s picks a tab
+  document.addEventListener('keydown', e => {
+    if (view.settingsOpen && e.key === 'Escape') {
+      toggleSettings(false);
+      return document.getElementById('settings-btn').focus();
+    }
+    if (e.target.closest?.('input, select, textarea') || e.metaKey || e.ctrlKey) return;
+    if (e.key === ',') return toggleSettings();
+    // Tab keys stay off while the panel is open
+    if (view.settingsOpen) return;
+    if (Date.now() - goPending < 1000) {
+      goPending = 0;
+      return GO_KEYS[e.key] && openTab(GO_KEYS[e.key]);
+    }
+    if (e.key === 'g') { goPending = Date.now(); return; }
+    if (view.active === 'home') {
+      if (e.key === 'j' || e.key === 'k') return stepQuestion(e.key === 'j' ? 1 : -1);
+      return questionKey(e.key);
+    }
+    if (view.active === 'planning') {
+      if (e.key === 'p' || (e.key === 'Escape' && view.prdOpen)) {
+        view.prdOpen = e.key === 'p' ? !view.prdOpen : false;
+        return renderAll();
+      }
+      const variantKey = { 1: 'a', 2: 'b', 3: 'c' }[e.key];
+      if (variantKey) return setVariant(variantKey);
+      if (e.key === 'e' && view.variant === 'b') {
+        view.epicOpen = !document.querySelector('[data-epic-detail].sel');
+        return renderAll();
+      }
+      if (e.key === 'Escape' && (view.stageOpen != null || document.querySelector('[data-epic-detail].sel'))) {
+        view.stageOpen = null;
+        view.epicOpen = false;
+        return renderAll();
+      }
+      const step = { k: () => stepBead(-1), j: () => stepBead(1), '[': () => stepBead(-1), ']': () => stepBead(1), '{': () => stepEpic(-1), '}': () => stepEpic(1) }[e.key];
+      return step?.();
+    }
+    if (view.active === 'scratch') {
+      if (e.key === 'k' || e.key === '[') return stepScratch(-1);
+      if (e.key === 'j' || e.key === ']') return stepScratch(1);
+      if (e.key === 'o') return toggleScratch(view.selectedScratch);
+      return;
+    }
+    if (view.active === 'files') {
+      if (e.key === 'k' || e.key === '[') return stepFile(-1);
+      if (e.key === 'j' || e.key === ']') return stepFile(1);
+      return;
+    }
+    if (view.active !== 'issues') return;
+    if (e.key === 'k' || e.key === '[') return stepIssue(-1);
+    if (e.key === 'j' || e.key === ']') return stepIssue(1);
+    if (!view.selectedIssue) return;
+    const [key, id] = view.selectedIssue.split('|');
+    const status = S.states[key].issues.find(i => i.id === id)?.status;
+    // Same moves as the Decide row's buttons for that status
+    const to = {
+      a: status === 'explained' && 'approved',
+      d: (status === 'explained' || status === 'approved') && 'dismissed',
+      u: (status === 'approved' || status === 'dismissed') && 'explained',
+    }[e.key];
+    if (to) setIssue(view.selectedIssue, to);
+  });
+
+  // ---------- Simulated liveness: the working session keeps calling tools (PostToolUse → tool run / file touch) ----------
+  // Reason: the mock clock continues from the sample's newest row so new rows sort against sample times
+  let simSeconds = 14 * 3600 + 21 * 60 + 8;
+  const clock = () => { simSeconds += 4; return new Date(simSeconds * 1000).toISOString().slice(11, 19); };
+  const LIVE_ROWS = [
+    { t: 'tool', tool: 'Read', text: 'loader/hash.py' },
+    { t: 'tool', tool: 'Grep', text: 'page_location', agent: 'Explore' },
+    { t: 'file', tool: 'Edit', text: 'sql/views/sessions.sql' },
+    { t: 'tool', tool: 'Bash', text: 'Re-run dedupe probe after normalizing' },
+    { t: 'tool', tool: 'Glob', text: 'sql/views/*.sql', agent: 'Explore' },
+    { t: 'tool', tool: 'Bash', text: '' },
+    { t: 'tool', tool: 'Bash', text: 'Compare September session counts before and after' },
+  ];
+  let liveIndex = 0;
+  setInterval(() => {
+    const row = LIVE_ROWS[liveIndex++ % LIVE_ROWS.length];
+    const working = S.logs.filter(l => l.on && !l.archived && l.session.state === 'working');
+    working.forEach(log => {
+      const st = S.states[log.key];
+      st.activity.unshift({ ts: clock(), by: 'hook', op: row.t === 'file' ? 'touch' : 'run', ...row, sid: log.session.id, fresh: true });
+      st.activity.length = Math.min(st.activity.length, 350);
+      log.session.lastEventAgo = '0s';
+    });
+    // Only the picked worktree's rows count toward the Tool log badge
+    if (working.some(l => l.key === view.wt)) {
+      if (view.active === 'log') renderFeed();
+      else { view.logUnseen += 1; renderTabs(); }
+    }
+    Object.values(S.states).forEach(st => st.activity.forEach(a => { a.fresh = false; }));
+  }, 4000);
+
+  // Colour scheme: retro is the default (no attribute); the pick is remembered per browser
+  const SCHEMES = ['retro', 'original', 'original-light'];
+  function applyScheme(scheme) {
+    if (!SCHEMES.includes(scheme)) scheme = 'retro';
+    if (scheme === 'retro') delete document.documentElement.dataset.scheme;
+    else document.documentElement.dataset.scheme = scheme;
+    document.getElementById('scheme-pick').value = scheme;
+    try { localStorage.setItem('ernie-scheme', scheme); } catch (err) { /* storage blocked: pick lasts this visit */ }
+  }
+  let savedScheme = null;
+  try { savedScheme = localStorage.getItem('ernie-scheme'); } catch (err) { /* storage blocked */ }
+  applyScheme(savedScheme);
+
+  // Deep link: #planning, #issues, #facts, #scratch, #files or #log
+  // ?e=E3 opens that dedupe epic on Planning (for screenshots of one state)
+  const epicParam = new URLSearchParams(location.search).get('e');
+  if (epicParam) view.selectedEpic = `glue/CDIT-2631-ga4-dedupe|${epicParam}`;
+  const hashKey = decodeURIComponent(location.hash.slice(1));
+  if (isTab(hashKey)) openTab(hashKey); else renderAll();
+</script>
+</body>
+</html>

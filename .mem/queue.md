@@ -1,8 +1,8 @@
 ---
-updated: 2026-10-15
+updated: 2026-10-16
 ---
 ## next
-- [ernie] next session: P6 resume at Q2/6 (epic timeline shape; recommended vertical stage list w/ inline round chips) → backlog "P6 review visualization — IN PROGRESS". P4 amendments A115–A123 in plan §0 (not folded); fold later in one pass w/ C1, C2, P2, P3, page buttons, Beads type drop (plan Open #11)
+- [ernie] next session: P6 resume at Q3/6 (approval gates: what the epic detail's last row offers) → backlog "P6 review visualization — IN PROGRESS". P4 amendments A115–A123 in plan §0 (not folded); fold later in one pass w/ C1, C2, P2, P3, page buttons, Beads type drop (plan Open #11)
 - [ui] template missing Beads workflow buttons (queue tick, Send back, Review again, Polish again, + Bead); place w/ P6 G2/G3
 - [ernie] `ernie init` (personal) also writes `.gitattributes` line `.ernie/mem/**/items.jsonl merge=union` + sets bd `events-journal true` (P4 F3/Q4)
 - [ernie] when ernie memory lands: user migrates old `.mem/queue.md` items → ernie questions (qs) + ad hoc beads (next) (P4 Q2)
@@ -16,7 +16,8 @@ updated: 2026-10-15
 - [ernie] spec amendment settings: `~/.config/ernie/settings.json` (server POST op w/ range checks; CLI `ernie settings` refuses under CLAUDECODE), queue pause read by the agent loop, loop reads caps from settings → backlog "Settings panel — DECIDED"
 - [beads] verify bd 1.3.1: `bd ready` tie-break order; can ernie read subagent token usage (for v2 polish budget)
 - [ernie] v2: per-subagent worktrees for parallel beads + merge; per-epic polish token budget
-- [ernie] P6 review visualization: Q1 done (inside Planning); Q2–Q6 left = G1 round history, G2 running now, G3 approve-PRD/breakdown buttons, G4 polish + didn't settle, G5 audit report, G6 cap-hit beads → backlog
+- [ernie] P6 review visualization: Q1 inside Planning, Q2 epic detail in right column (B); Q3–Q6 left = G1 round history, G2 running now, G3 approve-PRD/breakdown buttons, G4 polish + didn't settle, G5 audit report, G6 cap-hit beads → backlog
+- [ui] port P6 Q2 B (epic detail + stage list) from ref_ernie_views/p6-q2-timeline.html into 00-template, then delete the mock
 - [ernie] P7 v1 / phase 1 scope; gate cleared (C1–C4 settled 2026-10-11)
 - [ernie] P7: template → spec audit: every convenience feature in 00-template written into spec (overlaps "template-only page features" amendment below)
 - [ernie] P7: spec → template audit: every v1 spec element shows in 00-template
@@ -41,3 +42,5 @@ updated: 2026-10-15
 - [ui] option: Planning PRD reader → link to the same file on the Files tab
 - [ui] readability left: dim vs body inside orange boxes; drop `.tab-head h1`? → ref_ui_readability_review.md "Not applied"
 - [ui] template gaps vs spec Scratch pads: `ref` on sample pads + "explained in Scratch #n" link on Home question / Issues worksheet; "can't show this pad" row
+## qs
+- [ernie] P6 Q3: at an approval gate, page offers A Approve + Polish again · B + Send back w/ note (Claude fixes PRD/beads, stage reruns, gate reopens) · C + "ask about this…" field (D14, scratch-pad answer, gate stays open); rec C; user may want HTML mock first (asked 2026-10-16)
