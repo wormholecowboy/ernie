@@ -41,6 +41,3 @@ updated: 2026-10-15
 - [ui] option: Planning PRD reader → link to the same file on the Files tab
 - [ui] readability left: dim vs body inside orange boxes; drop `.tab-head h1`? → ref_ui_readability_review.md "Not applied"
 - [ui] template gaps vs spec Scratch pads: `ref` on sample pads + "explained in Scratch #n" link on Home question / Issues worksheet; "can't show this pad" row
-## qs
-- [ui] Scratch tab position Facts|Scratch|Files ok? (asked 2026-10-15)
-- [ernie] Scratch pads: one JSON file per pad (vs items.jsonl line) ok? pads have no ernie id (page numbers #n, `ref` links to q/issue) — enough, or want `x3` ids? (asked 2026-10-15)

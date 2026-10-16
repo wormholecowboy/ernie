@@ -74,6 +74,7 @@
 - [ernie] 00-template = phase 3 visual target (P5 done 2026-10-15)
 - [ernie] Scratch pads in spec (D13, 2026-10-15): `printf … | ernie scratch flow --ref q3`; one JSON file per pad in `.ernie/mem/<branch>/scratch/<ts>-<hex>.json` (git-tracked, never edited, merges only add); typed payload (v, kind, title, asked?, ref?; flow: example, 2–20 steps {text, at?, result?}, end?), caps, 16 KB, strict; page = `<template>` per kind filled via textContent; Claude writes one on "need more context", an ask, "don't understand", or flow-in-order request → spec_ernie.md "Scratch pads"
 - [ernie] ask field (D14, 2026-10-15): every open question + open issue has an "ask about this…" field; page op `question ask` / `issue ask` {text 1–500}; item stays open; asks never collapse in inbox ("q3: you ask \"…\""); Claude answers via scratch pad w/ --ref
+- [ernie] confirmed 2026-10-15: scratch pads = one JSON file per pad, no ernie id (#n + `ref`); Scratch tab stays Facts | Scratch | Files
 ## reference
 - [ernie] spec → .mem/artifacts/spec_ernie.md
 - [ernie] build plan (phases, tasks, amendments A1–A114) → .mem/artifacts/plan_ernie_build.md
