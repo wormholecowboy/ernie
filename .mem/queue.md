@@ -2,7 +2,8 @@
 updated: 2026-10-15
 ---
 ## next
-- [ernie] next session: P6 review visualization (walk it like Beads workflow: trace one review, list gaps, decide each). P4 amendments A115–A123 in plan §0 (not folded); fold later in one pass w/ C1, C2, P2, P3, page buttons, Beads type drop (plan Open #11)
+- [ernie] next session: P6 resume at Q2/6 (epic timeline shape; recommended vertical stage list w/ inline round chips) → backlog "P6 review visualization — IN PROGRESS". P4 amendments A115–A123 in plan §0 (not folded); fold later in one pass w/ C1, C2, P2, P3, page buttons, Beads type drop (plan Open #11)
+- [ui] template missing Beads workflow buttons (queue tick, Send back, Review again, Polish again, + Bead); place w/ P6 G2/G3
 - [ernie] `ernie init` (personal) also writes `.gitattributes` line `.ernie/mem/**/items.jsonl merge=union` + sets bd `events-journal true` (P4 F3/Q4)
 - [ernie] when ernie memory lands: user migrates old `.mem/queue.md` items → ernie questions (qs) + ad hoc beads (next) (P4 Q2)
 - [ernie] spec amendment P3: top worktree picker, `wt:<branch>` label on beads, `ernie archive` + `.archived` marker + folder-gone flag, `meta init` worktree path, `sid` on events → ref_ernie_backlog.md "P3 tab scopes — DECIDED"
@@ -15,8 +16,7 @@ updated: 2026-10-15
 - [ernie] spec amendment settings: `~/.config/ernie/settings.json` (server POST op w/ range checks; CLI `ernie settings` refuses under CLAUDECODE), queue pause read by the agent loop, loop reads caps from settings → backlog "Settings panel — DECIDED"
 - [beads] verify bd 1.3.1: `bd ready` tie-break order; can ernie read subagent token usage (for v2 polish budget)
 - [ernie] v2: per-subagent worktrees for parallel beads + merge; per-epic polish token budget
-- [ernie] P6 inputs add: where PRD review / polish / code review show (deferred from beads workflow Q9)
-- [ernie] P6 review visualization (code + plan review issues; new tabs or Planning); inputs: P2 review flow, P3 Q2 issues grouped by epic + Ad hoc
+- [ernie] P6 review visualization: Q1 done (inside Planning); Q2–Q6 left = G1 round history, G2 running now, G3 approve-PRD/breakdown buttons, G4 polish + didn't settle, G5 audit report, G6 cap-hit beads → backlog
 - [ernie] P7 v1 / phase 1 scope; gate cleared (C1–C4 settled 2026-10-11)
 - [ernie] P7: template → spec audit: every convenience feature in 00-template written into spec (overlaps "template-only page features" amendment below)
 - [ernie] P7: spec → template audit: every v1 spec element shows in 00-template
