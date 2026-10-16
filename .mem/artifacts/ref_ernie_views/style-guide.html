@@ -18,8 +18,8 @@
   body { margin: 0; font-family: var(--sans); font-size: 15px; line-height: 1.55; color: var(--text); background: var(--bg); }
   main { max-width: 1180px; margin: 0 auto; padding: 28px 20px 64px; display: grid; gap: 40px; }
   @media (max-width: 720px) { main { padding: 20px 16px 48px; } }
-  h1 { margin: 0; font: 800 30px/1.15 var(--sans); letter-spacing: -.02em; text-wrap: balance; }
-  h2 { margin: 0 0 4px; font: 800 20px var(--sans); letter-spacing: -.01em; }
+  h1 { margin: 0; font: 800 30px/1.15 var(--display); letter-spacing: -.02em; text-wrap: balance; }
+  h2 { margin: 0 0 4px; font: 800 20px var(--display); letter-spacing: -.01em; }
   .lede { margin: 6px 0 0; max-width: 62ch; color: var(--text-dim); }
   .sec-note { margin: 0 0 16px; max-width: 70ch; color: var(--text-dim); font-size: 14px; }
   code, .mono { font-family: var(--mono); font-size: .88em; }
@@ -72,8 +72,7 @@
   .bd-row .id { font: 11px var(--mono); color: var(--text-dim); }
   .bd-row .t { font-size: 14px; line-height: 1.4; }
   .bd-row.st-done .t { color: var(--text-dim); }
-  .bd-row .why { display: block; font: 10.5px var(--mono); color: var(--text); margin-top: 2px; }
-  .bd-row.sel .why { color: var(--warning); }
+  .bd-row .why { display: block; font: 10.5px var(--mono); color: var(--warning-text); margin-top: 2px; }
   .g { font: 12px var(--mono); text-align: center; }
   .g--todo { color: var(--text-dim); } .g--active { color: var(--accent); } .g--done { color: var(--success); } .g--blocked { color: var(--warning); }
   .bar { display: flex; align-items: center; gap: 6px; margin: 4px 6px 10px; font: 10.5px var(--mono); color: var(--text-dim); }
@@ -94,7 +93,7 @@
   .kbtn kbd { font: 11px var(--mono); padding: 0 5px; border-radius: 4px; border: 1px solid var(--border); color: var(--text-dim); }
   .kbtn small { font: 400 11px var(--mono); color: var(--text-accent); }
   .badge { font: 10.5px var(--mono); min-width: 18px; padding: 1px 6px; border-radius: 9px; background: var(--accent); color: var(--bg); }
-  .impact { border-left: 3px solid var(--warning); padding: 4px 0 4px 10px; color: var(--warning); max-width: 62ch; }
+  .impact { border-left: 3px solid var(--warning); padding: 4px 0 4px 10px; color: var(--warning-text); max-width: 62ch; }
   .path { font: 12px var(--mono); color: var(--text-accent); }
   .legend { font: 12px var(--mono); color: var(--text-dim); display: flex; flex-wrap: wrap; gap: 6px 16px; }
   .legend span b { font-weight: 400; margin-right: 4px; }
@@ -119,7 +118,7 @@
     <h2>Rules</h2>
     <ul class="rules">
       <li><b>Surfaces</b><span>Three only. The page is brown. Things you work in (epic and bead lists, issue list, question cards, tables) are burnt-orange boxes with a mustard edge. A selected row inside a box is cut back to brown with a teal bar on its left.</span></li>
-      <li><b>On orange</b><span>Only cream reads on orange (4.7:1). Anything filled orange (boxes, chips, buttons) turns every text role cream; status shows by glyph shape (○ ◐ ● ⊘). Mustard is allowed for warning glyphs (3:1, fine for icons, not for small text).</span></li>
+      <li><b>On orange</b><span>Only cream reads on orange (4.7:1). Anything filled orange (boxes, chips, buttons) turns every text role cream; status shows by glyph shape (○ ◐ ● ⊘). Mustard is allowed for warning marks (3:1, fine for bars and glyphs, not for text); warning text uses <code>--warning-text</code>, which turns cream here.</span></li>
       <li><b>Colour = meaning</b><span>Teal = active, selected, recommended, primary action. Mustard = waiting, blocked, impact. Sage = done, verified. Salmon = error, destructive. Colour shows on brown (page or cut-out), never as small text on orange.</span></li>
       <li><b>Edges</b><span>Mustard edge = a box at rest. Teal edge = the selected box or the focused control. Hairlines between rows use the plain border, never a colour.</span></li>
       <li><b>No texture</b><span>No background grid, no gradients. Separation comes from the brown/orange switch and whitespace, not inner borders.</span></li>
@@ -136,8 +135,8 @@
     <h2>Surfaces</h2>
     <p class="sec-note">The same role tokens resolve differently on each surface. Ratios marked with a dotted underline are under 4.5:1.</p>
     <div class="surfaces">
-      <div class="surf ground" data-surface="ground"><h3>Ground</h3><p class="what">page, bead detail, Tool log</p><div class="inks"></div></div>
-      <div class="surf panel" data-surface="box"><h3>Box</h3><p class="what">panels, question cards, tables, chips, buttons</p><div class="inks"></div></div>
+      <div class="surf ground" data-surface="ground"><h3>Ground</h3><p class="what">page, bead detail, reading panels (Facts, Home side cards, Tool log), tables</p><div class="inks"></div></div>
+      <div class="surf panel" data-surface="box"><h3>Box</h3><p class="what">what you pick from: Planning + Issues lists, question cards, chips, buttons, settings</p><div class="inks"></div></div>
       <div class="panel" style="padding: 10px"><div class="surf cut bd-row sel" data-surface="cut" style="display:block; cursor:default"><h3>Cut-out</h3><p class="what">selected row inside a box</p><div class="inks"></div></div></div>
     </div>
   </section>
@@ -200,12 +199,12 @@
 
   // Ink ratios per surface
   const INKS = [['--text', 'text'], ['--text-dim', 'dim text'], ['--text-accent', 'accent text'], ['--accent', 'accent'],
-    ['--success', 'success'], ['--warning', 'warning'], ['--error', 'error']];
+    ['--success', 'success'], ['--warning', 'warning mark'], ['--warning-text', 'warning text'], ['--error', 'error']];
   document.querySelectorAll('[data-surface]').forEach(el => {
     const ground = el.dataset.surface === 'ground' ? tok(el, '--bg') : el.dataset.surface === 'box' ? tok(el, '--bg-card') : tok(el, '--accent-soft');
     el.querySelector('.inks').innerHTML = INKS.map(([v, label]) => {
       const c = tok(el, v), r = ratio(c, ground);
-      return `<div><span style="color:var(${v})">${label}</span><span class="r ${r < 4.5 ? 'low' : ''}">${c} · ${fmt(r)}</span></div>`;
+      return `<div><span style="color:var(${v})">${label}</span><span class="r ${r < (v === '--warning' ? 3 : 4.5) ? 'low' : ''}">${c} · ${fmt(r)}</span></div>`;
     }).join('');
   });
 
@@ -214,7 +213,7 @@
   const ROLES = [
     ['Surfaces'],
     ['--bg', 'Page ground; text on teal buttons and badges'],
-    ['--bg-card', 'Box surface: panels, question cards, tables, active tab, buttons, chips'],
+    ['--bg-card', 'Box surface: pick-lists, question cards, active tab, buttons, chips (reading panels + tables stay on ground)'],
     ['--bg-recessed', 'Wells on ground (inputs, code blocks, inactive tabs); row hover inside a box'],
     ['--bg-raised', 'Hover on ground, unknown-fact pill; progress-bar track inside a box'],
     ['--accent-soft', 'Selected row fill (the cut-out)'],
@@ -225,7 +224,8 @@
     ['Accent and status', true],
     ['--accent', 'Active bead, primary button, badge, hover and focus borders'],
     ['--success', 'Done, verified, progress fill'],
-    ['--warning', 'Blocked, waiting, impact, inferred'],
+    ['--warning', 'Warning marks: impact bar, blocked glyph, waiting border, approval badge'],
+    ['--warning-text', 'Warning words: impact line, waiting status, why blocked (mustard on ground, cream in a box)'],
     ['--error', 'Errors, destructive hover'],
     ['Edges', true],
     ['--box-edge', 'Box outline at rest'],

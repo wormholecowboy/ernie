@@ -3,7 +3,8 @@
    Three surfaces: ground (brown page), box (burnt-orange panels, mustard edge), cut-out (a selected row inside a box,
    brown again). Components use the role tokens only; the raw palette is for this file. */
 :root {
-  --sans: 'Bricolage Grotesque', system-ui, sans-serif;
+  --sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display: 'Bricolage Grotesque', system-ui, sans-serif;
   --mono: 'Fragment Mono', ui-monospace, SFMono-Regular, monospace;
 
   /* Raw palette: five from the source image, two derived for success / error */
@@ -18,6 +19,8 @@
   --accent: var(--teal); --accent-soft: var(--brown-deep);
   --border: #5f4d3f; --border-accent: var(--teal); --box-edge: var(--mustard);
   --success: var(--sage); --warning: var(--mustard); --error: var(--salmon);
+  /* --warning marks bars, glyphs and borders (3:1 is enough); --warning-text is for words (needs 4.5:1) */
+  --warning-text: var(--warning);
   --pass-bg: #443f2c; --pass-fg: var(--sage);
   --warn-bg: #543f1e; --warn-fg: var(--mustard);
   --info-bg: #393f37; --info-fg: var(--teal);
@@ -57,19 +60,28 @@
 }
 
 /* Box: anything filled orange. Only cream reads on orange (4.74:1), so every ink role turns cream. Mustard stays for
-   warning glyphs (3:1, icons only). Selected rows cut back to brown. Components set their own edges. */
-:root:not([data-scheme^="original"]) :is(.panel, .qf-item, .tbl-wrap, .chip, .btn:not(.btn--primary)) {
+   warning marks (3:1, bars and glyphs only); warning text turns cream. Selected rows cut back to brown. Components set their own edges. */
+:root:not([data-scheme^="original"]) :is(.panel:not(.panel--ground), .qf-item, .chip, .btn:not(.btn--primary)) {
   --bg-card: var(--box); --bg-recessed: var(--box-hover); --bg-raised: var(--brown-deep);
   --text-dim: #f2e3d2; --text-accent: var(--cream);
   --accent: var(--cream); --accent-soft: var(--brown);
   --border: #c78366;
-  --success: var(--cream); --error: var(--cream);
+  --success: var(--cream); --error: var(--cream); --warning-text: var(--cream);
 }
+
+/* Ground panels: reading panels (Facts, Home side cards, Tool log, example tables) stay on the brown ground with a
+   border, so status colours keep their ground contrast. Orange is kept for what you pick from: Planning lists, Issues
+   list, question cards, chips, buttons, the settings dialog. A lifted brown fill drops dim text and salmon below 4.5:1. */
+:root:not([data-scheme^="original"]) :is(.panel--ground, .tbl-wrap) {
+  --bg-card: var(--brown); --bg-recessed: var(--brown-deep); --box-edge: var(--border);
+}
+
+/* Answer buttons on a question card fill brown so they read as pressable against the orange */
+:root:not([data-scheme^="original"]) .kbtn { background: var(--brown); }
 
 /* Cut-out: a selected row inside a box gets the ground inks back */
 :root:not([data-scheme^="original"]) :is(.ph-row, .bd-row, .is-row).sel {
   --text-dim: #b3a899; --text-accent: var(--teal);
-  --accent: var(--teal); --success: var(--sage); --error: var(--salmon);
+  --accent: var(--teal); --success: var(--sage); --error: var(--salmon); --warning-text: var(--mustard);
   box-shadow: inset 3px 0 0 var(--teal);
 }
-:root:not([data-scheme^="original"]) .bd-row:not(.sel) .why { color: var(--text); }

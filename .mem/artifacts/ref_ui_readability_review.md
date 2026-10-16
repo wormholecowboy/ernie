@@ -10,13 +10,12 @@ Line numbers are from before the edits; re-find by selector.
 - 39ce1fe — #4 whitespace over inner rules: removed rules on `.panel-head`, `.facts li`, `.dec` bar, `.ph-checks`, `.filters`, `.feed li` + head; spacing scale 4/8/12/16/24/32/48; `.ws-foot` margin-top 32px; `.pills` 16px below; `.legend` 24px above
 - 39ce1fe — Planning: epics = one left-to-right row above beads | detail at every width (beads 320px ≥1200, 280px 800–1199, 1 col <800); epic row not sticky, beads sticky
 - 39ce1fe — tab "Facts & decisions" → "Facts" (tab, h1, header comment); Tool log tab now fits at 1000px
+- 2026-10-15 — font split: `--sans` = system sans (`system-ui` stack) for body/labels, Bricolage Grotesque via new `--display` for titles (brand, tab-head h1, canvas h1, detail h2, style-guide h1/h2); mono stays Fragment Mono
+- 2026-10-15 — reading panels on ground: `.panel--ground` / `.tbl-wrap` (page brown + `--border` edge) for Facts panels, Home side cards, Tool log, example tables; orange box only for pick-from things (lifted brown #513d2f rejected: dim 4.36:1, salmon 4.15:1)
+- 2026-10-15 — `--warning` (marks) vs `--warning-text` (words) split; answer kbtn brown fill in retro; input placeholders `--text-dim`; Facts `.method` 2px bar kept
+- 2026-10-15 — ref_ernie_views/index.html links Template + Style guide
 
 ## Not applied — remaining
-### #5 one line per list item (Issues, Planning)
-- Issues rows 2–3 lines: title wraps at 340px + `.src` line ("code review · 1.2") redundant w/ epic grouping
-- fix: `.is-grid` col 1 340 → 380px; titles nowrap + ellipsis + full title in `title=`; drop `.src` from rows (keep short "platform" tag only when owner ≠ us); drop `.cf` confidence glyph from list (detail has How sure); legend items `white-space:nowrap`
-- bead rows wrap too (same ellipsis treatment)
-
 ### Top bar
 - tab strip still clips <~1000px (780px: "Planni…", Tool log); hidden scrollbar = no cue
 - rejected for now: move scheme select out, glyph+short labels <1100px
@@ -48,7 +47,6 @@ Line numbers are from before the edits; re-find by selector.
 - dismiss × has no Undo → use qf-sent-style "dismissed f2 · Undo"
 - order: Decisions | Facts side by side, Glossary below Decisions
 - wrapped fact's 2nd line returns under badge at 1000px (fixed by the grid above)
-- open q: `.method` 2px left bar (colour = research found / no answer) keep vs indent (rec: keep)
 
 ### Tool log
 - session id repeated every row → divider row on session change ("session 4995d496 · current", sans 13 600), drop column (~86px)
@@ -64,8 +62,12 @@ Line numbers are from before the edits; re-find by selector.
 ### Hierarchy inside boxes (colour-adjacent, deferred)
 - `--text-dim` #f2e3d2 vs `--text` #f9f3e4 inside orange boxes → muted vs body hierarchy lost; restore dim ink or lean on size/weight
 
-### Font (asked, unanswered)
-- `--sans` = Bricolage Grotesque (display face; narrow apertures cost legibility at 13–15px) → proposal: system sans (`-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui`) for body/labels, Bricolage only `.brand` + `.ws h2`; mono stays Fragment Mono
+## Rejected
+### #5 one line per list item (Issues, Planning)
+- Issues rows 2–3 lines: title wraps at 340px + `.src` line ("code review · 1.2") redundant w/ epic grouping
+- fix: `.is-grid` col 1 340 → 380px; titles nowrap + ellipsis + full title in `title=`; drop `.src` from rows (keep short "platform" tag only when owner ≠ us); drop `.cf` confidence glyph from list (detail has How sure); legend items `white-space:nowrap`
+- bead rows wrap too (same ellipsis treatment)
+- user kept multi-line rows (2026-10-15)
 
 ## Keep (works well)
 - `dl.gut` gutter + 62ch dd at 15/1.6
