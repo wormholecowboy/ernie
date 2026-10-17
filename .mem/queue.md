@@ -1,9 +1,8 @@
 ---
-updated: 2026-10-16
+updated: 2026-10-17
 ---
 ## next
-- [ernie] next session: P6 resume at Q3/6 (approval gates: what the epic detail's last row offers) → backlog "P6 review visualization — IN PROGRESS". P4 amendments A115–A123 in plan §0 (not folded); fold later in one pass w/ C1, C2, P2, P3, page buttons, Beads type drop (plan Open #11)
-- [ui] template missing Beads workflow buttons (queue tick, Send back, Review again, Polish again, + Bead); place w/ P6 G2/G3
+- [ernie] next session: P6 decided → port into template (item below). P4 amendments A115–A123 in plan §0 (not folded); fold later in one pass w/ C1, C2, P2, P3, page buttons, Beads type drop (plan Open #11)
 - [ernie] `ernie init` (personal) also writes `.gitattributes` line `.ernie/mem/**/items.jsonl merge=union` + sets bd `events-journal true` (P4 F3/Q4)
 - [ernie] when ernie memory lands: user migrates old `.mem/queue.md` items → ernie questions (qs) + ad hoc beads (next) (P4 Q2)
 - [ernie] spec amendment P3: top worktree picker, `wt:<branch>` label on beads, `ernie archive` + `.archived` marker + folder-gone flag, `meta init` worktree path, `sid` on events → ref_ernie_backlog.md "P3 tab scopes — DECIDED"
@@ -16,8 +15,7 @@ updated: 2026-10-16
 - [ernie] spec amendment settings: `~/.config/ernie/settings.json` (server POST op w/ range checks; CLI `ernie settings` refuses under CLAUDECODE), queue pause read by the agent loop, loop reads caps from settings → backlog "Settings panel — DECIDED"
 - [beads] verify bd 1.3.1: `bd ready` tie-break order; can ernie read subagent token usage (for v2 polish budget)
 - [ernie] v2: per-subagent worktrees for parallel beads + merge; per-epic polish token budget
-- [ernie] P6 review visualization: Q1 inside Planning, Q2 epic detail in right column (B); Q3–Q6 left = G1 round history, G2 running now, G3 approve-PRD/breakdown buttons, G4 polish + didn't settle, G5 audit report, G6 cap-hit beads → backlog
-- [ui] port P6 Q2 B (epic detail + stage list) from ref_ernie_views/p6-q2-timeline.html into 00-template, then delete the mock
+- [ui] port P6 into 00-template from ref_ernie_views/p6-q2-timeline.html (Q2 B epic detail + stage list), add Q3 gate row, Q4 audit report, Q5 top-bar Now strip, Q6 cap-hit glyph + derived Home card + Beads workflow buttons; then delete the mock → backlog "P6 review visualization — DECIDED"
 - [ernie] P7 v1 / phase 1 scope; gate cleared (C1–C4 settled 2026-10-11)
 - [ernie] P7: template → spec audit: every convenience feature in 00-template written into spec (overlaps "template-only page features" amendment below)
 - [ernie] P7: spec → template audit: every v1 spec element shows in 00-template
@@ -31,6 +29,7 @@ updated: 2026-10-16
 - [ernie] spec amendment for C1 (memory → ernie, `.ernie/mem/<branch>/`; drops D9, mem delta/synced, mem-ops) → ref_ernie_backlog.md "C1 — DECIDED"
 - [ernie] when ernie memory lands: update global ~/.claude/CLAUDE.md §7 (Memory) + retire mem skill/mem-ops; user migrates old `.mem/` dirs manually
 - [beads] `/gtg` + `*um` run `bd dolt push` (personal repos) to flush writes held by the 5-min auto-push window; update gtg + mem skills when ernie lands
+- [ernie] spec amendment P6: gate actions (Approve · Polish again / Review again · Request changes · ask), audit report, top-bar Now strip, page-derived cap-hit Home card → backlog "P6 review visualization — DECIDED"
 - [ernie] spec amendment for template-only page features: Ops panel (reads memory `## ops`), colour scheme select (_tokens.css), Planning PRD reader (keys p/esc), question keys j/k/1–9/m/u, Issues keys a/d/u, Files tab (artifacts by prefix kind, PRDs via epics, read-only reader, key `g a`) → backlog/plan when folding (Open #11)
 - [ernie] spec amendments the template now needs: phases/beads model (plan is flat), page op `fact research` in PostOps, CLI to update a fact's confidence/method/text (only add/dismiss today)
 - [ernie] phase 1 build per .mem/artifacts/plan_ernie_build.md — not started; blocked until P7. Order: 1.1 bootstrap (git init done; go mod, install.sh, README, .gitignore left) → 1.1s hook spike (must finish before 1.6, A28) → rest
@@ -42,5 +41,3 @@ updated: 2026-10-16
 - [ui] option: Planning PRD reader → link to the same file on the Files tab
 - [ui] readability left: dim vs body inside orange boxes; drop `.tab-head h1`? → ref_ui_readability_review.md "Not applied"
 - [ui] template gaps vs spec Scratch pads: `ref` on sample pads + "explained in Scratch #n" link on Home question / Issues worksheet; "can't show this pad" row
-## qs
-- [ernie] P6 Q3: at an approval gate, page offers A Approve + Polish again · B + Send back w/ note (Claude fixes PRD/beads, stage reruns, gate reopens) · C + "ask about this…" field (D14, scratch-pad answer, gate stays open); rec C; user may want HTML mock first (asked 2026-10-16)
