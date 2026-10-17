@@ -43,4 +43,4 @@ updated: 2026-10-17
 - [ui] template: drag bead rows to reorder queue (Beads workflow Q3) not built in P6 port
 - [ui] delete ref_ernie_views/p6-q2-timeline.html after user reviews P6 port
 ## qs
-- [ui] P6 port: 13 assumptions to review (Now strip priority, stalled, `gate ask` op, audit framing skip, …) → .mem/artifacts/ref_ui_p6_port.md (asked 2026-10-17)
+- [ui] P6 port: 12 assumptions to review (stalled, `gate ask` op, audit framing skip, …) → .mem/artifacts/ref_ui_p6_port.md (asked 2026-10-17)

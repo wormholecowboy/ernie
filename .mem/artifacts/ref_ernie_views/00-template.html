@@ -90,7 +90,9 @@
     - Now strip (P6 Q5, top bar, every tab): the worktree's Now derived from Beads (Beads workflow Q4), e.g.
       "● 2.1 review r2 · 19m", "● E1 approve PRD · 41m", "● 0.4 coding · 2h 23m · stalled". Mustard when it waits on you
       or stalled (stalled = something runs but the worktree's session isn't working). Click opens it on Planning (the
-      bead, or the epic detail). Sample worktrees: dedupe = running bead, gsc-backfill = PRD gate, ernie/main = stalled.
+      bead, or the epic detail). Anything else waiting on you (gates, then beads with an open finding) gets a mustard
+      "⚠ N" button beside it (ids in its tooltip; opens the first), so a running bead never hides a wait.
+      Sample worktrees: dedupe = running bead + ⚠ 2 (E3 gate, 2.4 cap), gsc-backfill = PRD gate, ernie/main = stalled.
     - Settings (⚙ in the top bar, key `,`, esc closes): one panel, global (every repo; server keeps it in
       ~/.config/ernie/settings.json). Only the page or your own terminal changes it, never Claude: the numbers are what stop
       the agent loop from running away. Rows: Queue running / paused (applies at once; Claude finishes the step it's on) ·
@@ -137,7 +139,7 @@
   .tab.active { background: var(--bg-card); color: var(--text); border-color: var(--border-accent); box-shadow: inset 0 2px 0 var(--accent); }
   .tab > button { background: none; border: 0; cursor: pointer; padding: 7px 12px; display: flex; align-items: center; gap: 7px;
     font: 600 13px var(--sans); min-width: 0; }
-  .status { display: flex; align-items: center; gap: 12px; font: 13px var(--sans); color: var(--text-dim); padding-bottom: 7px; flex: none; }
+  .status { display: flex; align-items: center; gap: 8px; font: 13px var(--sans); color: var(--text-dim); padding-bottom: 7px; flex: none; }
   .live { color: var(--success); display: inline-flex; align-items: center; gap: 6px; }
   .live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--success); animation: pulse 1.8s infinite; }
   .icon-btn { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; font: 12px var(--mono); }
@@ -190,7 +192,7 @@
     border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; }
 
   /* Worktree picker (top bar) + worktree banners */
-  .wt-pick-wrap { padding-bottom: 6px; flex: none; max-width: 240px; min-width: 0; }
+  .wt-pick-wrap { padding-bottom: 6px; flex: none; max-width: 220px; min-width: 0; }
   select.wt-pick { font-weight: 600; border-color: var(--border-accent); width: 100%; }
   .wt-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 14px; padding: 8px 12px; border-radius: 8px;
     font: 13px/1.45 var(--sans); border: 1px solid var(--border); background: var(--bg-card); overflow-wrap: anywhere; }
@@ -477,6 +479,9 @@
   .now-strip:hover { border-color: var(--accent); }
   .now-strip.warn { border-color: var(--warning); color: var(--warning-text); }
   .now-strip.warn::before { color: var(--warning); }
+  .now-wait { margin-left: 4px; white-space: nowrap; font: 13px var(--sans); padding: 2px 8px; border-radius: 12px;
+    border: 1px solid var(--warning); background: none; color: var(--warning-text); cursor: pointer; }
+  .now-wait:hover { border-color: var(--warning-text); }
 
   /* Scratch: collapsible pads on the ground (reading panels), newest first */
   .sc-item { margin-bottom: 10px; overflow: hidden; }
@@ -1142,7 +1147,8 @@
 
   // Now (Beads workflow Q4, P6 Q5), derived from Beads: a running bead (coding / review rN) first, else a running
   // planning stage, else what waits on you (a gate, then a bead with an open finding). Stalled = something is running
-  // but no Claude session is working in the worktree (a crash leaves the bead in progress)
+  // but no Claude session is working in the worktree (a crash leaves the bead in progress). `waits` lists everything
+  // waiting on you (gates, then beads), so the strip can count what sits behind the running item
   function nowOf(logKey) {
     const st = S.states[logKey];
     if (!st) return null;
@@ -1150,19 +1156,23 @@
     const stalled = logOf(logKey)?.session.state !== 'working';
     const inProgress = beadsOf(logKey).filter(x => x.b.status === 'active');
     const running = inProgress.filter(x => { const s = beadStage(logKey, x.b); return !s.waiting && !s.queued; });
+    const waits = [
+      ...epics.filter(ep => gateWaiting(logKey, ep)).map(ep => ({ ep })),
+      ...inProgress.filter(x => beadStage(logKey, x.b).waiting).map(x => ({ ep: x.ep, bead: x })),
+    ];
     const activeEpic = epics.find(ep => ep.status === 'active');
     const bead = running.find(x => x.ep === activeEpic) || running[0];
-    if (bead) return { ep: bead.ep, bead, label: bead.b.id, what: beadStage(logKey, bead.b).text, since: bead.b.since, stalled };
+    if (bead) return { ep: bead.ep, bead, label: bead.b.id, what: beadStage(logKey, bead.b).text, since: bead.b.since, stalled, waits };
     for (const ep of epics) {
       const s = (ep.stages || []).find(x => x.state === 'now' && x.kind !== 'build');
-      if (s) return { ep, label: ep.id, what: stageNow(s), since: s.since, stalled };
+      if (s) return { ep, label: ep.id, what: stageNow(s), since: s.since, stalled, waits };
     }
     for (const ep of epics) {
       const s = gateWaiting(logKey, ep);
-      if (s) return { ep, label: ep.id, what: `waiting on you: ${GATE[s.kind].what}`, short: GATE[s.kind].short, since: s.since, waiting: true };
+      if (s) return { ep, label: ep.id, what: `waiting on you: ${GATE[s.kind].what}`, short: GATE[s.kind].short, since: s.since, waiting: true, waits };
     }
     const waiting = inProgress.find(x => beadStage(logKey, x.b).waiting);
-    if (waiting) return { ep: waiting.ep, bead: waiting, label: waiting.b.id, what: beadStage(logKey, waiting.b).text, since: waiting.b.since, waiting: true };
+    if (waiting) return { ep: waiting.ep, bead: waiting, label: waiting.b.id, what: beadStage(logKey, waiting.b).text, since: waiting.b.since, waiting: true, waits };
     return null;
   }
 
@@ -1174,7 +1184,12 @@
     return mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h ${mins % 60}m`;
   }
 
-  // Top-bar strip on every tab (P6 Q5): mustard when Claude waits on you or stalled; click opens it on Planning
+  // Opens a Now item (or a waiting one) on Planning: the bead, else the epic detail
+  const nowTarget = x => x.bead ? `data-bead-open="${esc(x.bead.key)}"` : `data-epic-detail-open="${esc(view.wt)}|${esc(x.ep.id)}"`;
+
+  // Top-bar strip on every tab (P6 Q5): mustard when Claude waits on you or stalled; click opens it on Planning.
+  // Reason: something is almost always running while the queue moves on, so whatever else waits on you gets its own
+  // "⚠ N" button (opens the first one; the ids are in its tooltip) instead of hiding behind the running item
   function renderNowStrip() {
     const now = nowOf(view.wt);
     const box = document.getElementById('now-strip');
@@ -1184,8 +1199,11 @@
     // Reason: the strip shares the top bar with the tabs, so a gate shows its short name; the mustard says it waits on you
     const text = `${now.label} ${now.short || now.what}${tail}`;
     const full = `${now.label} ${now.what}${tail}`;
-    const target = now.bead ? `data-bead-open="${esc(now.bead.key)}"` : `data-epic-detail-open="${esc(view.wt)}|${esc(now.ep.id)}"`;
-    box.innerHTML = `<button class="now-strip ${now.waiting || now.stalled ? 'warn' : ''}" type="button" ${target} title="Now: ${esc(full)} · open on Planning">${esc(text)}</button>`;
+    const others = now.waiting ? now.waits.slice(1) : now.waits;
+    const waitBtn = others.length
+      ? `<button class="now-wait" type="button" ${nowTarget(others[0])} title="Also ${others.length} waiting on you: ${esc(others.map(x => x.bead ? x.bead.b.id : x.ep.id).join(', '))} · open the first on Planning">⚠ ${others.length}</button>`
+      : '';
+    box.innerHTML = `<button class="now-strip ${now.waiting || now.stalled ? 'warn' : ''}" type="button" ${nowTarget(now)} title="Now: ${esc(full)} · open on Planning">${esc(text)}</button>${waitBtn}`;
   }
 
   // Home's Now line: the bead or epic, what it's doing and since when; waiting on you and stalled in mustard

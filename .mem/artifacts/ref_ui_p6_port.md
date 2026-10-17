@@ -3,7 +3,7 @@
 The subagent made these calls where ref_ernie_backlog.md "P6 review visualization — DECIDED" was silent.
 Code: ref_ernie_views/00-template.html (header comment lists pieces); sample data _sample_state.js:718.
 
-1. Now strip priority: running bead > running planning stage > waiting on you → strip warns "waiting on you" only when nothing runs (dedupe: shows 2.1 teal while E3 gate + 2.4 cap card wait).
+1. Now strip priority: running bead > running planning stage > waiting on you. RESOLVED 2026-10-17 (user): everything else waiting on you shows as a mustard "⚠ N" button beside the strip (ids in tooltip, opens first); worktree picker max-width 240→220px + status gap 12→8px so tabs fit at 1400px.
 2. Stalled = something in progress while worktree session isn't `working` (idle counts as stalled).
 3. Gate Approve applies at once (like finding approve); Review again / Polish again / Request changes queue for next prompt; all undoable.
 4. Gate ask = new page op `gate ask` (D14 defines only `question ask`, `issue ask`).
