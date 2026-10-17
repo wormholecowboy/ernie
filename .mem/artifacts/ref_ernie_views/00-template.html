@@ -13,21 +13,50 @@
       choices, "need more context" (`question answer {more: true}`, stays open, A88) and an "other answer…" box (not on
       `assume` yes/no checks, A113). An answer queues for the session's next prompt with Undo until then.
       Keys: j/k move, 1–9 answer, m more context, u undo (hint under the selected question's answer row).
-      Top row (three cards above the questions, stacked <900px): Where work is (active epic + bar, active bead, up to 3
-      `bd ready` beads: todo with every dep done) · Next prompt delivers (inbox preview: sample `pending` + page-queued
+      Cap-hit cards (P6 Q6b) list above the questions: derived from Beads, not ernie questions (no Q<n>, never in
+      Answered). One per bead that is in progress with reviews at the cap (settings Code review max) and a finding still
+      waiting for approval: "2.4 hit the review cap · 1 finding left" with Bead · Reviews · Open finding · If skipped ·
+      Decide (1 Approve the fix · 2 Dismiss and close · 3 Review again · 4 Request changes on the bead, note box) and an
+      "ask about this…" field (`issue ask` on the finding). The same page ops run from the bead on Planning and the finding
+      on Issues, so acting anywhere removes the card; its Undo line stays under the questions until the next prompt.
+      Top row (three cards above the questions, stacked <900px): Where work is (active epic + bar; Now: the running bead
+      and its stage (coding / review rN), else a running planning stage ("E3 · polish r2 · since 14:02"), else what waits
+      on you, with "since" and a stalled flag; up to 3 `bd ready` beads: todo with every dep done; the queue in tick
+      order) · Next prompt delivers (inbox preview: sample `pending` + page-queued
       events) · Add a note (`note add`). Below the questions, two columns: Answered · Ops (memory `## ops`, read-only, per
       branch). Session and Sync cards were dropped (git history).
-    - Planning tab (view-only data: `epics` + `adhoc` in _sample_state.js; Beads fields not final): three columns. Left,
-      the worktree's epics with a done/total bar, then ◇ Ad hoc (beads with no epic; replaces queue.md "next", P4 Q2);
-      middle, the selected epic's goal, beads, epic done-when checks and its PRD-review findings; right, the selected bead:
-      labels in a gutter, content capped at ~62ch: Status (text todo → active → done, or blocked naming the unfinished deps) ·
-      What · Notes · Done when · Depends on / Unblocks (only when non-empty; click to jump, across epics) · Linked · Files ·
-      Commit. Glyphs name their status on hover (no legend). Linked also
+    - Planning tab (data: `epics` + `adhoc` + `queue` in _sample_state.js; Beads fields not final): epic row on top, then
+      two columns. Epic row: the worktree's epics with a done/total bar, then ◇ Ad hoc (beads with no epic; replaces
+      queue.md "next", P4 Q2; always listed so + Bead has a home). Middle (orange: things you pick from only): the
+      selected epic's goal, PRD chip, a "Plan & reviews" row (P6 Q2 B; status line: waiting on you: approve the … /
+      <stage> rN running · since / building · N of M done · <bead> <stage>, stalled flag), then its beads. Bead rows: a
+      queue tick (Beads workflow Q1/Q3: empty box, or the bead's place in the queue; todo and blocked beads only), status
+      glyph, id, title; a ticked blocked bead reads "waiting on 2.1 · 2.2 (not ticked)"; a cap-hit bead has a ⚑ glyph
+      (name on hover). Ad hoc ends with "+ Bead" (n): a form in the right column (title, description, priority, tick into
+      the queue; the server runs `bd create -l wt:<branch>` at once, no Undo).
+      Right column, one of: the bead (labels in a gutter, content capped at ~62ch: Status (todo → active → done, or
+      blocked naming the unfinished deps; in progress adds its stage and since) · What · Notes · Priority · Done when ·
+      Depends on / Unblocks (only when non-empty; click to jump, across epics) · Linked · Files · Commit · Reviews (`r1 1
+      found · r2 running`, or `… r5 1 found · cap hit`); then the action row, last and pinned like Issues' Decide: Tick ·
+      Review again (any bead; queued with Undo) · Send back (closed beads; note box → a bug bead discovered-from it, label
+      review:user, pre-approved, ticked to the end of the queue; shows on Issues as "sent back · <bead>"). A cap-hit bead
+      gets Decide instead: Approve the fix · Dismiss and close · Review again · Request changes · ask field). Linked also
       shows the reverse links the page computes (P4 Q3): decisions whose `ref` is this bead, findings from its code review.
-      ▤ PRD chip under the epic goal (P2: one PRD per epic, path from `spec_id`) swaps the right column for the PRD: plan
-      state + review rounds from the epic's labels, path, section chips that scroll to each ## heading, the markdown at the
-      reading measure. Opening a bead goes back to it; picking another epic keeps the PRD open on that epic's PRD.
-      Keys: j/k (or [ ]) prev/next bead, { } prev/next epic, p PRD, esc back.
+      Or the epic detail (P6 Q2 B, key e; opens by default while a stage before Build is unfinished): Goal · Plan · Done
+      when · PRD · Findings (PRD review). Plan = one row per P2 stage (PRD review · Approve PRD · Breakdown · Polish · Audit ·
+      Approve breakdown · Build), stage name in a fixed column, then what happened (round tokens, "you approved · Oct 12",
+      audit gaps / uncited / possible duplicates, "waiting on you · read the audit first"). The stage that waits on you
+      carries the gate's actions (P6 Q3): Approve · Review again (PRD gate) or Polish again (breakdown gate; limited to
+      ticked beads when any are ticked) · Request changes (note box) · "ask about this…" (D14), then a key hint. Approve
+      resolves the gate at once; every answer queues for the next prompt with Undo. The Audit row opens the audit report
+      (P6 Q4): every checked PRD section → the beads citing it (`cites` = metadata.prd), gaps marked; sections that frame
+      the PRD (Problem, Goal, Scope, Risks, Open questions) listed as not checked; uncited beads; possible duplicates
+      (titles-only pass). Or the PRD: ▤ PRD chip (P2: one PRD per epic, path from `spec_id`): plan state + review rounds
+      from the epic's labels, path, section chips that scroll to each ## heading, the markdown at the reading measure.
+      Keys: j/k (or [ ]) prev/next bead, { } prev/next epic, p PRD, e epic detail, n + Bead (Ad hoc), / ask, esc back
+      (note box → audit → epic detail → bead). On the epic detail's gate: a approve, r review / polish again, c request
+      changes. On a bead: t tick, r review again, b send back (closed). On a cap-hit bead: a approve the fix, d dismiss
+      and close, r review again, c request changes.
     - Issues tab (from 03 Issue Workbench): findings (Beads bugs) grouped by epic, then Ad hoc (P3 Q2); waiting-for-approval
       first. Each row and worksheet names its source = parent: PRD review (epic), code review · <bead>, or ad hoc; the
       source pill opens it on Planning. Worksheet: labels in a gutter (same layout as Home's open questions): Status (text
@@ -58,6 +87,10 @@
       files only, + ernie events. A divider row marks each session change. Bash and Agent descriptions and item events
       read as prose (sans); paths, patterns and URLs stay mono. A new row lands every ~4 s on the working session.
     - Tab keys: g then h / p / i / f / s / a / l (Home, Planning, Issues, Facts, Scratch, Files, Tool log).
+    - Now strip (P6 Q5, top bar, every tab): the worktree's Now derived from Beads (Beads workflow Q4), e.g.
+      "● 2.1 review r2 · 19m", "● E1 approve PRD · 41m", "● 0.4 coding · 2h 23m · stalled". Mustard when it waits on you
+      or stalled (stalled = something runs but the worktree's session isn't working). Click opens it on Planning (the
+      bead, or the epic detail). Sample worktrees: dedupe = running bead, gsc-backfill = PRD gate, ernie/main = stalled.
     - Settings (⚙ in the top bar, key `,`, esc closes): one panel, global (every repo; server keeps it in
       ~/.config/ernie/settings.json). Only the page or your own terminal changes it, never Claude: the numbers are what stop
       the agent loop from running away. Rows: Queue running / paused (applies at once; Claude finishes the step it's on) ·
@@ -67,7 +100,7 @@
       and Beads auto-push (bd config); each is changed where it lives. Paused shows a "queue paused" pill in the top bar.
       Kept off the panel: context caps (dump 4 KB, inbox 8 KB, tied to Claude Code's hook output limit), server timings,
       approval gates and security checks.
-  Data: _sample_state.js, loaded from this folder (same data as the 10 variations; P3/P4 additions at the end).
+  Data: _sample_state.js, loaded from this folder (same data as the 10 variations; P3/P4/P6 additions at the end).
   Colours: _tokens.css; map in style-guide.html. Top-bar select picks the scheme: retro (default; brown ground, burnt-orange
     boxes, cream text, teal accent), original dark or original light (the blue scheme with its grid). Remembered per browser.
 -->
@@ -390,6 +423,60 @@
   .pl-phases .panel-body { display: flex; flex-wrap: wrap; gap: 4px; }
   .pl-phases .ph-row { width: auto; }
   .pl-phases .bar i { flex: 1 0 56px; }
+  /* Queue tick on bead rows: an empty box, or the bead's place in the queue */
+  .bd-item { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: start; }
+  .tick { width: 18px; height: 18px; margin-top: 8px; padding: 0; border-radius: 4px; border: 1.5px solid var(--border); background: none;
+    cursor: pointer; font: 12px/15px var(--mono); color: var(--text); text-align: center; }
+  .tick:hover { border-color: var(--accent); }
+  .tick[aria-pressed=true] { background: var(--bg-raised); border-color: var(--accent); }
+  .bd-row .capg { margin-left: 6px; }
+  .bd-row.add { grid-template-columns: minmax(0, 1fr); margin-top: 8px; }
+  .bd-row.add .t { font-size: 13px; color: var(--text-dim); }
+  .bd-row.add kbd, .now-keys kbd { font: 12px var(--mono); margin-left: 6px; padding: 0 4px; border-radius: 3px; border: 1px solid var(--border); }
+  .ep-row .why.dim { color: var(--text-dim); }
+
+  /* Epic detail: the Plan list (stage name column, then what happened), gate actions, audit report */
+  .tl { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .tl li { display: grid; grid-template-columns: 16px 11em minmax(0, 1fr); gap: 0 12px; align-items: baseline; }
+  .tl .lbl, .tl .det { line-height: 1.45; min-width: 0; overflow-wrap: anywhere; }
+  .tl li.st-todo .lbl, .tl li.st-todo .det { color: var(--text-dim); }
+  .tl li.st-waiting .lbl { color: var(--warning-text); font-weight: 600; }
+  .tl .gate { grid-column: 3; margin: 12px 0 8px; }
+  .stage-link { font: inherit; color: var(--text-accent); background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+  .stage-link:hover { text-decoration: underline; }
+  .warn-txt { color: var(--warning-text); }
+  .rnds { display: inline-flex; flex-wrap: wrap; gap: 2px 14px; }
+  .rnd { white-space: nowrap; }
+  .rnd .n { font: 13px var(--mono); color: var(--text-dim); margin-right: 4px; }
+  .rnd.clean { color: var(--success); } .rnd.now { color: var(--text-accent); } .rnd.over { color: var(--warning-text); }
+  .aud { display: grid; grid-template-columns: 11em minmax(0, 1fr); gap: 10px 12px; align-items: baseline; }
+  .aud .gap { color: var(--warning-text); }
+  .gut dd > p.hint { margin: 8px 0 0; }
+  .gut dd > .chips + .chips { margin-top: 8px; }
+  /* Page ops with a note (Request changes, Send back) and the ask field share the answer box's layout */
+  .other.op-note { max-width: 560px; }
+  .other.ask { max-width: 560px; }
+  .other + .qf-sent, .qf-sent + .qf-sent, .kbtns + .qf-sent { margin-top: 8px; }
+  .now-keys { font: 13px/1.45 var(--sans); color: var(--text-dim); margin-top: 10px; }
+  .done-msg { font: 13px/1.45 var(--sans); color: var(--success); margin: 0 0 8px; }
+  /* + Bead form (Ad hoc) */
+  .bead-form :is(input[type=text], textarea, select) { width: 100%; max-width: 62ch; font: 15px var(--sans); padding: 6px 10px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--bg-recessed); color: var(--text); }
+  .bead-form .gut select { width: auto; }
+  /* Reason: a textarea's baseline is its last line, so labels line up with the top of each field instead */
+  .bead-form .gut:not(.decide) { align-items: start; }
+  .bead-form .gut:not(.decide) dt { padding-top: 8px; }
+  .bead-form textarea { min-height: 96px; resize: vertical; line-height: 1.5; }
+  .bead-form :is(input, textarea)::placeholder { color: var(--text-dim); opacity: 1; }
+  .bead-form label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+
+  /* Now strip (top bar, every tab): what Claude is on; mustard when it waits on you or stalled */
+  .now-strip { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 13px var(--sans); padding: 2px 10px;
+    border-radius: 12px; border: 1px solid var(--border); background: none; color: var(--text); cursor: pointer; }
+  .now-strip::before { content: '●'; margin-right: 6px; color: var(--accent); }
+  .now-strip:hover { border-color: var(--accent); }
+  .now-strip.warn { border-color: var(--warning); color: var(--warning-text); }
+  .now-strip.warn::before { color: var(--warning); }
 
   /* Scratch: collapsible pads on the ground (reading panels), newest first */
   .sc-item { margin-bottom: 10px; overflow: hidden; }
@@ -451,7 +538,7 @@
   <div class="brand">ernie<span>.</span></div>
   <div class="wt-pick-wrap" id="wt-pick-wrap"></div>
   <nav class="tabstrip" id="tabstrip" aria-label="Tabs"></nav>
-  <div class="status"><span class="paused-pill" id="queue-paused" hidden>queue paused</span><span class="live">live</span>
+  <div class="status"><span id="now-strip"></span><span class="paused-pill" id="queue-paused" hidden>queue paused</span><span class="live">live</span>
     <select class="scheme-pick" id="scheme-pick" aria-label="Colour scheme">
       <option value="retro">retro</option><option value="original">original dark</option><option value="original-light">original light</option>
     </select>
@@ -470,6 +557,8 @@
   S.logs.push(...S.lifecycleLogs);
   // Findings closed with resolution=dismissed; the shared sample still says `dropped`
   Object.values(S.states).forEach(st => st.issues.forEach(i => { if (i.status === 'dropped') i.status = 'dismissed'; }));
+  // Every worktree can take ad hoc beads (+ Bead) and ticks, even before it has any
+  Object.values(S.states).forEach(st => { st.adhoc ||= []; st.queue ||= []; });
   const TABS = [
     { key: 'home', label: '⌂ Home' },
     { key: 'planning', label: '▤ Planning' },
@@ -493,9 +582,14 @@
     selectedEpic: null, // "<log key>|<epic id>", or "<log key>|adhoc"
     selectedBead: null, // "<log key>|<epic id or adhoc>|<bead id>"
     prdOpen: false, // Planning: the selected epic's PRD replaces the bead detail
+    epicOpen: null, // Planning: epic detail in the right column; null = open while the epic is still being planned
+    auditOpen: false, // Planning: the epic's audit report replaces the epic detail
+    newBead: false, // Planning: the + Bead form fills the right column (Ad hoc)
+    opNote: null, // the open note box: "gate|<log>|<epic>", "cap|<bead key>" or "sendback|<bead key>"
+    beadMsg: null, // { beadKey, text }: one-line result of a page button that ran at once (Send back, + Bead)
     copied: null,
     shownMethods: new Set(),
-    queued: [], // page events waiting for each session's next prompt: { key, label }
+    queued: [], // page events waiting for each session's next prompt: { key, label }; ops with Undo also carry qid + undo()
     logFilter: { session: 'all', tool: 'all', hideAgents: false, filesOnly: false, events: false },
     logUnseen: 0,
     settingsOpen: false,
@@ -721,11 +815,11 @@
   const BEAD_GLYPH = { todo: '○', active: '◐', done: '●', blocked: '⊘' };
   const ADHOC = 'adhoc';
 
-  // The worktree's epics, then one "Ad hoc" entry holding the beads with no epic
+  // The worktree's epics, then one "Ad hoc" entry holding the beads with no epic (always there: + Bead lives in it)
   function epicList(logKey) {
     const st = S.states[logKey];
     const epics = (st?.epics || []).map(ep => ({ ep, key: `${logKey}|${ep.id}` }));
-    if (!st?.adhoc?.length) return epics;
+    if (!st) return epics;
     const adhoc = { id: ADHOC, title: 'Ad hoc', goal: 'Beads with no epic (what queue.md "next" used to hold).', beads: st.adhoc };
     return [...epics, { ep: adhoc, key: `${logKey}|${ADHOC}` }];
   }
@@ -787,12 +881,14 @@
     const own = b.links || [];
     const reverse = [
       ...st.decisions.filter(d => d.ref === b.id && !own.includes(d.id)).map(d => [d.id, '← ref to this bead']),
-      ...st.issues.filter(i => i.parent === b.id && !own.includes(i.id)).map(i => [i.id, 'found in code review of this bead']),
+      ...st.issues.filter(i => i.parent === b.id && !own.includes(i.id)).map(i => [i.id, isSentBack(i) ? 'sent back by you' : 'found in code review of this bead']),
     ];
     const linked = [...own.map(r => linkHTML(logKey, r)), ...reverse.map(([r, why]) => linkHTML(logKey, r, why))];
+    const stage = b.status === 'active' ? beadStage(logKey, b) : null;
     const status = b.status === 'blocked'
       ? `<span class="steps"><b>blocked</b></span>${openDeps.length ? ` <span class="dim">on ${openDeps.map(x => esc(x.b.id)).join(', ')}</span>` : ''}`
-      : stepsHTML(['todo', 'active', 'done'], b.status);
+      : stepsHTML(['todo', 'active', 'done'], b.status)
+        + (stage ? ` <span class="${stage.waiting ? 'warn-txt' : 'dim'}">· ${esc(stage.text)}${b.since ? ` · since ${esc(b.since)}` : ''}</span>` : '');
     return `<article class="ws">
       <div class="ws-meta"><span>bead ${pos + 1} of ${list.length}</span>
         <span class="pill p-ours">${esc(epicLabel(ep))}</span></div>
@@ -801,16 +897,19 @@
         <dt>Status</dt><dd>${status}</dd>
         <dt>What</dt><dd>${esc(b.what || '—')}</dd>
         ${b.notes ? `<dt>Notes</dt><dd>${esc(b.notes)}</dd>` : ''}
+        ${b.priority != null ? `<dt>Priority</dt><dd>P${b.priority}</dd>` : ''}
         <dt>Done when</dt><dd>${checks.length ? `${checklist(checks)}<div class="dim" style="font-size:13px;margin-top:4px">${checksDone} of ${checks.length} done</div>` : '<span class="dim">No checks yet.</span>'}</dd>
         ${deps.length ? `<dt>Depends on</dt><dd class="wide"><div class="chips">${deps.map(beadChip).join('')}</div></dd>` : ''}
         ${unblocks.length ? `<dt>Unblocks</dt><dd class="wide"><div class="chips">${unblocks.map(beadChip).join('')}</div></dd>` : ''}
         ${linked.length ? `<dt>Linked</dt><dd><div class="linked">${linked.join('')}</div></dd>` : ''}
         ${b.files?.length ? `<dt>Files</dt><dd><ul class="files">${b.files.map(f => `<li>${esc(f)}</li>`).join('')}</ul></dd>` : ''}
         ${b.commit ? `<dt>Commit</dt><dd><code>${esc(b.commit)}</code></dd>` : ''}
+        ${b.reviews?.length || b.stage === 'review' ? `<dt>Reviews</dt><dd>${beadRoundsHTML(logKey, b)}</dd>` : ''}
       </dl>
+      ${beadActionsHTML(entry)}
       <footer class="ws-foot">
         ${prev ? `<button class="btn" type="button" data-bead-open="${esc(prev.key)}" title="k">‹ ${esc(prev.b.id)}</button>` : '<span></span>'}
-        <span>j / k bead · { } epic · p PRD</span>
+        <span>j / k bead · { } epic${ep.id === ADHOC ? '' : ' · e epic'} · p PRD</span>
         ${next ? `<button class="btn" type="button" data-bead-open="${esc(next.key)}" title="j">${esc(next.b.id)} ›</button>` : '<span></span>'}
       </footer></article>`;
   }
@@ -852,13 +951,14 @@
   const slug = t => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
   // P2: the epic's PRD (one per epic, path from `spec_id`), with its plan state and review count from the epic's labels
-  function prdHTML(epic, bead) {
+  function prdHTML(epic, bead, fromEpic = false) {
     const prd = epic.ep.prd;
     const title = /^# (.*)/m.exec(prd.md)?.[1] || epic.ep.title;
     const body = prd.md.replace(/^# .*\n?/m, '');
     const sections = [...body.matchAll(/^## (.*)/gm)].map(m => m[1]);
+    const back = fromEpic ? `epic ${esc(epic.ep.id)}` : bead ? `bead ${esc(bead.b.id)}` : '';
     return `<article class="ws">
-      <div class="ws-meta">${bead ? `<button class="btn" type="button" data-prd-toggle>‹ bead ${esc(bead.b.id)} · esc</button>` : ''}
+      <div class="ws-meta">${back ? `<button class="btn" type="button" data-prd-toggle>‹ ${back} · esc</button>` : ''}
         <span>PRD</span><span class="pill p-ours">${esc(epicLabel(epic.ep))}</span>
         <span>Plan: ${esc(prd.plan)} · ${plural(prd.review, 'review round')}</span></div>
       <h2>${esc(title)}</h2>
@@ -883,50 +983,85 @@
     return { epics, epic, beads };
   }
 
+  // Epic detail sits in the right column (P6 Q2 B); it opens by default while a stage before Build is unfinished
+  const detailShown = epic => !!epic && epic.ep.id !== ADHOC && (view.epicOpen ?? stillPlanning(epic.ep.stages || []));
+
+  // What the Planning right column shows; Planning keys act on it
+  function planPane(epic) {
+    if (view.newBead && epic?.ep.id === ADHOC) return 'new';
+    if (view.prdOpen && epic?.ep.prd) return 'prd';
+    if (detailShown(epic)) return view.auditOpen ? 'audit' : 'epic';
+    return 'bead';
+  }
+
   function renderPlanning() {
     const { epics, epic, beads } = planSelection();
     const st = cur();
+    const isAdhoc = epic?.ep.id === ADHOC;
+    const pane = planPane(epic);
+    const detailOpen = detailShown(epic) && pane !== 'new';
     const epicRow = x => {
-      const isAdhoc = x.ep.id === ADHOC;
-      return `<button class="ph-row ${x.key === view.selectedEpic ? 'sel' : ''}" type="button" data-epic-open="${esc(x.key)}" title="${isAdhoc ? 'no epic' : x.ep.status}">
-        ${isAdhoc ? glyph('todo', '◇', 'ad hoc: beads with no epic') : glyph(x.ep.status, BEAD_GLYPH[x.ep.status])}<span class="id">${isAdhoc ? '' : esc(x.ep.id)}</span>
+      const adhoc = x.ep.id === ADHOC;
+      return `<button class="ph-row ${x.key === view.selectedEpic ? 'sel' : ''}" type="button" data-epic-open="${esc(x.key)}" title="${adhoc ? 'no epic' : x.ep.status}">
+        ${adhoc ? glyph('todo', '◇', 'ad hoc: beads with no epic') : glyph(x.ep.status, BEAD_GLYPH[x.ep.status])}<span class="id">${adhoc ? '' : esc(x.ep.id)}</span>
         <span class="t"><b>${esc(x.ep.title)}</b>${progressBar(x.ep.beads)}</span></button>`;
     };
     const epicCol = epics.map(epicRow).join('');
 
-    const blockedBy = entry => {
-      const all = beadsOf(entry.key.split('|')[0]);
-      return (entry.b.deps || []).filter(id => all.find(x => x.b.id === id)?.b.status !== 'done');
-    };
+    const all = beadsOf(view.wt);
+    const blockedBy = entry => (entry.b.deps || []).filter(id => all.find(x => x.b.id === id)?.b.status !== 'done');
+    // Beads workflow Q3: a ticked bead whose blockers aren't ticked (or in progress) names them, so you can tick them too
+    const waitingOn = ids => `waiting on ${ids.map(id => st.queue.includes(id) || all.find(x => x.b.id === id)?.b.status === 'active'
+      ? esc(id) : `${esc(id)} (not ticked)`).join(' · ')}`;
     const beadRow = x => {
       const waiting = x.b.status === 'blocked' ? blockedBy(x) : [];
-      return `<button class="bd-row st-${x.b.status} ${x.key === view.selectedBead ? 'sel' : ''}" type="button" data-bead-open="${esc(x.key)}" title="${x.b.status}">
+      const ticked = st.queue.includes(x.b.id);
+      const why = !waiting.length ? '' : ticked ? waitingOn(waiting) : `needs ${waiting.map(esc).join(', ')}`;
+      const cap = capHit(view.wt, x.b)
+        ? `<span class="g g--blocked capg" title="${esc(capLine(view.wt, x.b))}">⚑</span>` : '';
+      return `<div class="bd-item">${x.b.status === 'todo' || x.b.status === 'blocked' ? tickHTML(x) : '<span></span>'}
+        <button class="bd-row st-${x.b.status} ${x.key === view.selectedBead && pane === 'bead' ? 'sel' : ''}" type="button" data-bead-open="${esc(x.key)}" title="${x.b.status}">
         ${glyph(x.b.status, BEAD_GLYPH[x.b.status])}<span class="id">${esc(x.b.id)}</span>
-        <span class="t">${esc(x.b.title)}${waiting.length ? `<span class="why">needs ${waiting.map(esc).join(', ')}</span>` : ''}</span></button>`;
+        <span class="t">${esc(x.b.title)}${cap}${why ? `<span class="why">${why}</span>` : ''}</span></button></div>`;
     };
-    // P3 Q2: PRD-review findings hang off the epic itself
-    const prdFindings = epic ? st.issues.filter(i => i.parent === epic.ep.id) : [];
+    // One row above the beads opens the epic detail; its status line is the epic's Now (P6 Q5)
+    const planRow = epic && !isAdhoc ? (() => {
+      const sum = planSummary(view.wt, epic.ep);
+      return `<div class="bd-item"><span></span><button class="bd-row ep-row ${detailOpen ? 'sel' : ''}" type="button" data-epic-detail title="e">
+        ${glyph(STAGE_CLASS[sum.state], STAGE_GLYPH[sum.state], STAGE_TITLE[sum.state])}<span class="id"></span>
+        <span class="t">Plan &amp; reviews<span class="why ${sum.warn ? '' : 'dim'}">${esc(sum.text)}</span></span></button></div>`;
+    })() : '';
+    const breakdownDone = (epic?.ep.stages || []).find(s => s.kind === 'breakdown')?.state === 'done';
+    const noBeads = isAdhoc ? 'No ad hoc beads yet.'
+      : epic?.ep.stages && !breakdownDone ? 'No beads yet: the breakdown runs after you approve the PRD.' : 'No beads yet.';
+    // Orange box = things you pick from only; the epic's done-when checks and PRD-review findings live in the epic detail
     const beadCol = epic ? `
-      <div class="is-group"><span>${esc(epicLabel(epic.ep))}</span><span>${beads.length} beads</span></div>
+      <div class="is-group"><span>${esc(epicLabel(epic.ep))}</span><span>${plural(beads.length, 'bead')}</span></div>
       <p class="ph-goal">${esc(epic.ep.goal || '')}</p>
       ${epic.ep.prd ? `<div class="prd-open"><button class="chip" type="button" data-prd-toggle aria-pressed="${view.prdOpen}">▤ PRD · ${esc(epic.ep.prd.path.split('/').pop())}<kbd>p</kbd></button></div>` : ''}
-      ${beads.map(beadRow).join('')}
-      ${epic.ep.doneWhen?.length ? `<div class="ph-checks"><div class="sub">Epic done when</div>${checklist(epic.ep.doneWhen)}</div>` : ''}
-      ${prdFindings.length ? `<div class="ph-checks"><div class="sub">PRD review findings</div><div class="chips">${prdFindings.map(i => issueChip(view.wt, i)).join('')}</div></div>` : ''}` : '<div class="empty">No epic selected.</div>';
+      ${planRow}
+      ${beads.map(beadRow).join('') || `<div class="empty">${noBeads}</div>`}
+      ${isAdhoc ? `<button class="bd-row add" type="button" data-bead-new aria-pressed="${view.newBead}"><span class="t">+ Bead<kbd>n</kbd></span></button>` : ''}` : '<div class="empty">No epic selected.</div>';
     const selected = beads.find(x => x.key === view.selectedBead);
     const epicBeads = (st.epics || []).flatMap(ep => ep.beads);
-    const adhocCount = (st.adhoc || []).length;
-    const allBeads = beadsOf(view.wt).map(x => x.b);
+    const allBeads = all.map(x => x.b);
+    const right = {
+      new: () => newBeadHTML(),
+      prd: () => prdHTML(epic, selected, detailOpen),
+      audit: () => auditHTML(epic),
+      epic: () => epicDetailHTML(epic),
+      bead: () => selected ? beadHTML(selected, beads)
+        : `<div class="canvas"><p>${isAdhoc ? 'No ad hoc beads. + Bead (n) adds one.' : 'No beads in this epic.'}</p></div>`,
+    }[pane]();
 
     document.getElementById('main').innerHTML = `${wtBanner()}
       <div class="tab-head"><h1>Planning</h1>
-        <span class="meta">${(st.epics || []).length} epics · ${epicBeads.length} beads · ${adhocCount} ad hoc · ${allBeads.filter(b => b.status === 'active').length} active · ${allBeads.filter(b => b.status === 'blocked').length} blocked</span>
-        <span class="hint">view-only · Beads fields not final; revisit in P5</span></div>
+        <span class="meta">${(st.epics || []).length} epics · ${epicBeads.length} beads · ${st.adhoc.length} ad hoc · ${allBeads.filter(b => b.status === 'active').length} active · ${allBeads.filter(b => b.status === 'blocked').length} blocked · ${st.queue.length} in the queue</span>
+        <span class="hint">Beads fields not final; revisit in P5</span></div>
       ${epics.length ? `<div class="pl-grid">
         <section class="panel pl-col pl-phases"><div class="panel-body">${epicCol}</div></section>
         <section class="panel pl-col"><div class="panel-body">${beadCol}</div></section>
-        <div>${view.prdOpen && epic?.ep.prd ? prdHTML(epic, selected)
-          : selected ? beadHTML(selected, beads) : '<div class="canvas"><p>No beads in this epic.</p></div>'}</div>
+        <div>${right}</div>
       </div>` : '<div class="canvas"><p>No epics or ad hoc beads for this worktree.</p></div>'}`;
   }
 
@@ -935,7 +1070,7 @@
     const next = beads[beads.findIndex(x => x.key === view.selectedBead) + delta];
     if (!next) return;
     view.selectedBead = next.key;
-    view.prdOpen = false;
+    Object.assign(view, { prdOpen: false, epicOpen: false, auditOpen: false, newBead: false, opNote: null });
     renderAll();
   }
 
@@ -944,7 +1079,508 @@
     const next = epics[epics.findIndex(x => x.key === view.selectedEpic) + delta];
     if (!next) return;
     view.selectedEpic = next.key;
+    Object.assign(view, { epicOpen: null, auditOpen: false, newBead: false, opNote: null });
     renderAll();
+  }
+
+  // ---------- Planning: plan stages, gates, audit, queue, review cap, Now (P6) ----------
+  // One row per P2 stage: PRD review → you approve the PRD → breakdown → polish → audit → you approve the breakdown → build
+  const STAGE_GLYPH = { done: '●', now: '◐', waiting: '◔', todo: '○' };
+  const STAGE_CLASS = { done: 'done', now: 'active', waiting: 'blocked', todo: 'todo' };
+  const STAGE_TITLE = { done: 'done', now: 'running', waiting: 'waiting on you', todo: 'not started' };
+  const STAGE_NAME = { prd: 'PRD review', 'approve-prd': 'Approve PRD', breakdown: 'Breakdown', polish: 'Polish', audit: 'Audit',
+    'approve-breakdown': 'Approve breakdown', build: 'Build' };
+  // The two human gates (P6 Q3/Q3b): the PRD gate reruns a review round, the breakdown gate a polish round
+  const GATE = {
+    'approve-prd': { what: 'approve the PRD', short: 'approve PRD', gate: 'PRD', again: 'Review again' },
+    'approve-breakdown': { what: 'approve the breakdown', short: 'approve breakdown', gate: 'breakdown', again: 'Polish again' },
+  };
+  // PRD sections that frame the work rather than ask for it; the audit lists them but expects no bead under them
+  const AUDIT_CONTEXT = ['Problem', 'Goal', 'Scope', 'Risks', 'Open questions'];
+
+  // Still being planned = something before Build is unfinished
+  const stillPlanning = stages => stages.some(s => s.kind !== 'build' && s.state !== 'done');
+  const stageNow = s => `${STAGE_NAME[s.kind].toLowerCase()}${s.rounds ? ` r${s.rounds.length + 1}` : ''}`;
+  // A gate answer (Approve, Review / Polish again, Request changes) waiting for the next prompt; asks don't answer a gate
+  const gateSent = (epicKey, s) => view.queued.find(q => q.gateKey === epicKey && q.stageKind === s.kind);
+  // Waiting on you = a gate stage with no answer queued yet
+  const gateWaiting = (logKey, ep) => (ep.stages || []).find(s => s.state === 'waiting' && !gateSent(`${logKey}|${ep.id}`, s));
+
+  // Code-review findings waiting for your approval (Beads workflow Q7: the bead waits on you, the queue moves on)
+  const isSentBack = iss => (iss.labels || []).includes('review:user');
+  const openFindings = (logKey, b) => S.states[logKey].issues.filter(i => i.parent === b.id && i.status === 'explained' && !isSentBack(i));
+  const beadOpQueued = (logKey, b) => view.queued.find(q => q.key === logKey && q.beadId === b.id && q.beadOp);
+  // Cap hit (P6 Q6b): in progress, reviews at the cap, a finding still open. Derived from Beads, so acting on the bead or
+  // the finding anywhere (Planning, Issues, the Home card) clears it; a queued Review again / Request changes counts as acting
+  const capHit = (logKey, b) => b.status === 'active' && (b.reviews?.length || 0) >= S.settings.reviewMax
+    && openFindings(logKey, b).length > 0 && !beadOpQueued(logKey, b);
+  const capLine = (logKey, b) => `${b.id} hit the review cap · ${plural(openFindings(logKey, b).length, 'finding')} left`;
+
+  // What an in-progress bead is doing: coding, review rN, or waiting on you (an open finding)
+  function beadStage(logKey, b) {
+    const op = beadOpQueued(logKey, b);
+    if (op) return { text: `${op.beadOp} · next prompt`, queued: true };
+    if (capHit(logKey, b)) return { text: 'hit the review cap', waiting: true };
+    if (openFindings(logKey, b).length) return { text: 'waiting on you', waiting: true };
+    if (b.stage === 'review') return { text: `review r${(b.reviews?.length || 0) + 1}` };
+    return { text: 'coding' };
+  }
+
+  // Round tokens: `r1 2 found · r2 clean` (PRD and code review count findings), `r1 3 edits, 1 major` (polish counts edits)
+  const roundText = (kind, r) => kind === 'polish' ? `${plural(r.edits, 'edit')}${r.major ? `, ${r.major} major` : ''}` : r.found ? `${r.found} found` : 'clean';
+  const roundClean = (kind, r) => kind === 'polish' ? !r.edits : !r.found;
+  const roundsHTML = (kind, rounds, tail = '') => `<span class="rnds">${rounds.map(r =>
+    `<span class="rnd ${roundClean(kind, r) ? 'clean' : ''}" title="${esc(r.note || (r.ids || []).join(', ') || roundText(kind, r))}"><span class="n">r${r.n}</span>${roundText(kind, r)}</span>`).join('')}${tail}</span>`;
+
+  // Bead Reviews row: finished rounds, then the running one or "cap hit"
+  function beadRoundsHTML(logKey, b) {
+    const rounds = b.reviews || [];
+    const tail = b.status === 'active' && b.stage === 'review' ? `<span class="rnd now"><span class="n">r${rounds.length + 1}</span>running</span>`
+      : capHit(logKey, b) ? '<span class="rnd over">cap hit</span>' : '';
+    return roundsHTML('review', rounds, tail);
+  }
+
+  // Now (Beads workflow Q4, P6 Q5), derived from Beads: a running bead (coding / review rN) first, else a running
+  // planning stage, else what waits on you (a gate, then a bead with an open finding). Stalled = something is running
+  // but no Claude session is working in the worktree (a crash leaves the bead in progress)
+  function nowOf(logKey) {
+    const st = S.states[logKey];
+    if (!st) return null;
+    const epics = st.epics || [];
+    const stalled = logOf(logKey)?.session.state !== 'working';
+    const inProgress = beadsOf(logKey).filter(x => x.b.status === 'active');
+    const running = inProgress.filter(x => { const s = beadStage(logKey, x.b); return !s.waiting && !s.queued; });
+    const activeEpic = epics.find(ep => ep.status === 'active');
+    const bead = running.find(x => x.ep === activeEpic) || running[0];
+    if (bead) return { ep: bead.ep, bead, label: bead.b.id, what: beadStage(logKey, bead.b).text, since: bead.b.since, stalled };
+    for (const ep of epics) {
+      const s = (ep.stages || []).find(x => x.state === 'now' && x.kind !== 'build');
+      if (s) return { ep, label: ep.id, what: stageNow(s), since: s.since, stalled };
+    }
+    for (const ep of epics) {
+      const s = gateWaiting(logKey, ep);
+      if (s) return { ep, label: ep.id, what: `waiting on you: ${GATE[s.kind].what}`, short: GATE[s.kind].short, since: s.since, waiting: true };
+    }
+    const waiting = inProgress.find(x => beadStage(logKey, x.b).waiting);
+    if (waiting) return { ep: waiting.ep, bead: waiting, label: waiting.b.id, what: beadStage(logKey, waiting.b).text, since: waiting.b.since, waiting: true };
+    return null;
+  }
+
+  // Minutes from an HH:MM sample time to the mock clock, as "8m" or "1h 50m"; other formats (Oct 13) give ''
+  function ago(since) {
+    const m = /^(\d\d):(\d\d)$/.exec(since || '');
+    if (!m) return '';
+    const mins = Math.max(0, Math.floor((simSeconds - (+m[1] * 3600 + +m[2] * 60)) / 60));
+    return mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h ${mins % 60}m`;
+  }
+
+  // Top-bar strip on every tab (P6 Q5): mustard when Claude waits on you or stalled; click opens it on Planning
+  function renderNowStrip() {
+    const now = nowOf(view.wt);
+    const box = document.getElementById('now-strip');
+    if (!now) { box.innerHTML = ''; return; }
+    const dur = ago(now.since);
+    const tail = `${dur ? ` · ${dur}` : ''}${now.stalled ? ' · stalled' : ''}`;
+    // Reason: the strip shares the top bar with the tabs, so a gate shows its short name; the mustard says it waits on you
+    const text = `${now.label} ${now.short || now.what}${tail}`;
+    const full = `${now.label} ${now.what}${tail}`;
+    const target = now.bead ? `data-bead-open="${esc(now.bead.key)}"` : `data-epic-detail-open="${esc(view.wt)}|${esc(now.ep.id)}"`;
+    box.innerHTML = `<button class="now-strip ${now.waiting || now.stalled ? 'warn' : ''}" type="button" ${target} title="Now: ${esc(full)} · open on Planning">${esc(text)}</button>`;
+  }
+
+  // Home's Now line: the bead or epic, what it's doing and since when; waiting on you and stalled in mustard
+  function nowHTML(now) {
+    if (!now) return '<span class="hint">nothing running</span>';
+    const chip = now.bead ? beadChip(now.bead)
+      : `<button class="chip" type="button" data-epic-detail-open="${esc(view.wt)}|${esc(now.ep.id)}">${esc(epicLabel(now.ep))}</button>`;
+    return `${chip} <span class="${now.waiting || now.stalled ? 'warn-txt' : ''}">${esc(now.what)}${now.since ? ` · since ${esc(now.since)}` : ''}${now.stalled ? ' · stalled' : ''}</span>`;
+  }
+
+  // The "Plan & reviews" row's status line: waiting on you / <stage> rN running / building · N of M done
+  function planSummary(logKey, ep) {
+    const stages = ep.stages || [];
+    const done = ep.beads.filter(b => b.status === 'done').length;
+    const count = `${done} of ${ep.beads.length} done`;
+    const waiting = gateWaiting(logKey, ep);
+    if (waiting) return { state: 'waiting', warn: true, text: `waiting on you: ${GATE[waiting.kind].what}${waiting.since ? ` · since ${waiting.since}` : ''}` };
+    const sent = view.queued.find(q => q.gateKey === `${logKey}|${ep.id}`);
+    if (sent) return { state: 'now', text: `${sent.label} · next prompt` };
+    const stalled = logOf(logKey)?.session.state !== 'working';
+    const running = stages.find(s => s.state === 'now' && s.kind !== 'build');
+    if (running) return { state: 'now', warn: stalled, text: `${stageNow(running)} running${running.since ? ` · since ${running.since}` : ''}${stalled ? ' · stalled' : ''}` };
+    if (stages.find(s => s.kind === 'build')?.state === 'now') {
+      const now = nowOf(logKey);
+      const here = now?.bead && now.ep === ep;
+      return { state: 'now', warn: here && (now.waiting || now.stalled), text: `building · ${count}${here ? ` · ${now.label} ${now.what}${now.stalled ? ' · stalled' : ''}` : ''}` };
+    }
+    if (!stages.length) return { state: ep.status === 'active' ? 'now' : ep.status === 'done' ? 'done' : 'todo', text: `${count} · no plan history` };
+    return stages.every(s => s.state === 'done') ? { state: 'done', text: 'planned and built' } : { state: 'todo', text: 'not started' };
+  }
+
+  // What happened in one stage, for the Plan list; the stage name sits in its own column so the list scans
+  function stageDet(logKey, ep, s) {
+    const since = s.since ? ` · since ${esc(s.since)}` : '';
+    if (GATE[s.kind]) {
+      if (gateSent(`${logKey}|${ep.id}`, s)) return 'your answer goes with the next prompt';
+      if (s.state === 'done') return `you approved · ${esc(s.at)}`;
+      if (s.state === 'waiting') return `<span class="warn-txt">waiting on you${s.kind === 'approve-breakdown' ? ' · read the audit first' : ''}${since}</span>`;
+      return s.kind === 'approve-prd' ? 'after PRD review' : 'after the audit';
+    }
+    if (s.kind === 'prd' || s.kind === 'polish') {
+      const running = s.state === 'now' ? `<span class="rnd now"><span class="n">r${(s.rounds?.length || 0) + 1}</span>running${since}</span>` : '';
+      if (!s.rounds?.length && !running) return s.kind === 'prd' ? 'not started' : 'after the breakdown';
+      const settle = s.kind === 'polish' && s.settled === false ? '<span class="rnd over">didn\'t settle</span>' : '';
+      return roundsHTML(s.kind, s.rounds || [], running + settle);
+    }
+    if (s.kind === 'breakdown') {
+      if (s.state === 'todo') return 'after you approve the PRD';
+      return s.state === 'now' ? `running${since}` : `${plural(s.beads, 'bead')} from a fresh agent`;
+    }
+    if (s.kind === 'audit') {
+      if (s.state === 'todo') return 'after polish';
+      const a = auditOf(ep, s);
+      if (!a.gaps.length && !a.uncited.length && !a.dupes.length) return 'no gaps: every PRD section has a bead, every bead cites one';
+      return [
+        a.gaps.length ? `<span class="warn-txt">${plural(a.gaps.length, 'gap')}: ${a.gaps.map(esc).join(' · ')}</span>` : 'no gaps',
+        a.uncited.length ? `<span class="warn-txt">${a.uncited.length} uncited</span>` : '',
+        a.dupes.length ? `<span class="warn-txt">${plural(a.dupes.length, 'possible duplicate')}</span>` : '',
+      ].filter(Boolean).join(' · ');
+    }
+    const count = `${ep.beads.filter(b => b.status === 'done').length} of ${ep.beads.length}`;
+    if (s.state === 'done') return `${count} beads closed · ${esc(s.at)}`;
+    if (s.state === 'now') {
+      const now = nowOf(logKey);
+      return `${count} done${now?.bead && now.ep === ep ? ` · ${esc(now.label)} ${esc(now.what)}` : ''}`;
+    }
+    return 'beads enter the queue after your approval';
+  }
+
+  function planStageHTML(epic, s) {
+    const ep = epic.ep;
+    const name = s.kind === 'audit' && s.state !== 'todo'
+      ? '<button class="stage-link" type="button" data-audit-open title="open the audit report">Audit</button>' : esc(STAGE_NAME[s.kind]);
+    const gate = GATE[s.kind] && (s.state === 'waiting' || gateSent(epic.key, s)) ? gateHTML(epic, s) : '';
+    return `<li class="st-${s.state}">${glyph(STAGE_CLASS[s.state], STAGE_GLYPH[s.state], STAGE_TITLE[s.state])}
+      <span class="lbl">${name}</span><span class="det">${stageDet(view.wt, ep, s)}</span>${gate}</li>`;
+  }
+
+  // Gate actions on the stage that waits on you (P6 Q3): Approve · Review / Polish again · Request changes (note) · ask
+  function gateHTML(epic, s) {
+    const g = GATE[s.kind];
+    const sent = gateSent(epic.key, s);
+    if (sent) return `<div class="gate">${sentLine(sent)}</div>`;
+    const k = esc(epic.key);
+    const ticked = s.kind === 'approve-breakdown' ? tickedIn(epic) : [];
+    const again = ticked.length ? `${g.again} · ${plural(ticked.length, 'ticked bead')}` : g.again;
+    const btn = (action, key, label) => `<button class="kbtn" type="button" data-gate="${k}" data-action="${action}"><kbd>${key}</kbd>${label}</button>`;
+    const noteKey = `gate|${epic.key}`;
+    return `<div class="gate"><div class="kbtns">${btn('approve', 'a', 'Approve')}${btn('again', 'r', again)}${btn('changes', 'c', 'Request changes')}</div>
+      ${view.opNote === noteKey ? opNoteHTML(noteKey, 'what should change…') : ''}
+      ${askHTML(`gate|${epic.key}`, `the ${g.gate} gate`)}
+      <div class="now-keys">a approve · r ${g.again.toLowerCase()} · c request changes · / ask</div></div>`;
+  }
+
+  // Beads of this epic that are ticked; Polish again is limited to them when there are any (Beads workflow Q6b)
+  const tickedIn = epic => epic.ep.beads.filter(b => S.states[view.wt].queue.includes(b.id)).map(b => b.id);
+
+  // Epic detail (P6 Q2 B): the epic in the right column, same gutter as a bead. Plan = one row per P2 stage; the stage
+  // that waits on you carries the gate's actions (P6 Q3); the Audit row opens the audit report (P6 Q4)
+  function epicDetailHTML(epic) {
+    const ep = epic.ep;
+    const prdFindings = S.states[view.wt].issues.filter(i => i.parent === ep.id);
+    const stages = ep.stages || [];
+    const gate = stages.some(s => s.state === 'waiting');
+    return `<article class="ws">
+      <div class="ws-meta"><span>epic</span><span class="pill p-ours">${esc(epicLabel(ep))}</span>
+        ${ep.prd ? `<span>Plan: ${esc(ep.prd.plan)}</span>` : ''}</div>
+      <h2><span class="id">${esc(ep.id)}</span>${esc(ep.title)}</h2>
+      <dl class="gut">
+        <dt>Goal</dt><dd>${esc(ep.goal || '—')}</dd>
+        ${stages.length ? `<dt>Plan</dt><dd class="wide"><ol class="tl">${stages.map(s => planStageHTML(epic, s)).join('')}</ol></dd>` : ''}
+        ${ep.doneWhen?.length ? `<dt>Done when</dt><dd>${checklist(ep.doneWhen)}</dd>` : ''}
+        ${ep.prd ? `<dt>PRD</dt><dd><button class="chip" type="button" data-prd-toggle>▤ ${esc(ep.prd.path.split('/').pop())}<kbd>p</kbd></button></dd>` : ''}
+        ${prdFindings.length ? `<dt>Findings</dt><dd><div class="linked">${prdFindings.map(i => linkHTML(view.wt, i.id, 'found in PRD review')).join('')}</div></dd>` : ''}
+      </dl>
+      <footer class="ws-foot"><span></span><span>e epic · j / k bead · p PRD${gate ? ' · a / r / c gate · / ask' : ''}</span><span></span></footer></article>`;
+  }
+
+  // Audit (Beads workflow Q6b, P6 Q4): mechanical, no tokens. Every checked PRD section → the beads that cite it
+  // (`metadata.prd`), beads citing none, and the titles-only duplicate pass
+  function auditOf(ep, s) {
+    const sections = ep.prd ? [...ep.prd.md.matchAll(/^## (.*)/gm)].map(m => m[1]) : [];
+    const map = sections.filter(t => !AUDIT_CONTEXT.includes(t)).map(t => ({ section: t, beads: ep.beads.filter(b => (b.cites || []).includes(t)) }));
+    return {
+      map, context: sections.filter(t => AUDIT_CONTEXT.includes(t)),
+      gaps: map.filter(m => !m.beads.length).map(m => m.section),
+      uncited: ep.beads.filter(b => !(b.cites || []).some(t => sections.includes(t))),
+      dupes: s?.dupes || [],
+    };
+  }
+
+  function auditHTML(epic) {
+    const ep = epic.ep;
+    const s = (ep.stages || []).find(x => x.kind === 'audit');
+    const a = auditOf(ep, s);
+    const chips = list => `<div class="chips">${list.map(b => beadChip({ b, ep, key: `${epic.key}|${b.id}` })).join('')}</div>`;
+    const byId = id => ep.beads.find(b => b.id === id);
+    return `<article class="ws">
+      <div class="ws-meta"><button class="btn" type="button" data-audit-close>‹ epic ${esc(ep.id)} · esc</button>
+        <span>audit${s?.at ? ` · ${esc(s.at)}` : ''}</span><span class="pill p-ours">${esc(epicLabel(ep))}</span></div>
+      <h2>Audit</h2>
+      <dl class="gut">
+        <dt>PRD sections</dt><dd class="wide"><div class="aud">${a.map.map(m => `<span>${esc(m.section)}</span>${m.beads.length ? chips(m.beads) : '<span class="gap">no bead · gap</span>'}`).join('')}</div>
+          ${a.context.length ? `<p class="hint">Not checked, they frame the PRD: ${a.context.map(esc).join(' · ')}</p>` : ''}</dd>
+        <dt>Uncited beads</dt><dd>${a.uncited.length ? `${chips(a.uncited)}<p class="hint">These cite no PRD section: work the PRD doesn't ask for, or a missing citation.</p>` : 'None. Every bead cites a section.'}</dd>
+        <dt>Possible duplicates</dt><dd class="wide">${a.dupes.length ? `${a.dupes.map(pair => chips(pair.map(byId).filter(Boolean))).join('')}<p class="hint">Titles-only pass across polish batches; read both before you approve.</p>` : 'None found.'}</dd>
+      </dl>
+      <footer class="ws-foot"><span></span><span>esc back to the epic</span><span></span></footer></article>`;
+  }
+
+  // Queue tick (Beads workflow Q1/Q3): an empty box, or the bead's place in the queue
+  function tickHTML(x) {
+    const pos = S.states[x.key.split('|')[0]].queue.indexOf(x.b.id);
+    const title = pos >= 0 ? `#${pos + 1} in the queue · untick (t)` : 'tick into the queue (t)';
+    return `<button class="tick" type="button" data-tick="${esc(x.key)}" aria-pressed="${pos >= 0}" title="${title}" aria-label="${esc(x.b.id)}: ${title}">${pos >= 0 ? pos + 1 : ''}</button>`;
+  }
+
+  // Ticking adds the bead to the end of the ernie queue at once (Claude takes the first ticked bead that is ready); unticking removes it
+  function toggleTick(beadKey) {
+    const [logKey, , beadId] = beadKey.split('|');
+    const st = S.states[logKey];
+    const pos = st.queue.indexOf(beadId);
+    if (pos >= 0) st.queue.splice(pos, 1);
+    else st.queue.push(beadId);
+    logRow(logKey, { by: 'user', t: 'queue', op: pos >= 0 ? 'untick' : 'tick', text: `${pos >= 0 ? 'untick' : 'tick'} ${beadId}` });
+    renderAll();
+  }
+
+  // Bead action row (last, fixed spot): a cap-hit bead gets the cap choices (P6 Q6); other beads get Tick, Review again
+  // and, once closed, Send back (Beads workflow Q1, Q5)
+  function beadActionsHTML(entry) {
+    const { b } = entry;
+    const [logKey] = entry.key.split('|');
+    if (capHit(logKey, b)) {
+      return `<dl class="gut decide"><dt>Decide</dt><dd class="wide"><p class="msg">${esc(capLine(logKey, b))}. Claude moved on; the bead stays in progress until you pick.</p>
+        ${capChoicesHTML(entry, ['a', 'd', 'r', 'c'])}</dd></dl>`;
+    }
+    const st = S.states[logKey];
+    const sent = beadOpQueued(logKey, b);
+    const pos = st.queue.indexOf(b.id);
+    const canTick = b.status === 'todo' || b.status === 'blocked';
+    const noteKey = `sendback|${entry.key}`;
+    const k = esc(entry.key);
+    const btns = [
+      canTick ? `<button class="kbtn" type="button" data-tick="${k}"><kbd>t</kbd>${pos >= 0 ? `Untick · #${pos + 1} in the queue` : 'Tick into the queue'}</button>` : '',
+      sent ? '' : `<button class="kbtn" type="button" data-bead-op="${k}" data-action="again"><kbd>r</kbd>Review again</button>`,
+      b.status === 'done' ? `<button class="kbtn" type="button" data-sendback="${k}"><kbd>b</kbd>Send back</button>` : '',
+    ].join('');
+    const what = b.status === 'done' ? 'Closed. Send back opens a bug bead from your note; Review again runs one more review round.'
+      : canTick ? (pos >= 0 ? `Ticked: Claude takes it at #${pos + 1} once its deps are done.` : 'Tick it and Claude works it after the beads ticked before it.')
+      : 'In progress. Review again runs one more fresh review round; findings land on Issues.';
+    const msg = view.beadMsg?.beadKey === entry.key ? `<p class="done-msg">${esc(view.beadMsg.text)}</p>` : '';
+    return `<dl class="gut decide"><dt>Actions</dt><dd class="wide">${msg}<p class="msg">${what}</p><div class="kbtns">${btns}</div>
+      ${view.opNote === noteKey ? opNoteHTML(noteKey, 'what is wrong with it…') : ''}${sent ? sentLine(sent) : ''}</dd></dl>`;
+  }
+
+  // Cap-hit choices, shared by the bead's Decide row and the Home card; they run the same page ops as Planning and Issues
+  function capChoicesHTML(entry, keys) {
+    const [logKey] = entry.key.split('|');
+    const finding = openFindings(logKey, entry.b)[0];
+    const k = esc(entry.key);
+    const choices = [['approve', 'Approve the fix'], ['dismiss', 'Dismiss and close'], ['again', 'Review again'], ['changes', 'Request changes on the bead']];
+    const noteKey = `cap|${entry.key}`;
+    return `<div class="kbtns">${choices.map(([action, label], i) =>
+        `<button class="kbtn ${action === 'dismiss' ? 'danger' : ''}" type="button" data-cap="${k}" data-action="${action}"><kbd>${keys[i]}</kbd>${label}</button>`).join('')}</div>
+      ${view.opNote === noteKey ? opNoteHTML(noteKey, `what should change in ${entry.b.id}…`) : ''}
+      ${askHTML(`issue|${logKey}|${finding.id}`, finding.id)}`;
+  }
+
+  // Cap-hit card on Home (P6 Q6b): derived from Beads, not an ernie question (no Q<n>, never in Answered)
+  function capCardHTML(x) {
+    const k = `${view.wt}|cap:${x.b.id}`;
+    const on = k === view.selectedQuestion;
+    const finding = openFindings(view.wt, x.b)[0];
+    const body = !on ? '' : `<div class="qf-body"><dl class="gut">
+      <dt>Bead</dt><dd><div class="chips">${beadChip(x)}</div></dd>
+      <dt>Reviews</dt><dd>${beadRoundsHTML(view.wt, x.b)}</dd>
+      <dt>Open finding</dt><dd><div class="linked">${linkHTML(view.wt, finding.id)}</div></dd>
+      ${finding.impact ? `<dt>If skipped</dt><dd class="impact">${esc(finding.impact)}</dd>` : ''}
+      <dt>Decide</dt><dd>${capChoicesHTML(x, ['1', '2', '3', '4'])}<div class="qf-keys">j / k next question · 1–4 pick · / ask</div></dd></dl></div>`;
+    return `<div class="qf-item ${on ? 'sel' : ''}"><button class="qf-line" type="button" data-question="${esc(k)}">
+      <span class="n">${glyph('blocked', '⚑', 'review cap · from Beads, not an ernie question')}</span><span class="t">${esc(capLine(view.wt, x.b))}</span>
+      <span class="s">from Beads · ${esc(epicLabel(x.ep))}</span></button>${body}</div>`;
+  }
+  const capCards = logKey => beadsOf(logKey).filter(x => capHit(logKey, x.b));
+
+  // Page ops that wait for the next prompt get a qid and an undo(); Undo before the prompt puts the page back
+  let nextQid = 1;
+  function queueOp(entry, undo = () => {}) {
+    view.queued.push({ ...entry, qid: nextQid++, undo });
+    view.opNote = null;
+    renderAll();
+  }
+
+  function undoOp(qid) {
+    const entry = view.queued.find(q => q.qid === qid);
+    if (!entry) return;
+    entry.undo();
+    view.queued = view.queued.filter(q => q !== entry);
+    renderAll();
+  }
+
+  // One queued op as a line with its Undo; finding changes undo through `issue set` like the Issues tab
+  const sentLine = q => `<div class="qf-sent">→ ${esc(q.label)} · goes with your next prompt ${q.qid
+    ? `<button class="btn" type="button" data-undo="${q.qid}">Undo</button>`
+    : `<button class="btn" type="button" data-issue-set="${esc(q.key)}|${esc(q.issueId)}" data-to="${esc(q.from)}">Undo</button>`}</div>`;
+
+  const opNoteHTML = (noteKey, placeholder) => `<form class="other op-note" data-op-note="${esc(noteKey)}">
+    <input name="text" maxlength="500" placeholder="${esc(placeholder)}" aria-label="${esc(placeholder)}"><button class="btn btn--primary" type="submit">Send</button>
+    <button class="btn" type="button" data-op-note-cancel>Cancel</button></form>`;
+
+  function openNote(noteKey) {
+    view.opNote = noteKey;
+    renderAll();
+    document.querySelector('[data-op-note] input')?.focus();
+  }
+
+  // Ask field (spec D14): your question about the item goes with the next prompt; the item stays open
+  function askHTML(askKey, what) {
+    const asks = view.queued.filter(q => q.askKey === askKey);
+    return `<form class="other ask" data-ask-form="${esc(askKey)}"><input name="text" maxlength="500" placeholder="ask about this…" aria-label="Ask about ${esc(what)}"><button class="btn" type="submit">Send</button></form>
+      ${asks.map(q => `<div class="qf-sent">asked “${esc(q.text)}” · goes with your next prompt <button class="btn" type="button" data-undo="${q.qid}">Undo</button></div>`).join('')}`;
+  }
+
+  function askAbout(askKey, text) {
+    const [kind, logKey, id] = askKey.split('|');
+    const label = `${id}: you ask "${text}"`;
+    logRow(logKey, { by: 'user', t: kind, op: 'ask', text: label });
+    queueOp({ key: logKey, label, askKey, text });
+  }
+
+  // Gate answers (P6 Q3): Approve resolves the human gate as soon as the page writes it (like approving a finding);
+  // the others wait for Claude. All of them can be undone until the next prompt
+  function gateAction(epicKey, action, note = '') {
+    const [logKey, epicId] = epicKey.split('|');
+    const ep = (S.states[logKey].epics || []).find(x => x.id === epicId);
+    const s = ep && gateWaiting(logKey, ep);
+    if (!s) return;
+    const g = GATE[s.kind];
+    const entry = { key: logKey, gateKey: epicKey, stageKind: s.kind };
+    view.epicOpen = true;
+    let undo;
+    if (action === 'approve') {
+      const before = { state: s.state, at: s.at };
+      Object.assign(s, { state: 'done', at: 'today' });
+      entry.label = `${epicId} ${g.gate} → approved`;
+      undo = () => Object.assign(s, before);
+    } else if (action === 'again') {
+      const ticked = s.kind === 'approve-breakdown' ? tickedIn({ ep }) : [];
+      entry.label = `${epicId}: ${g.again.toLowerCase()}${ticked.length ? ` (ticked: ${ticked.join(', ')})` : ''}`;
+    } else {
+      entry.label = `${epicId} ${g.gate}: request changes "${note}"`;
+    }
+    logRow(logKey, { by: 'user', t: 'gate', op: action, text: entry.label });
+    queueOp(entry, undo);
+  }
+
+  // Bead ops that wait for the next prompt: Review again (one more fresh review round, any bead) and Request changes
+  // (a cap-hit bead: Claude reworks it from your note)
+  function beadOp(beadKey, op, note = '') {
+    const [logKey, , beadId] = beadKey.split('|');
+    const label = op === 'changes' ? `${beadId}: request changes "${note}"` : `${beadId}: review again`;
+    logRow(logKey, { by: 'user', t: 'bead', op, text: label });
+    queueOp({ key: logKey, label, beadId, beadOp: op === 'changes' ? 'request changes' : 'review again', capBead: capHit(logKey, beadEntry(beadKey).b) });
+  }
+  const beadEntry = beadKey => beadsOf(beadKey.split('|')[0]).find(x => x.key === beadKey);
+
+  // A cap-hit choice from the bead's Decide row or the Home card
+  function capPick(beadKey, action, note = '') {
+    const [logKey] = beadKey.split('|');
+    const entry = beadEntry(beadKey);
+    if (!entry || !capHit(logKey, entry.b)) return;
+    const finding = openFindings(logKey, entry.b)[0];
+    if (action === 'changes' && !note) return openNote(`cap|${beadKey}`);
+    if (action === 'approve') return setIssue(`${logKey}|${finding.id}`, 'approved', null, true);
+    if (action === 'dismiss') return setIssue(`${logKey}|${finding.id}`, 'dismissed', entry.b, true);
+    beadOp(beadKey, action, note);
+  }
+
+  // Send back (Beads workflow Q5): the page runs `bd create` at once: a bug bead discovered-from the closed bead, your note
+  // as its description, label review:user, no gate (pre-approved), ticked to the end of the queue. The bead stays closed
+  function sendBack(beadKey, note) {
+    const [logKey, , beadId] = beadKey.split('|');
+    const st = S.states[logKey];
+    const id = `i${Math.max(0, ...st.issues.map(i => +i.id.slice(1) || 0)) + 1}`;
+    st.issues.push({ id, title: note.length > 80 ? `${note.slice(0, 79)}…` : note, status: 'approved', owner: 'us', parent: beadId,
+      labels: ['review:user'], cause: note, fix: 'Claude works it from your note when the queue reaches it.',
+      impact: `${beadId} stays closed, but its work is wrong until this lands.` });
+    st.queue.push(id);
+    view.opNote = null;
+    view.beadMsg = { beadKey, text: `Sent back · ${id} created, #${st.queue.length} in the queue` };
+    logRow(logKey, { by: 'user', t: 'bead', op: 'send back', text: `${id} ← ${beadId}: ${note}` });
+    renderAll();
+  }
+
+  // + Bead (Beads workflow Q8): the server runs `bd create -l wt:<branch>` at once (page-button pattern, no Claude turn)
+  function newBeadHTML() {
+    return `<article class="ws">
+      <div class="ws-meta"><span>new bead</span><span class="pill p-ours">Ad hoc</span></div>
+      <h2>+ Bead</h2>
+      <form class="bead-form" data-bead-form>
+        <dl class="gut">
+          <dt>Title</dt><dd><input type="text" name="title" maxlength="200" placeholder="what to do, in a few words" aria-label="Title"></dd>
+          <dt>Description</dt><dd><textarea name="what" maxlength="2000" placeholder="what done looks like, files, anything Claude needs" aria-label="Description"></textarea></dd>
+          <dt>Priority</dt><dd><select name="priority" aria-label="Priority"><option value="">none</option>${[0, 1, 2, 3, 4].map(p => `<option value="${p}">P${p}</option>`).join('')}</select></dd>
+          <dt>Queue</dt><dd><label><input type="checkbox" name="tick">tick into the queue</label></dd>
+        </dl>
+        <dl class="gut decide"><dt>Create</dt><dd class="wide"><p class="msg">The server runs <code>bd create -l wt:${esc(curLog().branch)}</code> right away; no Claude turn.</p>
+          <div class="kbtns"><button class="kbtn rec" type="submit">Create bead</button><button class="kbtn" type="button" data-bead-new><kbd>esc</kbd>Cancel</button></div></dd></dl>
+      </form></article>`;
+  }
+
+  function createBead(form) {
+    const st = cur();
+    const title = form.elements.title.value.trim();
+    if (!title) return form.elements.title.focus();
+    const taken = new Set(beadsOf(view.wt).map(x => x.b.id));
+    let id;
+    do { id = Math.random().toString(36).slice(2, 5); } while (taken.has(id));
+    const bead = { id, title, status: 'todo' };
+    const what = form.elements.what.value.trim();
+    if (what) bead.what = what;
+    if (form.elements.priority.value) bead.priority = Number(form.elements.priority.value);
+    st.adhoc.push(bead);
+    if (form.elements.tick.checked) st.queue.push(id);
+    Object.assign(view, { newBead: false, selectedEpic: `${view.wt}|${ADHOC}`, selectedBead: `${view.wt}|${ADHOC}|${id}` });
+    view.beadMsg = { beadKey: view.selectedBead, text: `Created ${id}${form.elements.tick.checked ? `, #${st.queue.length} in the queue` : ''}` };
+    logRow(view.wt, { by: 'user', t: 'bead', op: 'create', text: `${id} ${title}` });
+    renderAll();
+  }
+
+  // Planning keys that act on the right column: the gate in the epic detail, else the selected bead
+  function planActionKey(key) {
+    const { epic } = planSelection();
+    const pane = planPane(epic);
+    if (pane === 'epic') {
+      const s = epic && gateWaiting(view.wt, epic.ep);
+      const action = { a: 'approve', r: 'again', c: 'changes' }[key];
+      if (!s || !action) return false;
+      if (action === 'changes') openNote(`gate|${epic.key}`);
+      else gateAction(epic.key, action);
+      return true;
+    }
+    if (pane !== 'bead' || !view.selectedBead) return false;
+    const entry = beadEntry(view.selectedBead);
+    if (!entry) return false;
+    if (capHit(view.wt, entry.b)) {
+      const action = { a: 'approve', d: 'dismiss', r: 'again', c: 'changes' }[key];
+      if (action) capPick(entry.key, action);
+      return !!action;
+    }
+    if (key === 't' && (entry.b.status === 'todo' || entry.b.status === 'blocked')) { toggleTick(entry.key); return true; }
+    if (key === 'r' && !beadOpQueued(view.wt, entry.b)) { beadOp(entry.key, 'again'); return true; }
+    if (key === 'b' && entry.b.status === 'done') { openNote(`sendback|${entry.key}`); return true; }
+    return false;
   }
 
   // ---------- Issues tab ----------
@@ -958,7 +1594,7 @@
     const epic = (S.states[logKey].epics || []).find(ep => ep.id === iss.parent);
     if (epic) return { epic, label: 'PRD review', bead: null };
     const bead = beadsOf(logKey).find(x => x.b.id === iss.parent);
-    if (bead) return { epic: bead.ep.id === ADHOC ? null : bead.ep, label: `code review · ${bead.b.id}`, bead };
+    if (bead) return { epic: bead.ep.id === ADHOC ? null : bead.ep, label: `${isSentBack(iss) ? 'sent back' : 'code review'} · ${bead.b.id}`, bead };
     return { epic: null, label: 'ad hoc', bead: null };
   }
 
@@ -1075,7 +1711,8 @@
       </div>`;
   }
 
-  function setIssue(entryKey, status) {
+  // closeBead: Dismiss and close on a cap-hit bead also closes the bead; fromCap: picked on a cap-hit bead (Home lists its Undo)
+  function setIssue(entryKey, status, closeBead = null, fromCap = false) {
     const [key, id] = entryKey.split('|');
     const st = S.states[key];
     const iss = st.issues.find(i => i.id === id);
@@ -1083,11 +1720,15 @@
     const origin = prior ? prior.from : iss.status;
     iss.status = status;
     if (status !== 'approved') delete iss.quote;
+    // A bead closed along with its finding reopens when the finding's change is replaced or undone
+    if (prior?.bead) prior.bead.b.status = prior.bead.status;
+    const bead = closeBead && { b: closeBead, status: closeBead.status };
+    if (bead) closeBead.status = 'done';
     // Page action `issue set`: goes to that session's Claude on its next prompt.
     // Reason: setting it back to the status Claude already has cancels the queued change instead of sending a no-op
-    const label = status === 'explained' ? `${id} → explained (undo)` : `${id} → ${status}`;
+    const label = (status === 'explained' ? `${id} → explained (undo)` : `${id} → ${status}`) + (bead ? ` · ${closeBead.id} closed` : '');
     view.queued = view.queued.filter(q => q !== prior);
-    if (status !== origin) view.queued.push({ key, label, issueId: id, from: origin });
+    if (status !== origin) view.queued.push({ key, label, issueId: id, from: origin, bead, capBead: fromCap || prior?.capBead });
     st.activity.unshift({ ts: clock(), by: 'user', t: 'issue', op: 'set', text: label, fresh: true });
     renderAll();
   }
@@ -1335,9 +1976,11 @@
 
   // Open questions as a focus list: one line each with its status; the selected question opens with Context /
   // If wrong / Example / Answer in a left gutter. Keys on Home: j/k move, 1–9 answer, m need more context, u undo
-  function questionList(open) {
-    if (!open.some(q => `${view.wt}|${q.id}` === view.selectedQuestion)) view.selectedQuestion = open[0] ? `${view.wt}|${open[0].id}` : null;
-    return open.map((q, i) => {
+  // Cap-hit cards (derived from Beads, P6 Q6b) list first: until you pick, that bead's epic can't finish
+  function questionList(open, caps = []) {
+    const keys = homeKeys(open, caps);
+    if (!keys.includes(view.selectedQuestion)) view.selectedQuestion = keys[0] ?? null;
+    return caps.map(capCardHTML).join('') + open.map((q, i) => {
         const k = `${view.wt}|${q.id}`;
         const on = k === view.selectedQuestion;
         const sent = view.queued.find(x => x.questionKey === k);
@@ -1367,19 +2010,26 @@
       }).join('');
   }
 
+  // Keys of the Home focus list in order: cap-hit cards ("<log>|cap:<bead id>"), then open questions
+  const homeKeys = (open, caps) => [...caps.map(x => `${view.wt}|cap:${x.b.id}`), ...open.map(q => `${view.wt}|${q.id}`)];
+
   function stepQuestion(delta) {
-    const open = cur().questions.filter(isOpen);
-    const pos = open.findIndex(q => `${view.wt}|${q.id}` === view.selectedQuestion);
-    const next = open[pos + delta];
+    const keys = homeKeys(cur().questions.filter(isOpen), capCards(view.wt));
+    const next = keys[keys.indexOf(view.selectedQuestion) + delta];
     if (!next) return;
-    view.selectedQuestion = `${view.wt}|${next.id}`;
+    view.selectedQuestion = next;
     renderAll();
   }
 
-  // Home keys act on the selected question
+  // Home keys act on the selected question; on a cap-hit card 1–4 pick its choices
   function questionKey(key) {
     const k = view.selectedQuestion;
     if (!k) return;
+    if (k.includes('|cap:')) {
+      const action = { 1: 'approve', 2: 'dismiss', 3: 'again', 4: 'changes' }[key];
+      const bead = action && beadsOf(view.wt).find(x => `${view.wt}|cap:${x.b.id}` === k);
+      return bead && capPick(bead.key, action);
+    }
     const sent = view.queued.some(x => x.questionKey === k);
     if (key === 'u') return sent && undoAnswer(k);
     if (sent) return;
@@ -1389,19 +2039,26 @@
     if (choice) answerQuestion(k, choice, false);
   }
 
-  // Where work is: active epic, its active bead, and what `bd ready` would hand out next (todo, every dep done)
+  // Where work is: active epic, Now (P6 Q5: a bead's stage or a planning stage, derived from Beads), what `bd ready` would
+  // hand out next (todo, every dep done) and the queue in tick order
   function workCard() {
     const st = cur();
     const all = beadsOf(view.wt);
-    if (!all.length) return panel('Where work is', '', '<div class="empty">No epics or beads for this worktree.</div>');
+    if (!all.length && !(st.epics || []).length) return panel('Where work is', '', '<div class="empty">No epics or beads for this worktree.</div>');
     const activeEpic = (st.epics || []).find(ep => ep.status === 'active');
-    const activeBead = all.find(x => x.b.status === 'active' && (!activeEpic || x.ep === activeEpic)) || all.find(x => x.b.status === 'active');
+    const queue = st.queue.map(id => {
+      const bead = all.find(x => x.b.id === id);
+      if (bead) return beadChip(bead);
+      const iss = st.issues.find(i => i.id === id);
+      return iss ? issueChip(view.wt, iss) : '';
+    }).filter(Boolean);
     const doneIds = new Set(all.filter(x => x.b.status === 'done').map(x => x.b.id));
     const ready = all.filter(x => x.b.status === 'todo' && (x.b.deps || []).every(id => doneIds.has(id)));
     return panel('Where work is', '', `<div class="kv">
       ${activeEpic ? `<div><span class="k">Epic</span><span><button class="chip" type="button" data-epic-open="${esc(view.wt)}|${esc(activeEpic.id)}">${esc(epicLabel(activeEpic))}</button>${progressBar(activeEpic.beads)}</span></div>` : ''}
-      <div><span class="k">Now</span><span>${activeBead ? beadChip(activeBead) : '<span class="hint">no active bead</span>'}</span></div>
+      <div><span class="k">Now</span><span>${nowHTML(nowOf(view.wt))}</span></div>
       <div><span class="k">Ready</span>${ready.length ? `<div class="chips">${ready.slice(0, 3).map(beadChip).join('')}</div>` : '<span class="hint">nothing ready</span>'}</div>
+      ${queue.length ? `<div><span class="k">Queue</span><div class="chips">${queue.slice(0, 3).join('')}${queue.length > 3 ? `<span class="hint">+${queue.length - 3} more</span>` : ''}</div></div>` : ''}
     </div>`);
   }
 
@@ -1433,17 +2090,21 @@
   function renderHome() {
     const st = cur();
     const open = st.questions.filter(isOpen);
+    const caps = capCards(view.wt);
     const answered = st.questions.filter(q => !isOpen(q));
+    // A cap-hit card leaves the moment you pick (P6 Q6b); its Undo stays here until the next prompt, like a dismissed fact
+    const capSent = view.queued.filter(q => q.key === view.wt && q.capBead).map(sentLine).join('');
     const answeredList = answered.length
       ? `<ul class="answered">${answered.map(q => `<li><span class="item-id">${esc(q.id)}</span>${esc(q.text)}<br><span class="a">→ ${esc(q.answer)}</span></li>`).join('')}</ul>`
       : '<div class="empty">Nothing answered yet.</div>';
     document.getElementById('main').innerHTML = `${wtBanner()}
       <div class="tab-head"><h1>Home</h1>
-        <span class="meta">${open.length} open question${open.length === 1 ? '' : 's'} · ${answered.length} answered</span></div>
+        <span class="meta">${open.length} open question${open.length === 1 ? '' : 's'}${caps.length ? ` · ${caps.length} review cap` : ''} · ${answered.length} answered</span></div>
       <div class="home-top">${workCard()}${inboxPanel()}${notePanel()}</div>
-      ${open.length
-        ? questionList(open)
+      ${open.length || caps.length
+        ? questionList(open, caps)
         : '<div class="canvas" style="min-height:200px"><p>No open questions for this worktree.</p></div>'}
+      ${capSent ? `<div style="margin-top:12px">${capSent}</div>` : ''}
       <div class="home-bottom">${panel('Answered', answered.length, answeredList)}${opsPanel()}</div>`;
   }
 
@@ -1556,6 +2217,7 @@
     renderPicker();
     renderTabs();
     renderSettings();
+    renderNowStrip();
     if (view.active === 'planning') renderPlanning();
     else if (view.active === 'issues') renderIssues();
     else if (view.active === 'facts') renderFacts();
@@ -1600,22 +2262,60 @@
     // Epic and bead chips can sit on other tabs (a decision's ref, a finding's source); they open the Planning tab
     const epicOpen = t.closest('[data-epic-open]');
     if (epicOpen) {
+      if (epicOpen.dataset.epicOpen !== view.selectedEpic) Object.assign(view, { epicOpen: null, auditOpen: false, newBead: false, opNote: null });
       view.selectedEpic = epicOpen.dataset.epicOpen;
       return view.active === 'planning' ? renderAll() : openTab('planning');
     }
+    // The Now strip and Home's Now chip open an epic straight on its detail (a gate waiting on you, a running stage)
+    const epicDetailOpen = t.closest('[data-epic-detail-open]');
+    if (epicDetailOpen) {
+      view.selectedEpic = epicDetailOpen.dataset.epicDetailOpen;
+      Object.assign(view, { epicOpen: true, auditOpen: false, prdOpen: false, newBead: false, opNote: null });
+      return view.active === 'planning' ? renderAll() : openTab('planning');
+    }
+    const tick = t.closest('[data-tick]');
+    if (tick) return toggleTick(tick.dataset.tick);
     const beadOpen = t.closest('[data-bead-open]');
     if (beadOpen) {
       const [logKey, epicId] = beadOpen.dataset.beadOpen.split('|');
       view.wt = logKey;
       view.selectedEpic = `${logKey}|${epicId}`;
       view.selectedBead = beadOpen.dataset.beadOpen;
-      view.prdOpen = false;
+      Object.assign(view, { prdOpen: false, epicOpen: false, auditOpen: false, newBead: false, opNote: null });
       return view.active === 'planning' ? renderAll() : openTab('planning');
     }
     if (t.closest('[data-prd-toggle]')) {
       view.prdOpen = !view.prdOpen;
+      view.newBead = false;
       return renderAll();
     }
+    const epicDetail = t.closest('[data-epic-detail]');
+    if (epicDetail) {
+      Object.assign(view, { epicOpen: !epicDetail.classList.contains('sel'), auditOpen: false, prdOpen: false, newBead: false });
+      return renderAll();
+    }
+    if (t.closest('[data-audit-open]') || t.closest('[data-audit-close]')) {
+      view.auditOpen = !!t.closest('[data-audit-open]');
+      return renderAll();
+    }
+    if (t.closest('[data-bead-new]')) {
+      Object.assign(view, { newBead: !view.newBead, prdOpen: false });
+      renderAll();
+      return view.newBead && document.querySelector('[data-bead-form] input[name=title]')?.focus();
+    }
+    const gate = t.closest('[data-gate]');
+    if (gate) {
+      return gate.dataset.action === 'changes' ? openNote(`gate|${gate.dataset.gate}`) : gateAction(gate.dataset.gate, gate.dataset.action);
+    }
+    const cap = t.closest('[data-cap]');
+    if (cap) return capPick(cap.dataset.cap, cap.dataset.action);
+    const beadOpBtn = t.closest('[data-bead-op]');
+    if (beadOpBtn) return beadOp(beadOpBtn.dataset.beadOp, beadOpBtn.dataset.action);
+    const sendBackBtn = t.closest('[data-sendback]');
+    if (sendBackBtn) return openNote(`sendback|${sendBackBtn.dataset.sendback}`);
+    if (t.closest('[data-op-note-cancel]')) { view.opNote = null; return renderAll(); }
+    const undo = t.closest('[data-undo]');
+    if (undo) return undoOp(Number(undo.dataset.undo));
     const prdJump = t.closest('[data-prd-jump]');
     if (prdJump) return document.getElementById(prdJump.dataset.prdJump)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     const issueJump = t.closest('[data-issue-jump]');
@@ -1691,6 +2391,29 @@
   });
 
   document.addEventListener('submit', e => {
+    // Note boxes for page ops: Request changes on a gate or a cap-hit bead, Send back on a closed bead
+    const opNote = e.target.closest('[data-op-note]');
+    if (opNote) {
+      e.preventDefault();
+      const text = opNote.elements.text.value.trim();
+      if (!text) return opNote.elements.text.focus();
+      const [kind, ...rest] = opNote.dataset.opNote.split('|');
+      const target = rest.join('|');
+      if (kind === 'gate') return gateAction(target, 'changes', text);
+      if (kind === 'cap') return capPick(target, 'changes', text);
+      return sendBack(target, text);
+    }
+    const askForm = e.target.closest('[data-ask-form]');
+    if (askForm) {
+      e.preventDefault();
+      const text = askForm.elements.text.value.trim();
+      return text && askAbout(askForm.dataset.askForm, text);
+    }
+    const beadForm = e.target.closest('[data-bead-form]');
+    if (beadForm) {
+      e.preventDefault();
+      return createBead(beadForm);
+    }
     const noteForm = e.target.closest('[data-note-form]');
     if (noteForm) {
       e.preventDefault();
@@ -1731,7 +2454,9 @@
 
   // Settings: `,` opens or closes, esc closes. Any tab: g then h/p/i/f/s/a/l switches tab. Files keys: j/k (or [ ]) prev/next.
   // Scratch keys: j/k (or [ ]) prev/next pad, o open/close. Home keys: j/k, 1–9, m, u (open
-  // questions). Planning keys: j/k (or [ ]) prev/next bead, { } prev/next epic, p PRD, esc back. Issues keys: j/k (or [ ])
+  // questions; on a cap-hit card 1–4 pick, / ask). Planning keys: j/k (or [ ]) prev/next bead, { } prev/next epic, p PRD,
+  // e epic detail, n + Bead (Ad hoc), / ask, esc back; on a gate a approve, r review / polish again, c request changes; on a
+  // bead t tick, r review again, b send back (closed); on a cap-hit bead a / d / r / c. Issues keys: j/k (or [ ])
   // prev/next, a approve, d dismiss, u undo. Ignored while typing.
   const GO_KEYS = { h: 'home', p: 'planning', i: 'issues', f: 'facts', s: 'scratch', a: 'files', l: 'log' };
   let goPending = 0; // time `g` was pressed; the next key within 1 s picks a tab
@@ -1739,6 +2464,12 @@
     if (view.settingsOpen && e.key === 'Escape') {
       toggleSettings(false);
       return document.getElementById('settings-btn').focus();
+    }
+    // esc inside a page-op note box or the + Bead form closes it
+    if (e.key === 'Escape' && e.target.closest?.('[data-op-note], [data-bead-form]')) {
+      if (e.target.closest('[data-op-note]')) view.opNote = null;
+      else view.newBead = false;
+      return renderAll();
     }
     if (e.target.closest?.('input, select, textarea') || e.metaKey || e.ctrlKey) return;
     if (e.key === ',') return toggleSettings();
@@ -1749,15 +2480,47 @@
       return GO_KEYS[e.key] && openTab(GO_KEYS[e.key]);
     }
     if (e.key === 'g') { goPending = Date.now(); return; }
+    // `/` jumps to the ask field of what's open (a cap-hit card, a gate, a cap-hit bead)
+    const askField = document.querySelector('#main [data-ask-form] input');
+    if (e.key === '/' && askField && (view.active === 'home' || view.active === 'planning')) {
+      e.preventDefault();
+      return askField.focus();
+    }
     if (view.active === 'home') {
       if (e.key === 'j' || e.key === 'k') return stepQuestion(e.key === 'j' ? 1 : -1);
+      // Reason: 4 on a cap-hit card opens a note box; without this the 4 lands in it
+      if (view.selectedQuestion?.includes('|cap:')) e.preventDefault();
       return questionKey(e.key);
     }
     if (view.active === 'planning') {
-      if (e.key === 'p' || (e.key === 'Escape' && view.prdOpen)) {
-        view.prdOpen = e.key === 'p' ? !view.prdOpen : false;
+      const { epic } = planSelection();
+      const pane = planPane(epic);
+      if (e.key === 'Escape') {
+        if (view.opNote) view.opNote = null;
+        else if (pane === 'new') view.newBead = false;
+        else if (pane === 'prd') view.prdOpen = false;
+        else if (pane === 'audit') view.auditOpen = false;
+        else if (pane === 'epic') view.epicOpen = false;
+        else return;
         return renderAll();
       }
+      if (e.key === 'p') {
+        view.prdOpen = !view.prdOpen;
+        view.newBead = false;
+        return renderAll();
+      }
+      if (e.key === 'e' && epic && epic.ep.id !== ADHOC) {
+        Object.assign(view, { epicOpen: !(pane === 'epic' || pane === 'audit'), auditOpen: false, prdOpen: false, newBead: false });
+        return renderAll();
+      }
+      if (e.key === 'n' && epic?.ep.id === ADHOC) {
+        Object.assign(view, { newBead: true, prdOpen: false });
+        e.preventDefault();
+        renderAll();
+        return document.querySelector('[data-bead-form] input[name=title]')?.focus();
+      }
+      // c and b open a note box; keep the letter out of it
+      if (['a', 'b', 'c', 'd', 'r', 't'].includes(e.key) && planActionKey(e.key)) return e.preventDefault();
       const step = { k: () => stepBead(-1), j: () => stepBead(1), '[': () => stepBead(-1), ']': () => stepBead(1), '{': () => stepEpic(-1), '}': () => stepEpic(1) }[e.key];
       return step?.();
     }
@@ -1810,6 +2573,7 @@
       st.activity.length = Math.min(st.activity.length, 350);
       log.session.lastEventAgo = '0s';
     });
+    renderNowStrip();
     // Only the picked worktree's rows count toward the Tool log badge
     if (working.some(l => l.key === view.wt)) {
       if (view.active === 'log') renderFeed();

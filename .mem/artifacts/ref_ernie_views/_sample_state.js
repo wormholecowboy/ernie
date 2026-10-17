@@ -714,3 +714,125 @@ ERNIE_SAMPLE.states['glue/CDIT-2631-ga4-dedupe'].scratch = [
     ],
     end: 'Same listing, two keys. Normalizing page_location before step 4 makes both a91f… (i1).' },
 ];
+
+// ---------- view-only: P6 review visualization for 00-template (additive; the older views ignore these fields) ----------
+// Epic `stages`: the P2 plan history, one entry per stage in order. state: done · now · waiting (on you) · todo.
+// PRD rounds count findings; polish rounds count edits (one epic comment each). `since` = when the running or waiting
+// stage started. Audit gaps and uncited beads are computed by the page from each bead's `cites` (`metadata.prd`, the PRD
+// sections it covers); `dupes` is the titles-only pass (pairs of bead ids).
+// Bead fields: `reviews` = finished code-review rounds; `stage: 'review'` = a round is running (round reviews.length + 1);
+// `since` = when the bead was claimed. In-progress bead + reviews at the cap + an open finding = cap hit (Home card).
+// `queue` per worktree: ticked bead ids in tick order (ernie queue; Claude takes the first ticked bead that is ready).
+{ // block scope: keeps the helpers out of the globals the older views share
+  const dedupe = ERNIE_SAMPLE.states['glue/CDIT-2631-ga4-dedupe'];
+  const epicOf = (st, id) => st.epics.find(ep => ep.id === id);
+  const beadOf = (st, id) => st.epics.flatMap(ep => ep.beads).find(b => b.id === id);
+
+  // E3's PRD gains the section the audit finds no bead for; E3 now waits on you to approve its breakdown
+  DEDUPE_PRDS.E3.md += `
+
+## Rollback
+- If stage counts drift after the merge, revert the sessions view to the previous version.
+- The loader change is backward compatible and stays in.`;
+  DEDUPE_PRDS.E3.plan = 'breakdown-review';
+
+  epicOf(dedupe, 'E1').stages = [
+    { kind: 'prd', state: 'done', rounds: [{ n: 1, found: 1, note: '1 found, fixed in the PRD' }, { n: 2, found: 0 }] },
+    { kind: 'approve-prd', state: 'done', at: 'Oct 9' },
+    { kind: 'breakdown', state: 'done', beads: 2 },
+    { kind: 'polish', state: 'done', rounds: [{ n: 1, edits: 2, major: 0 }, { n: 2, edits: 0 }] },
+    { kind: 'audit', state: 'done', at: 'Oct 9' },
+    { kind: 'approve-breakdown', state: 'done', at: 'Oct 9' },
+    { kind: 'build', state: 'done', at: 'Oct 11' },
+  ];
+  epicOf(dedupe, 'E2').stages = [
+    { kind: 'prd', state: 'done', rounds: [
+      { n: 1, found: 2, ids: ['i2'], note: 'i2 approved and fixed · 1 dismissed' },
+      { n: 2, found: 1, note: '1 found, fixed in the PRD' },
+      { n: 3, found: 0 }] },
+    { kind: 'approve-prd', state: 'done', at: 'Oct 12' },
+    { kind: 'breakdown', state: 'done', beads: 4 },
+    { kind: 'polish', state: 'done', rounds: [{ n: 1, edits: 4, major: 1 }, { n: 2, edits: 1, major: 0 }, { n: 3, edits: 0 }] },
+    { kind: 'audit', state: 'done', at: 'Oct 13' },
+    { kind: 'approve-breakdown', state: 'done', at: 'Oct 13' },
+    { kind: 'build', state: 'now', since: 'Oct 13' },
+  ];
+  epicOf(dedupe, 'E3').stages = [
+    { kind: 'prd', state: 'done', rounds: [{ n: 1, found: 1, note: '1 found, fixed in the PRD' }, { n: 2, found: 0 }] },
+    { kind: 'approve-prd', state: 'done', at: 'Oct 14' },
+    { kind: 'breakdown', state: 'done', beads: 4 },
+    { kind: 'polish', state: 'done', rounds: [{ n: 1, edits: 3, major: 1 }, { n: 2, edits: 0 }] },
+    { kind: 'audit', state: 'done', at: '13:58', dupes: [['3.2', '3.3']] },
+    { kind: 'approve-breakdown', state: 'waiting', since: '13:58' },
+    { kind: 'build', state: 'todo' },
+  ];
+
+  // 2.4 hit the review cap: five rounds, the fifth still found something (i6, waiting on you)
+  epicOf(dedupe, 'E2').beads.push(
+    { id: '2.4', title: 'Fail the nightly load on duplicate keys', status: 'active', deps: ['1.2'], since: '13:12',
+      what: 'After each nightly load, count duplicate dedupe keys and fail the run above 0.1%.', files: ['loader/checks.py'],
+      doneWhen: [{ text: 'Nightly run fails on a seeded duplicate', done: true }, { text: 'No false failures on 7 past nights', done: false }],
+      reviews: [{ n: 1, found: 2 }, { n: 2, found: 1 }, { n: 3, found: 1 }, { n: 4, found: 1 }, { n: 5, found: 1, ids: ['i6'] }] });
+  dedupe.issues.push({
+    id: 'i6', title: 'Duplicate-key check counts across properties', status: 'explained', owner: 'us', parent: '2.4',
+    cause: 'The check groups by dedupe_key only, so one key loaded for two properties of the same dealer counts as a duplicate.',
+    fix: 'Group by property_id and dedupe_key.',
+    impact: 'Nightly loads fail for the 14 dealers with more than one GA4 property.',
+    confidence: 'verified', method: 'SELECT dedupe_key, COUNT(DISTINCT property_id) FROM ga4_hits GROUP BY 1 HAVING COUNT(DISTINCT property_id) > 1',
+  });
+  // Two more E3 beads from the breakdown: 3.3 reads like 3.2 (titles-only dupe pass), 3.4 cites no PRD section
+  epicOf(dedupe, 'E3').beads.push(
+    { id: '3.3', title: 'Open a PR with the before/after table', status: 'todo', deps: ['3.1'],
+      what: 'Paste the before/after counts into the PR description.' },
+    { id: '3.4', title: 'Tidy the probe scripts', status: 'todo', what: 'Move scripts/probe_*.sql under sql/probes/.' });
+
+  Object.assign(beadOf(dedupe, '1.1'), { cites: ['Done when'], reviews: [{ n: 1, found: 0 }, { n: 2, found: 0 }] });
+  Object.assign(beadOf(dedupe, '1.2'), { cites: ['Done when'], reviews: [{ n: 1, found: 1, ids: ['i1'] }, { n: 2, found: 0 }] });
+  Object.assign(beadOf(dedupe, '2.1'), { cites: ['Approach', 'Data checks'], stage: 'review', since: '14:02',
+    reviews: [{ n: 1, found: 1, ids: ['i4'] }] });
+  Object.assign(beadOf(dedupe, '2.2'), { cites: ['Approach'] });
+  Object.assign(beadOf(dedupe, '2.3'), { cites: ['Approach', 'Data checks'] });
+  Object.assign(beadOf(dedupe, '2.4'), { cites: ['Data checks'] });
+  Object.assign(beadOf(dedupe, '3.1'), { cites: ['Steps', 'Done when'] });
+  Object.assign(beadOf(dedupe, '3.2'), { cites: ['Steps', 'Done when'] });
+  Object.assign(beadOf(dedupe, '3.3'), { cites: ['Steps'] });
+  dedupe.queue = ['2.3', 'p8q'];
+
+  // gsc-backfill: one epic still in planning, waiting on you to approve its PRD (no beads before the breakdown)
+  ERNIE_SAMPLE.states['glue/CDIT-2627-gsc-backfill'].epics = [{
+    id: 'E1', title: 'Backfill GSC', status: 'todo',
+    goal: 'Every property has 16 months of GSC data with no truncated days.',
+    doneWhen: [{ text: 'Row counts match the GSC UI for 3 busy properties, 16 months', done: false }],
+    beads: [],
+    prd: { path: '.ernie/mem/CDIT-2627-gsc-backfill/artifacts/prd_gsc-backfill.md', plan: 'prd-review', review: 2, md: `# Backfill 16 months of GSC data
+
+## Problem
+GSC data starts in July for most properties. Reports that compare year over year show zeros before that.
+
+## Goal
+Every property has 16 months of GSC data, and no day is cut short by the 50k-row cap.
+
+## Approach
+1. Request one day at a time, one property at a time (d1: GSC quota is per property).
+2. Retry 429s with exponential backoff and jitter.
+3. Alarm when a day comes back with 0 rows.
+
+## Done when
+- Row counts match the GSC UI for 3 busy properties across 16 months.
+
+## Open questions
+- q2: run on prod tonight, or stage first?` },
+    stages: [
+      { kind: 'prd', state: 'done', rounds: [{ n: 1, found: 2, note: '2 found, both fixed in the PRD' }, { n: 2, found: 0 }] },
+      { kind: 'approve-prd', state: 'waiting', since: '13:40' },
+      { kind: 'breakdown', state: 'todo' },
+      { kind: 'polish', state: 'todo' },
+      { kind: 'audit', state: 'todo' },
+      { kind: 'approve-breakdown', state: 'todo' },
+      { kind: 'build', state: 'todo' },
+    ],
+  }];
+
+  // ernie/main: 0.4 is in progress but the session went idle, so the page flags it stalled
+  beadOf(ERNIE_SAMPLE.states['ernie/main'], '0.4').since = '11:58';
+}

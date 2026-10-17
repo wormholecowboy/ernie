@@ -79,6 +79,7 @@
 - [ui] P6 Q1 decided (2026-10-15): reviews show inside Planning, no new tab — epic review timeline (PRD review → breakdown → polish → your approvals), bead Reviews row (`r1 · 1 finding · r2 clean`); Issues stays where findings are acted on → ref_ernie_backlog.md "P6 review visualization"
 - [ui] P6 Q2 decided (2026-10-16): B — epic detail in right column via "Plan & reviews" row (key e), bead-style gutter Goal · Plan · Done when · PRD · Findings; Plan = one row per P2 stage, name column + what happened; opens by default while planning unfinished; done-when + PRD findings leave the orange box → ref_ernie_backlog.md "P6 review visualization"
 - [ui] P6 Q3–Q6 decided (2026-10-17): gate row = Approve · Polish again (PRD gate: Review again) · Request changes w/ note · ask field; Audit row opens full report (PRD section→beads map, uncited beads, possible dupes) in right column; Now on Home + Planning + top-bar strip (warn on waiting/stalled); cap-hit bead = glyph + Home card derived from Beads (no ernie item, stays in sync w/ Planning) → ref_ernie_backlog.md "P6 review visualization — DECIDED"
+- [ui] P6 in 00-template (2026-10-17): Planning keys e epic detail, n + Bead, / ask, esc steps back (note → audit → epic → bead); gate a/r/c; bead t tick, r review again, b send back; capped bead a/d/r/c; Home 1–4 on cap card; keys depend on right-column content, `g` prefix handled first
 ## reference
 - [ernie] spec → .mem/artifacts/spec_ernie.md
 - [ernie] build plan (phases, tasks, amendments A1–A114) → .mem/artifacts/plan_ernie_build.md
@@ -95,3 +96,4 @@
 - [ernie] P4 decisions (split log, F1–F3, Q1–Q6, final store map, drive-loss analysis) → .mem/artifacts/ref_ernie_backlog.md "P4 data model for state — DECIDED"
 - [ui] colour style guide (palette, surfaces, role map, components) → .mem/artifacts/ref_ernie_views/style-guide.html (tokens in _tokens.css)
 - [ui] readability review (applied/remaining, per tab) → .mem/artifacts/ref_ui_readability_review.md
+- [ui] P6 port assumptions (13 calls the backlog left open) → .mem/artifacts/ref_ui_p6_port.md
